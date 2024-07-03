@@ -6,6 +6,7 @@ class MathematicModel:
         # model instance
         self.model = cp_model.CpModel()
         self.variables = {}
+        self._define_sets()
         self._create_variables()
         self._add_constraints()
         self._set_objective()
@@ -15,6 +16,14 @@ class MathematicModel:
         self.variables['X'] = self.model.NewIntVar(0, 1, 'x')
         self.variables['Y'] = self.model.NewIntVar(0, 5, 'y')
         self.variables['Z'] = self.model.NewIntVar(0, 7, 'z')
+
+    def _define_sets(self):
+        # Définir les ensembles
+        self.P = range(self.n)  # Pièces à traiter
+        self.O = {p: ['op1', 'op2', 'op3'] for p in self.P}  # Opérations pour chaque pièce
+        self.Pro = range(2)  # Procédés
+        self.M = range(3)  # Modes d'exécution
+        self.S = range(3)  # Stations de chargement
 
     def _add_constraints(self):
         # Contraintes
