@@ -1,4 +1,5 @@
 from ortools.sat.python import cp_model
+import numpy as np
 
 
 class MathematicModel:
@@ -13,11 +14,11 @@ class MathematicModel:
 
     def _define_sets(self):
         # Définir les ensembles
-        self.P = range(self.n)  # Pièces à traiter
-        self.O = {p: ['op1', 'op2', 'op3'] for p in self.P}  # Opérations pour chaque pièce
-        self.Pro = ['pro1', 'pro2']  # Procédés
-        self.M = ['mA', 'mB', 'mC']  # Modes d'exécution
-        self.S = ['s1', 's2', 's3']  # Stations de chargement
+        self.P = np.arange(self.n)  # Pièces à traiter
+        self.O = np.array([['op1', 'op2', 'op3'] for _ in range(self.n)])  # Opérations pour chaque pièce
+        self.Pro = np.array(['pro1', 'pro2'])  # Procédés
+        self.M = np.array(['mA', 'mB', 'mC'])  # Modes d'exécution
+        self.S = np.array(['s1', 's2', 's3'])  # Stations de chargement
 
     def _create_variables(self):
         # Variables de décision
@@ -86,7 +87,7 @@ class MathematicModel:
                 setup_dur = self.parameters['setup_duration'][p] if p in self.parameters['setup_duration'] else 0
                 M = self.parameters['M'][o] if o in self.parameters['M'] else 0
                 L = self.parameters['L'][p] if p in self.parameters['L'] else 0
-        self.parameters['upper_bound_I'] += welding_dur + setup_dur + 3 * M + 2 * L
+                self.parameters['upper_bound_I'] += welding_dur + setup_dur + 3 * M + 2 * L
 
 
     def _add_constraints(self):
