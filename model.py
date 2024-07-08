@@ -36,7 +36,7 @@ class MathematicModel:
                 self.parameters['proc_needed'][(op, pro)] = 1 if self.operation_needs_procedure(op, pro) else 0
         
 
-        # Définir le paramètre is_large
+        # # Définir le paramètre is_large
         # 1 si la pièce p ∈ P est large, 0 sinon
         self.parameters['is_large'] = {}
         # # Initialiser toutes les pieces a 0, 'ne sont pas large'
