@@ -89,7 +89,7 @@ class MathematicModel:
                 L = self.parameters['L'][p] if p in self.parameters['L'] else 0
                 self.parameters['upper_bound_I'] += welding_dur + setup_dur + 3 * M + 2 * L
 
-
+'''
     def _add_constraints(self):
         # Contraintes
         self.model.Add(self.variables['X'] + self.variables['Y'] + self.variables['Z'] <= 20)
@@ -115,7 +115,7 @@ class MathematicModel:
 # Utiliser la classe pour résoudre le modèle
 optimization_model = MathematicModel()
 optimization_model.solve()
-
+'''
 
 
 
