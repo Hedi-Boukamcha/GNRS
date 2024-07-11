@@ -28,6 +28,39 @@ operations =[nombre_operations]
 jobs = [nombre_jobs]
 types = [nombre_types]
 
+jobs_set = set()
+operations_set = set()
+types_set = set()
+
+# Collecter les valeurs uniques de jobs, opérations et types
+for job_key, job_data in data.items():
+    jobs_set.add(job_key)  # Ajouter le nom du job à l'ensemble des jobs
+    for operation in job_data[0]["operations"]:
+        nombre_operations += 1
+        operations_set.add(operation["type"])  # Ajouter le type de l'opération à l'ensemble des opérations
+        types_set.add(operation["type"])  # Ajouter le type de l'opération à l'ensemble des types
+
+# Déterminer les nombres à partir des ensembles
+nombre_jobs = len(jobs_set)
+nombre_types = len(types_set)
+
+print(f"nombre_jobs: {nombre_jobs}")
+print(f"nombre_operations: {nombre_operations}")
+print(f"nombre_types: {nombre_types}")
+
+
+a = [[[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)] for type_ in range(nombre_types)]
+print(a)
+
+
+
+
+
+
+
+
+'''
+# Test 1
 
 for job_key in data.keys():
     if job_key.startswith('job_'):
@@ -54,20 +87,19 @@ for job_key in data.keys():
             print(f"Aucune opération trouvée pour {job_key}.")
 
 for job_key in data.keys():
-        if job_key.startswith('job_'):
-            job_data = data[job_key][0]  # Accéder au premier élément de la liste job_x
-            nombre_jobs += 1
+    if job_key.startswith('job_'):
+        job_data = data[job_key][0]  # Accéder au premier élément de la liste job_x
+        nombre_jobs += 1
+        
+        # Compter le nombre d'opérations pour chaque job
+        if 'operations' in job_data:
+            nombre_operations += len(job_data['operations'])
             
-            # Compter le nombre d'opérations pour chaque job
-            if 'operations' in job_data:
-                nombre_operations += len(job_data['operations'])
-                
-                # Parcourir les opérations pour compter le nombre de types
-                for index, operation in enumerate(job_data['operations'], start=1):
-                    if 'type' in operation:
-                        types_operations.add(operation['type'])  # Ajouter le type à l'ensemble
-    
-  
+            # Parcourir les opérations pour compter le nombre de types
+            for index, operation in enumerate(job_data['operations'], start=1):
+                if 'type' in operation:
+                    types_operations.add(operation['type'])  # Ajouter le type à l'ensemble
+
 nombre_types = len(types_operations)    
 # Afficher les résultats
 print(f"Nombre total de jobs : {nombre_jobs}")
@@ -76,7 +108,31 @@ print(f"Nombre total de types : {nombre_types}")
 
 a= [[[ 0 for op in range(nombre_operations)] for j in range(nombre_jobs)] for pro in range(nombre_types)]
 print(a)
-    
+
+print('######### test 2')
+
+# Déterminer le nombre de jobs
+m_jobs = len(data)
+
+# Déterminer le nombre maximum d'opérations par job
+m_operations = max(len(data[job][0]['operations']) for job in data)
+
+# Déterminer le nombre maximum de types d'opérations
+m_types = max(operation['type'] for job in data for job_data in data[job] for operation in job_data['operations']) + 1
+
+# Initialiser le tableau a avec des zéros
+a = [[[0 for _ in range(m_operations)] for _ in range(m_jobs)] for _ in range(m_types)]
+
+# Remplir le tableau a avec les données JSON
+for job_index, (job_name, job_data_list) in enumerate(data.items()):
+    for job_data in job_data_list:
+        for operation_index, operation in enumerate(job_data['operations']):
+            type_index = operation['type']
+            a[type_index][job_index][operation_index] = operation['pocessing_time']
+
+# Affichage du tableau a
+print(a)
+'''
 '''    # Extraire les dates de livraison, les temps de positionnement et les tailles
     due_dates = []
     pos_times = []
