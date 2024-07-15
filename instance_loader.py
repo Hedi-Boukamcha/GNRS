@@ -63,6 +63,16 @@ for job_index, (job, operations) in enumerate(data.items()):
 print(lp)
 
 
+print("##__parametre 3__##\n")
+
+ddp = [0] * nombre_jobs
+
+for job_index, (job, operations) in enumerate(data.items()):
+    ddp[job_index] = operations[0]['due_date']
+
+print(ddp)
+
+
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 
 
