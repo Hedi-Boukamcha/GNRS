@@ -30,7 +30,7 @@ jobs_set = set()
 operations_set = set()
 types_set = set()
 
-print("##__parametre 1__##\n")
+print("##__parametre 1__##")
 
 # Collecter les valeurs uniques de jobs, opérations et types
 for job_key, job_data in data.items():
@@ -49,28 +49,34 @@ print(f"nombre_operations: {nombre_operations}")
 print(f"nombre_types: {nombre_types}")
 
 a = [[[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)] for type_ in range(nombre_types)]
-print(a)
+print(a,"\n")
 
 
 
-print("##__parametre 2__##\n")
+print("##__parametre 2__##")
 
 lp = [0] * nombre_jobs
 
 for job_index, (job, operations) in enumerate(data.items()):
     lp[job_index] = operations[0]['big']
 
-print(lp)
+print(lp,"\n")
 
 
-print("##__parametre 3__##\n")
+print("##__parametre 5__##")
 
 ddp = [0] * nombre_jobs
 
 for job_index, (job, operations) in enumerate(data.items()):
     ddp[job_index] = operations[0]['due_date']
 
-print(ddp)
+print(ddp,"\n")
+
+
+print("##__parametre 6__##")
+
+welding_time = [[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)]
+print(welding_time,"\n")
 
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
