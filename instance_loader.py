@@ -34,7 +34,8 @@ types_set = set()
 #                                                  =*= I. Parameters =*=
 #====================================================================================================================
 
-print("##__parametre 1__##")
+
+print("\n ##__parametre 1__##")
 
 # Collecter les valeurs uniques de jobs, opérations et types
 for job_key, job_data in data.items():
@@ -117,6 +118,7 @@ print(f"\n La borne supérieure I est : {I}")
 #                                    =*= II. Historical data for dynamic scheduling =*=
 #====================================================================================================================
 
+
 print("\n ##__Historical data 1__##")
 
 # nbr of stations = 3
@@ -145,9 +147,49 @@ print(job_robot,"\n")
 #                                    =*= III. Decision variables =*=
 #====================================================================================================================
 
+
 print("\n ##__Decision variable 1__##")
+entry_station_date = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+for row in entry_station_date:
+    print(row)
 
 
+print("\n ##__Decision variable 2__##")
+delay = 0
+
+
+print("\n ##__Decision variable 3__##")
+exe_start = [[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)]
+for row in exe_start:
+    print(row)
+
+
+print("\n ##__Decision variable 4__##")
+job_load_date = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+for row in job_load_date:
+    print(row)
+
+
+print("\n ##__Decision variable 5__##")
+exe_mode = [[[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)] for _ in range(3)]
+for row in exe_mode:
+    print(row)
+
+
+print("\n ##__Decision variable 6__##")
+exe_before = [0 for _ in range(nombre_operations)]
+print(exe_before)
+
+
+print("\n ##__Decision variable 7__##")
+exe_parallel = [0 for _ in range(nombre_operations)]
+print(exe_parallel)
+
+
+print("\n ##__Decision variable 8__##")
+job_unload = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+for row in job_unload:
+    print(row)
 
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
