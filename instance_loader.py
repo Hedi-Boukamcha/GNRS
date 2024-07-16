@@ -73,7 +73,7 @@ print(ddp,"\n")
 
 print("##__parametre 6__##")
 
-welding_time = [[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)]
+welding_time = [[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)]
 print(welding_time,"\n")
 
 
@@ -96,8 +96,17 @@ M = 0
 
 
 print("##__parametre 10__##")
-I = 0
 
+I = 0
+# Calculer la borne supérieure I
+for job_index, (job_key, job_data) in enumerate(data.items()):
+    for operation_index, operation in enumerate(job_data[0]['operations']):
+        pos_p = job_data[0]['pos_time']
+        welding_time_value = welding_time[job_index][operation_index]
+        I += (welding_time_value + pos_p + 3 * M + 2 * L)
+
+# Afficher la borne supérieure I
+print(f"La borne supérieure I est : {I}")
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 
