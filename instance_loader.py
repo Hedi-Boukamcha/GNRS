@@ -15,7 +15,6 @@ print(nombre_jobs)
 
 # job = data['jobs']
 # print(job)
-# Parcourir chaque job
 
 # Initialiser des compteurs pour les opérations et les types
 nombre_jobs = 0
@@ -52,7 +51,6 @@ a = [[[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)] f
 print(a,"\n")
 
 
-
 print("##__parametre 2__##")
 
 lp = [0] * nombre_jobs
@@ -77,6 +75,28 @@ print("##__parametre 6__##")
 
 welding_time = [[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)]
 print(welding_time,"\n")
+
+
+print("##__parametre 7__##")
+
+pos_p = [0] * nombre_jobs
+
+for job_index, (job, operations) in enumerate(data.items()):
+    pos_p[job_index] = operations[0]['pos_time']
+
+print(pos_p,"\n")
+
+
+print("##__parametre 8__##")
+L = 0 
+
+
+print("##__parametre 9__##")
+M = 0
+
+
+print("##__parametre 10__##")
+I = 0
 
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
