@@ -20,6 +20,7 @@ print(nombre_jobs)
 nombre_jobs = 0
 nombre_operations = 0
 nombre_types = 0
+s = 3
 
 operations =[nombre_operations]
 jobs = [nombre_jobs]
@@ -28,6 +29,10 @@ types = [nombre_types]
 jobs_set = set()
 operations_set = set()
 types_set = set()
+
+#====================================================================================================================
+#                                                  =*= I. Parameters =*=
+#====================================================================================================================
 
 print("##__parametre 1__##")
 
@@ -47,11 +52,11 @@ print(f"nombre_jobs: {nombre_jobs}")
 print(f"nombre_operations: {nombre_operations}")
 print(f"nombre_types: {nombre_types}")
 
-a = [[[0 for piece in range(nombre_operations)] for job in range(nombre_jobs)] for type_ in range(nombre_types)]
-print(a,"\n")
+a = [[[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)] for _ in range(nombre_types)]
+for row in a:
+    print(row)
 
-
-print("##__parametre 2__##")
+print("\n ##__parametre 2__##")
 
 lp = [0] * nombre_jobs
 
@@ -61,7 +66,7 @@ for job_index, (job, operations) in enumerate(data.items()):
 print(lp,"\n")
 
 
-print("##__parametre 5__##")
+print("\n ##__parametre 5__##")
 
 ddp = [0] * nombre_jobs
 
@@ -71,13 +76,13 @@ for job_index, (job, operations) in enumerate(data.items()):
 print(ddp,"\n")
 
 
-print("##__parametre 6__##")
+print(" \n ##__parametre 6__##")
 
 welding_time = [[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)]
-print(welding_time,"\n")
+for row in welding_time:
+    print(row)
 
-
-print("##__parametre 7__##")
+print("\n ##__parametre 7__##")
 
 pos_p = [0] * nombre_jobs
 
@@ -87,16 +92,15 @@ for job_index, (job, operations) in enumerate(data.items()):
 print(pos_p,"\n")
 
 
-print("##__parametre 8__##")
+print("\n ##__parametre 8__##")
 L = 0 
 
 
-print("##__parametre 9__##")
+print("\n ##__parametre 9__##")
 M = 0
 
 
-print("##__parametre 10__##")
-
+print("\n ##__parametre 10__##")
 I = 0
 # Calculer la borne supérieure I
 for job_index, (job_key, job_data) in enumerate(data.items()):
@@ -106,7 +110,45 @@ for job_index, (job_key, job_data) in enumerate(data.items()):
         I += (welding_time_value + pos_p + 3 * M + 2 * L)
 
 # Afficher la borne supérieure I
-print(f"La borne supérieure I est : {I}")
+print(f"\n La borne supérieure I est : {I}")
+
+
+#====================================================================================================================
+#                                    =*= II. Historical data for dynamic scheduling =*=
+#====================================================================================================================
+
+print("\n ##__Historical data 1__##")
+
+# nbr of stations = 3
+job_station = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+for job_index, (job_key, job_data) in enumerate(data.items()):
+    big = job_data[0]['big']
+    if big == 1:
+        job_station[job_index][1] = 1
+
+for row in job_station:
+    print(row)
+
+
+print("\n ##__Historical data 2__##")
+
+job_modeB = [0 for _ in range(nombre_jobs)]
+print(job_modeB,"\n")
+
+
+print("\n ##__Historical data 3__##")
+job_robot = [0 for _ in range(nombre_jobs)]
+print(job_robot,"\n")
+
+
+#====================================================================================================================
+#                                    =*= III. Decision variables =*=
+#====================================================================================================================
+
+print("\n ##__Decision variable 1__##")
+
+
+
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 
