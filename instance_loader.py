@@ -216,6 +216,10 @@ def prec(p, p_prime, s):
     return result_prec  
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 
+print("\n ##__Constraint 23__##")
+def end(o, p):
+    return exe_start[p][o] + welding_time[p][o] + (pos_p[p] * exe_mode[p][o][2])
+
     
 
 '''if __name__ == "__main__":
