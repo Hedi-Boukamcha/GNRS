@@ -178,13 +178,14 @@ for row in exe_mode:
 
 
 print("\n ##__Decision variable 6__##")
-exe_before = [0 for _ in range(nombre_operations)]
-print(exe_before)
-
+exe_before = [[0 for _ in range(nombre_operations)] for _ in range(nombre_operations)]
+for row in exe_before:
+    print(row)
 
 print("\n ##__Decision variable 7__##")
-exe_parallel = [0 for _ in range(nombre_operations)]
-print(exe_parallel)
+exe_parallel = [[0 for _ in range(nombre_operations) for _ in range(nombre_jobs)]]
+for row in exe_parallel:
+    print(row)
 
 
 print("\n ##__Decision variable 8__##")
@@ -209,19 +210,36 @@ for job_index, (job_key, job_data) in enumerate(data.items()):
 #====================================================================================================================
 
 print("\n ##__Constraint 22__##")
-
-def prec(p, p_prime, s):
+def prec(o, o_prime, p, p_prime, s):
     # Calculer la borne supérieure
-    result_prec = 3 - exe_before[p] - job_loaded[p][s] - job_loaded[p_prime][s]
+    result_prec = 3 - exe_before[o][o_prime] - job_loaded[p][s] - job_loaded[p_prime][s]
     return result_prec  
-#return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 
 print("\n ##__Constraint 23__##")
 def end(o, p):
-    return exe_start[p][o] + welding_time[p][o] + (pos_p[p] * exe_mode[p][o][2])
+    result_end = exe_start[p][o] + welding_time[p][o] + (pos_p[p] * exe_mode[p][o][2])
+    return result_end
 
-    
 
+print("\n ##__Constraint 24__##") 
+def free(o, o_prime, p, p_prime, q):
+    for q in range(nombre_jobs):
+        for x in range(nombre_jobs):
+            if q != p and q != p_prime:
+
+    if (nombre_jobs == 2) :
+        result_free = end(o_prime, p_prime) - (3 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3])
+    else :
+        result_free = end(o_prime, p_prime) - (4 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3]
+                                            - exe_parallel[p_prime][o_prime] )
+    return result_free
+
+
+
+
+
+
+#return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 '''if __name__ == "__main__":
     nom_fichier = '1st_instance.json'
     data = lire_fichier_json(nom_fichier)
