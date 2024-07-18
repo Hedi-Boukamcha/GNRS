@@ -88,6 +88,7 @@ for row in welding_time:
 print("\n ##__parametre 7__##")
 
 pos_p = [0] * nombre_jobs
+
 for job_index, (job, operations) in enumerate(data.items()):
     pos_p[job_index] = operations[0]['pos_time']
 
@@ -216,7 +217,7 @@ def prec(p, p_prime, s):
     return result_prec  
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
 
-    
+
 
 '''if __name__ == "__main__":
     nom_fichier = '1st_instance.json'
