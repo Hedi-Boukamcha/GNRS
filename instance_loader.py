@@ -167,7 +167,7 @@ delay = 0
 
 
 print("\n ##__Decision variable 3__##")
-exe_start = [[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)]
+exe_start = [[0 for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
 for row in exe_start:
     print(row)
 
