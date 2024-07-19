@@ -55,7 +55,14 @@ print(f"nombre_jobs: {nombre_jobs}")
 print(f"nombre_operations: {nombre_operations}")
 print(f"nombre_types: {nombre_types}")
 
-a = [[[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)] for _ in range(nombre_types)]
+operations_by_job = []
+for job_key, job_data in data.items():
+    nombre_operations = len(job_data[0]['operations'])
+    operations_by_job.append(nombre_operations)
+print(operations_by_job)
+
+
+a = [[[0 for _ in range(nombre_types)] for p in range(operations_by_job[p])] for _ in range(nombre_jobs)]
 for row in a:
     print(row)
 
@@ -220,7 +227,7 @@ def end(o, p):
     result_end = exe_start[p][o] + welding_time[p][o] + (pos_p[p] * exe_mode[p][o][2])
     return result_end
 
-
+'''
 print("\n ##__Constraint 24__##") 
 def free(o, o_prime, p, p_prime, q):
     for q in range(nombre_jobs):
@@ -240,7 +247,7 @@ def free(o, o_prime, p, p_prime, q):
 
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
-'''if __name__ == "__main__":
+if __name__ == "__main__":
     nom_fichier = '1st_instance.json'
     data = lire_fichier_json(nom_fichier)
     a = extraire_caracteristiques(data)
