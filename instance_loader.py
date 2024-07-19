@@ -62,7 +62,7 @@ for job_key, job_data in data.items():
 print(operations_by_job)
 
 
-a = [[[0 for _ in range(nombre_types)] for p in range(operations_by_job[p])] for _ in range(nombre_jobs)]
+a = [[[0 for _ in range(nombre_types)] for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
 for row in a:
     print(row)
 
@@ -88,8 +88,8 @@ print(ddp,"\n")
 
 print(" \n ##__parametre 6__##")
 
-welding_time = [[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)]
-for row in welding_time:
+welding_time = [[0 for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
+for row in welding_time: 
     print(row)
 
 print("\n ##__parametre 7__##")
