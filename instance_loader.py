@@ -244,6 +244,18 @@ def free(n, o, o_prime, p, p_prime, ty):
                                                - exe_parallel[p][o_prime] + f)
     return result_free
 
+print("\n ##__Constraint 1__##")
+def c1(o, o_prime):
+    for o , o_prime in operations:
+        if (o == o_prime):
+            res1 = exe_before[o][o_prime] + exe_before[o_prime][o]
+            res1 = 1
+        else :
+            print("error c1")
+    return res1
+
+
+
 '''
 print("\n ##__Constraint 24__##") 
 def free(o, o_prime, p, p_prime, q):
