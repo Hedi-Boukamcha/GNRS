@@ -189,6 +189,7 @@ exe_before = [[0 for _ in range(nombre_operations)] for _ in range(nombre_operat
 for row in exe_before:
     print(row)
 
+
 print("\n ##__Decision variable 7__##")
 exe_parallel = [[0 for _ in range(nombre_operations) for _ in range(nombre_jobs)]]
 for row in exe_parallel:
@@ -226,6 +227,22 @@ print("\n ##__Constraint 23__##")
 def end(o, p):
     result_end = exe_start[p][o] + welding_time[p][o] + (pos_p[p] * exe_mode[p][o][2])
     return result_end
+
+print("\n ##__Constraint 24__##")
+def free(n, o, o_prime, p, p_prime, ty):
+    f = 0
+    for q in jobs :
+        if (q == p) and (q == p_prime):
+            print("verify (q == p) or (q == p_prime)")
+        else :
+            for x in operations:
+                f = +a[p][o][ty] * (exe_before[o][x] + exe_before[x][o_prime] - exe_before[o][o_prime])
+    if n==2 :
+        result_free = end(o_prime, p_prime) - (3 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3] )
+    else:
+        result_free = end(o_prime, p_prime) - (4 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3] 
+                                               - exe_parallel[p][o_prime] + f)
+    return result_free
 
 '''
 print("\n ##__Constraint 24__##") 
