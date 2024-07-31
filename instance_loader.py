@@ -185,7 +185,7 @@ for row in exe_mode:
 
 
 print("\n ##__Decision variable 6__##")
-exe_before = [[0 for _ in range(nombre_operations)] for _ in range(nombre_operations)]
+exe_before = [[0 for o_prime in range(nombre_operations)] for o in range(nombre_operations) for j in range(nombre_jobs)]
 for row in exe_before:
     print(row)
 
@@ -244,16 +244,21 @@ def free(n, o, o_prime, p, p_prime, ty):
                                                - exe_parallel[p][o_prime] + f)
     return result_free
 
-print("\n ##__Constraint 1__##")
+print("\n ##__Constraint 2__##")
 def c1(o, o_prime):
     for o , o_prime in operations:
         if (o == o_prime):
             res1 = exe_before[o][o_prime] + exe_before[o_prime][o]
             res1 = 1
         else :
-            print("error c1")
+            print("error c2")
     return res1
 
+
+print("\n ##__Constraint 3__##")
+def c2(o, o_prime):
+
+    return 
 
 
 '''
