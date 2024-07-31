@@ -66,36 +66,48 @@ a = [[[0 for _ in range(nombre_types)] for p in range(operations_by_job[p])] for
 for row in a:
     print(row)
 
+
 print("\n ##__parametre 2__##")
 lp = [0] * nombre_jobs
 for job_index, (job, operations) in enumerate(data.items()):
     lp[job_index] = operations[0]['big']
-
 print(lp,"\n")
 
 
+print("\n ##__parametre 3__##")
+fj = [0 for p in range(nombre_jobs)]
+
+
+print("\n ##__parametre 4__##")
+'''
+v = []
+for j in range(nombre_jobs):
+    v[j] = []
+    for o in range(nombre_operations):
+        if o != fj[j]:
+            v[j][o] = operations[o]
+        else:
+            v[j][o] = None
+'''
+
+
 print("\n ##__parametre 5__##")
-
 ddp = [0] * nombre_jobs
-
 for job_index, (job, operations) in enumerate(data.items()):
     ddp[job_index] = operations[0]['due_date']
-
 print(ddp,"\n")
 
 
 print(" \n ##__parametre 6__##")
-
 welding_time = [[0 for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
 for row in welding_time: 
     print(row)
 
-print("\n ##__parametre 7__##")
 
+print("\n ##__parametre 7__##")
 pos_p = [0] * nombre_jobs
 for job_index, (job, operations) in enumerate(data.items()):
     pos_p[job_index] = operations[0]['pos_time']
-
 print(pos_p,"\n")
 
 
@@ -126,7 +138,6 @@ print(f"\n La borne supérieure I est : {I}")
 
 
 print("\n ##__Historical data 1__##")
-
 # nbr of stations = 3
 job_station = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
 for job_index, (job_key, job_data) in enumerate(data.items()):
@@ -139,7 +150,6 @@ for row in job_station:
 
 
 print("\n ##__Historical data 2__##")
-
 job_modeB = [0 for _ in range(nombre_jobs)]
 print(job_modeB,"\n")
 
