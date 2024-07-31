@@ -67,9 +67,7 @@ for row in a:
     print(row)
 
 print("\n ##__parametre 2__##")
-
 lp = [0] * nombre_jobs
-
 for job_index, (job, operations) in enumerate(data.items()):
     lp[job_index] = operations[0]['big']
 
@@ -163,7 +161,7 @@ for row in entry_station_date:
 
 
 print("\n ##__Decision variable 2__##")
-delay = 0
+delay = [0 for _ in range(nombre_jobs)]
 
 
 print("\n ##__Decision variable 3__##")
@@ -179,7 +177,7 @@ for row in job_loaded:
 
 
 print("\n ##__Decision variable 5__##")
-exe_mode = [[[0 for _ in range(nombre_operations)] for _ in range(nombre_jobs)] for _ in range(3)]
+exe_mode = [[[0 for _ in range(nombre_operations)] for _ in range(3)] for _ in range(nombre_jobs)]
 for row in exe_mode:
     print(row)
 
@@ -191,7 +189,7 @@ for row in exe_before:
 
 
 print("\n ##__Decision variable 7__##")
-exe_parallel = [[0 for _ in range(nombre_operations) for _ in range(nombre_jobs)]]
+exe_parallel = [[0 for j in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for row in exe_parallel:
     print(row)
 
@@ -210,7 +208,7 @@ print("\n ##__Objective Fonction__##")
 min_Z = 0
 for job_index, (job_key, job_data) in enumerate(data.items()):
     #delay = job_data[0]['delay']
-    min_Z += delay
+    min_Z += delay[job_index]
 
 
 #====================================================================================================================
