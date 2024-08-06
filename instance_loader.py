@@ -3,74 +3,86 @@ import numpy as np
 import pandas as pd
 from ortools.sat.python import cp_model
 
+file_path = '1st_instance.json'
 
-def lire_fichier_json(nom_fichier):
-    data = pd.read_json(nom_fichier)
-    return data
+with open(file_path, 'r') as file:
+    data = json.load(file)
 
-nom_fichier = '1st_instance.json'
-data = lire_fichier_json(nom_fichier)
-jobs = list(data.keys())
-print(jobs)
-nombre_jobs = len(jobs)
-print(nombre_jobs)
+print(data)
 
-# job = data['jobs']
-# print(job)
+jobs = []
+operations = []
+types = []
+operation_type = []
+operations_by_job = []
+job_types = []
 
 # Initialiser des compteurs pour les opérations et les types
-nombre_jobs = 0
+nombre_jobs = len(data)
 nombre_operations = 0
 nombre_types = 0
+num_operations_by_job = 0
 s = 3
 
-operations =[nombre_operations]
-jobs = [nombre_jobs]
-types = [nombre_types]
 
-jobs_set = set()
-operations_set = set()
-types_set = set()
+print(f"Number of Jobs: {len(data)}")
+
+
+for job in data:
+    for operation in job['operations']:
+        operations.append(operation)
+        nombre_operations += 1
+print(f"Number of Operations: {nombre_operations}")
+
+
+'''for job in data:
+    for operation in job['operations']:
+        types.append(operation['type'])
+        nombre_types += 1
+print(f"Number of Types: {nombre_types}")'''
+
+
+for i, job in enumerate(data):
+    job_operations = len(job['operations'])
+    operations_by_job.append(job_operations)
+    num_operations_by_job += 1
+print(f"Operations by Job: {len(operations_by_job)}")
+
+
+for i, job in enumerate(data):
+    row = []
+    for operation in job['operations']:
+        row.append(operation['type'])
+    job_types.append(row)
+print(f"Types of jobs: {job_types}")
+    
+
+jobs = [nombre_jobs]
+types = [2]
+operations = [nombre_operations]
+          
 
 #====================================================================================================================
 #                                                  =*= I. Parameters =*=
 #====================================================================================================================
 
-
 print("\n ##__parametre 1__##")
-
-# Collecter les valeurs uniques de jobs, opérations et types
-for job_key, job_data in data.items():
-    jobs_set.add(job_key)  # Ajouter le nom du job à l'ensemble des jobs
-    for operation in job_data[0]["operations"]:
-        nombre_operations += 1
-        operations_set.add(operation["type"])  # Ajouter le type de l'opération à l'ensemble des opérations
-        types_set.add(operation["type"])  # Ajouter le type de l'opération à l'ensemble des types
-
-# Déterminer les nombres à partir des ensembles
-nombre_jobs = len(jobs_set)
-nombre_types = len(types_set)
 
 print(f"nombre_jobs: {nombre_jobs}")
 print(f"nombre_operations: {nombre_operations}")
 print(f"nombre_types: {nombre_types}")
 
-operations_by_job = []
-for job_key, job_data in data.items():
-    nombre_operations = len(job_data[0]['operations'])
-    operations_by_job.append(nombre_operations)
-print(operations_by_job)
 
-
-a = [[[0 for _ in range(nombre_types)] for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
-for row in a:
+needed_proc = [[[0 for _ in range(2)] for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
+for row in needed_proc:
     print(row)
 
 
+
 print("\n ##__parametre 2__##")
-lp = [0] * nombre_jobs
-for job_index, (job, operations) in enumerate(data.items()):
-    lp[job_index] = operations[0]['big']
+lp = []
+for job in data:
+    lp.append(job['big'])
 print(lp,"\n")
 
 
@@ -92,9 +104,9 @@ for j in range(nombre_jobs):
 
 
 print("\n ##__parametre 5__##")
-ddp = [0] * nombre_jobs
-for job_index, (job, operations) in enumerate(data.items()):
-    ddp[job_index] = operations[0]['due_date']
+ddp = []
+for job in data:
+    ddp.append(job['due_date'])
 print(ddp,"\n")
 
 
@@ -105,28 +117,27 @@ for row in welding_time:
 
 
 print("\n ##__parametre 7__##")
-pos_p = [0] * nombre_jobs
-for job_index, (job, operations) in enumerate(data.items()):
-    pos_p[job_index] = operations[0]['pos_time']
+pos_p = []
+for job in data:
+    pos_p.append(job['pos_time'])
 print(pos_p,"\n")
 
 
 print("\n ##__parametre 8__##")
-L = 0 
+L = 2
 
 
 print("\n ##__parametre 9__##")
-M = 0
+M = 3
 
 
 print("\n ##__parametre 10__##")
 I = 0
 # Calculer la borne supérieure I
-for job_index, (job_key, job_data) in enumerate(data.items()):
-    for operation_index, operation in enumerate(job_data[0]['operations']):
-        pos_p = job_data[0]['pos_time']
-        welding_time_value = welding_time[job_index][operation_index]
-        I += (welding_time_value + pos_p + 3 * M + 2 * L)
+for j, job in enumerate(data):
+    for o, op in enumerate(job['operations']):
+        welding_time_value = welding_time[j][o]
+        I += (welding_time_value + pos_p[j] + 3 * M + 2 * L)
 
 # Afficher la borne supérieure I
 print(f"\n La borne supérieure I est : {I}")
