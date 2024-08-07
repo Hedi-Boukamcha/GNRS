@@ -1,6 +1,8 @@
 import json
 import numpy as np
 import pandas as pd
+import random
+
 from ortools.sat.python import cp_model
 
 file_path = '1st_instance.json'
@@ -123,10 +125,10 @@ for row in welding_time:
 
 
 print("\n ##__parametre 7__##")
-pos_p = []
+pos_j = []
 for job in data:
-    pos_p.append(job['pos_time'])
-print(pos_p,"\n")
+    pos_j.append(job['pos_time'])
+print(pos_j,"\n")
 
 
 print("\n ##__parametre 8__##")
@@ -143,10 +145,10 @@ I = 0
 for j, job in enumerate(data):
     for o, op in enumerate(job['operations']):
         welding_time_value = welding_time[j][o]
-        I += (welding_time_value + pos_p[j] + 3 * M + 2 * L)
+        I += (welding_time_value + pos_j[j] + 3 * M + 2 * L)
 
 # Afficher la borne supérieure I
-print(f"\n La borne supérieure I est : {I}")
+print(f"\n La borne supérieure I = {I}")
 
 
 #====================================================================================================================
@@ -199,10 +201,18 @@ for row in exe_start:
 
 print("\n ##__Decision variable 4__##")
 job_loaded = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+
+for j, job in enumerate(data):
+    if job["big"] == 1:
+        station = 1  # La station 2 pour les pièces avec "big" = 1
+    else:
+        # Répartition aléatoire pour les autres stations
+        station = random.choice([0, 1, 2])  # Par exemple, choisir entre la station 0 et 1
+    job_loaded[j][station] = 1
 for row in job_loaded:
     print(row)
 
-
+   
 print("\n ##__Decision variable 5__##")
 exe_mode = [[[0 for _ in range(3)] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for row in exe_mode:
@@ -250,7 +260,7 @@ def prec(o, o_prime, j, j_prime, s):
 
 print("\n ##__Constraint 23__##")
 def end(o, j):
-    result_end = exe_start[j][o] + welding_time[j][o] + (pos_p[j] * exe_mode[j][o][2])
+    result_end = exe_start[j][o] + welding_time[j][o] + (pos_j[j] * exe_mode[j][o][2])
     return result_end
 
 
