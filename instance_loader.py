@@ -26,7 +26,6 @@ nombre_types = 0
 num_operations_by_job = 0
 s = 3
 
-
 print(f"Number of Jobs: {len(data)}")
 
 
@@ -201,7 +200,6 @@ for row in exe_start:
 
 print("\n ##__Decision variable 4__##")
 job_loaded = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
-
 for j, job in enumerate(data):
     if job["big"] == 1:
         station = 1  # La station 2 pour les pièces avec "big" = 1
@@ -215,6 +213,13 @@ for row in job_loaded:
    
 print("\n ##__Decision variable 5__##")
 exe_mode = [[[0 for _ in range(3)] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+for j, job in enumerate(data):
+    for o, operation in enumerate(job['operations']):
+        if operation['type'] == 1:
+            mode = random.choice([[1, 0, 0], [0, 1, 0]])  # Mode A or B random
+        elif operation['type'] == 2:
+            mode = [0, 0, 1]  # Mode C
+        exe_mode[j][o] = mode
 for row in exe_mode:
     print(row)
 
