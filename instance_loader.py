@@ -74,10 +74,16 @@ print(f"nombre_types: {nombre_types}")
 
 
 needed_proc = [[[0 for _ in range(2)] for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
+
+for i, job in enumerate(data):
+    for j, operation in enumerate(job['operations']):
+        type_value = operation['type']
+        if type_value == 1:
+            needed_proc[i][j] = [1, 0]
+        elif type_value == 2:
+            needed_proc[i][j] = [0, 1]
 for row in needed_proc:
     print(row)
-
-
 
 print("\n ##__parametre 2__##")
 lp = []
@@ -151,10 +157,10 @@ print(f"\n La borne supérieure I est : {I}")
 print("\n ##__Historical data 1__##")
 # nbr of stations = 3
 job_station = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
-for job_index, (job_key, job_data) in enumerate(data.items()):
-    big = job_data[0]['big']
+for j, job in enumerate(data):
+    big = job['big']
     if big == 1:
-        job_station[job_index][1] = 1
+        job_station[j][1] = 1
 
 for row in job_station:
     print(row)
@@ -186,7 +192,7 @@ delay = [0 for _ in range(nombre_jobs)]
 
 
 print("\n ##__Decision variable 3__##")
-exe_start = [[0 for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
+exe_start = [[0 for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for row in exe_start:
     print(row)
 
@@ -198,19 +204,19 @@ for row in job_loaded:
 
 
 print("\n ##__Decision variable 5__##")
-exe_mode = [[[0 for _ in range(nombre_operations)] for _ in range(3)] for _ in range(nombre_jobs)]
+exe_mode = [[[0 for _ in range(3)] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for row in exe_mode:
     print(row)
 
 
 print("\n ##__Decision variable 6__##")
-exe_before = [[0 for o_prime in range(nombre_operations)] for o in range(nombre_operations) for j in range(nombre_jobs)]
+exe_before = [[[[0 for o_prime in range(operations_by_job[j_prime])] for o in range(operations_by_job[j])] for j_prime in range(nombre_jobs)] for j in range(nombre_jobs)]
 for row in exe_before:
     print(row)
 
 
 print("\n ##__Decision variable 7__##")
-exe_parallel = [[0 for j in range(operations_by_job[j])] for j in range(nombre_jobs)]
+exe_parallel = [[0 for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for row in exe_parallel:
     print(row)
 
@@ -227,41 +233,43 @@ for row in job_unload:
 
 print("\n ##__Objective Fonction__##")
 min_Z = 0
-for job_index, (job_key, job_data) in enumerate(data.items()):
-    #delay = job_data[0]['delay']
-    min_Z += delay[job_index]
-
+for j, job in enumerate(data):
+    min_Z += delay[j]
+print(f"min Z = {min_Z}")
 
 #====================================================================================================================
 #                                    =*= IV. Constraints =*=
 #====================================================================================================================
 
 print("\n ##__Constraint 22__##")
-def prec(o, o_prime, p, p_prime, s):
+def prec(o, o_prime, j, j_prime, s):
     # Calculer la borne supérieure
-    result_prec = 3 - exe_before[o][o_prime] - job_loaded[p][s] - job_loaded[p_prime][s]
+    result_prec = 3 - exe_before[o][o_prime] - job_loaded[j][s] - job_loaded[j_prime][s]
     return result_prec  
 
+
 print("\n ##__Constraint 23__##")
-def end(o, p):
-    result_end = exe_start[p][o] + welding_time[p][o] + (pos_p[p] * exe_mode[p][o][2])
+def end(o, j):
+    result_end = exe_start[j][o] + welding_time[j][o] + (pos_p[j] * exe_mode[j][o][2])
     return result_end
 
+
 print("\n ##__Constraint 24__##")
-def free(n, o, o_prime, p, p_prime, ty):
+def free(n, o, o_prime, j, j_prime, ty):
     f = 0
     for q in jobs :
-        if (q == p) and (q == p_prime):
-            print("verify (q == p) or (q == p_prime)")
+        if (q == j) and (q == j_prime):
+            print("verify (q == p) or (q == j_prime)")
         else :
             for x in operations:
-                f = +a[p][o][ty] * (exe_before[o][x] + exe_before[x][o_prime] - exe_before[o][o_prime])
+                f = +needed_proc[j][o][ty] * (exe_before[o][x] + exe_before[x][o_prime] - exe_before[o][o_prime])
     if n==2 :
-        result_free = end(o_prime, p_prime) - (3 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3] )
+        result_free = end(o_prime, j_prime) - (3 - exe_before[o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3] )
     else:
-        result_free = end(o_prime, p_prime) - (4 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3] 
-                                               - exe_parallel[p][o_prime] + f)
+        result_free = end(o_prime, j_prime) - (4 - exe_before[o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3] 
+                                               - exe_parallel[j][o_prime] + f)
     return result_free
+
 
 print("\n ##__Constraint 2__##")
 def c1(j, o, o_prime):
@@ -283,21 +291,17 @@ def c2(o, o_prime):
 
 '''
 print("\n ##__Constraint 24__##") 
-def free(o, o_prime, p, p_prime, q):
+def free(o, o_prime, p, j_prime, q):
     for q in range(nombre_jobs):
         for x in range(nombre_jobs):
-            if q != p and q != p_prime:
+            if q != p and q != j_prime:
 
     if (nombre_jobs == 2) :
-        result_free = end(o_prime, p_prime) - (3 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3])
+        result_free = end(o_prime, j_prime) - (3 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3])
     else :
-        result_free = end(o_prime, p_prime) - (4 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3]
-                                            - exe_parallel[p_prime][o_prime] )
+        result_free = end(o_prime, j_prime) - (4 - exe_before[o][o_prime] - exe_mode[p][o][2] - exe_mode[p][o_prime][3]
+                                            - exe_parallel[j_prime][o_prime] )
     return result_free
-
-
-
-
 
 
 #return jobs #, np.array(due_dates), np.array(pos_times), np.array(bigs), operations
