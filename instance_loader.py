@@ -225,7 +225,7 @@ for row in exe_mode:
 
 
 print("\n ##__Decision variable 6__##")
-exe_before = [[[[0 for o_prime in range(operations_by_job[j_prime])] for o in range(operations_by_job[j])] for j_prime in range(nombre_jobs)] for j in range(nombre_jobs)]
+exe_before = [[[[1 for o_prime in range(operations_by_job[j_prime])] for o in range(operations_by_job[j])] for j_prime in range(nombre_jobs)] for j in range(nombre_jobs)]
 for row in exe_before:
     print(row)
 
