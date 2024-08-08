@@ -150,32 +150,6 @@ for j, job in enumerate(data):
 print(f"\n La borne supérieure I = {I}")
 
 
-#====================================================================================================================
-#                                    =*= II. Historical data for dynamic scheduling =*=
-#====================================================================================================================
-
-
-print("\n ##__Historical data 1__##")
-# nbr of stations = 3
-job_station = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
-for j, job in enumerate(data):
-    big = job['big']
-    if big == 1:
-        job_station[j][1] = 1
-
-for row in job_station:
-    print(row)
-
-
-print("\n ##__Historical data 2__##")
-job_modeB = [0 for _ in range(nombre_jobs)]
-print(job_modeB,"\n")
-
-
-print("\n ##__Historical data 3__##")
-job_robot = [0 for _ in range(nombre_jobs)]
-print(job_robot,"\n")
-
 
 #====================================================================================================================
 #                                    =*= III. Decision variables =*=
@@ -243,6 +217,38 @@ for row in job_unload:
 
 
 #====================================================================================================================
+#                                    =*= II. Historical data for dynamic scheduling =*=
+#====================================================================================================================
+
+
+print("\n ##__Historical data 1__##")
+# nbr of stations = 3
+job_station = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+for j, job in enumerate(data):
+    big = job['big']
+    if big == 1:
+        job_station[j][1] = 1
+
+for row in job_station:
+    print(row)
+
+
+print("\n ##__Historical data 2__##")
+job_modeB = [0 for _ in range(nombre_jobs)]
+for j in range(nombre_jobs):
+    for o in range(operations_by_job[j]):
+        if exe_mode[j][o][1] == 1:  # Vérifie si l'opération o du job j est en mode B
+            job_modeB[j] = 1
+            break
+print(job_modeB,"\n")
+
+
+print("\n ##__Historical data 3__##")
+job_robot = [0 for _ in range(nombre_jobs)]
+print(job_robot,"\n")
+
+
+#====================================================================================================================
 #                                    =*= IV. Objective Fonction =*=
 #====================================================================================================================
 
@@ -257,15 +263,18 @@ print(f"min Z = {min_Z}")
 #====================================================================================================================
 
 print("\n ##__Constraint 22__##")
-def prec(o, o_prime, j, j_prime, s):
+def prec(j, j_prime, s):
     # Calculer la borne supérieure
-    result_prec = 3 - exe_before[o][o_prime] - job_loaded[j][s] - job_loaded[j_prime][s]
+    result_prec = I * (3 - exe_before[j][j_prime][0][0] - job_loaded[j][s] - job_loaded[j_prime][s])
     return result_prec  
 
 
 print("\n ##__Constraint 23__##")
-def end(o, j):
-    result_end = exe_start[j][o] + welding_time[j][o] + (pos_j[j] * exe_mode[j][o][2])
+def end(j, o):
+    if o == 0:
+        result_end = exe_start[j][o] + welding_time[j][o] + ((pos_j[j] * exe_mode[j][o][2]) * (1))
+    else:
+        result_end = exe_start[j][o] + welding_time[j][o] + (pos_j[j] * exe_mode[j][o][2])
     return result_end
 
 
