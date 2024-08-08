@@ -272,7 +272,7 @@ def prec(j, j_prime, s):
 print("\n ##__Constraint 23__##")
 def end(j, o):
     if o == 0:
-        result_end = exe_start[j][o] + welding_time[j][o] + ((pos_j[j] * exe_mode[j][o][2]) * (1))
+        result_end = exe_start[j][o] + welding_time[j][o] + ((pos_j[j] * exe_mode[j][o][2]) * (1 - job_modeB[j]))
     else:
         result_end = exe_start[j][o] + welding_time[j][o] + (pos_j[j] * exe_mode[j][o][2])
     return result_end
