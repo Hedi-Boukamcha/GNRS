@@ -47,8 +47,7 @@ for i, job in enumerate(data):
     job_operations = len(job['operations'])
     operations_by_job.append(job_operations)
     num_operations_by_job += 1
-print(f"Operations by Job: {len(operations_by_job)}")
-
+print(f"Operations by Job: {num_operations_by_job}")
 
 for i, job in enumerate(data):
     row = []
@@ -281,12 +280,32 @@ def end(j, o):
 print("\n ##__Constraint 24__##")
 def free(n, o, o_prime, j, j_prime, ty):
     f = 0
-    for q in jobs :
+    terms = []
+    for q in range(nombre_jobs):
         if (q == j) and (q == j_prime):
-            print("verify (q == p) or (q == j_prime)")
+            print("verify (q != p) or (q != j_prime)")
         else :
-            for x in operations:
-                f = +needed_proc[j][o][ty] * (exe_before[o][x] + exe_before[x][o_prime] - exe_before[o][o_prime])
+            for x in range(num_operations_by_job):
+                term1 = terms.append(needed_proc[j][o][ty] * exe_before[o][x])
+                term2 = terms.append(needed_proc[j][o][ty] * exe_before[x][o_prime])
+                term3 = terms.append( (-1) * (needed_proc[j][o][ty] * exe_before[o][o_prime]))
+    f = sum(terms)
+    if n==2 :
+        result_free = end(o_prime, j_prime) - (3 - exe_before[o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3] )
+    else:
+        result_free = end(o_prime, j_prime) - (4 - exe_before[o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3] 
+                                               - exe_parallel[j][o_prime] + f)
+    return result_free
+
+
+print("\n ##__Constraint 24__##")
+def free(n, o, o_prime, j, j_prime, ty):
+    f = 0
+    if (j == j_prime):
+        print("verify (j != j_prime)")
+    else :
+        for x in range(operations_by_job[j]):
+            f = +needed_proc[j][o][ty] * (exe_before[o][x] + exe_before[x][o_prime] - exe_before[o][o_prime])
     if n==2 :
         result_free = end(o_prime, j_prime) - (3 - exe_before[o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3] )
     else:
