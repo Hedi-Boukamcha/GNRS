@@ -314,13 +314,15 @@ def free(n, o, o_prime, j, j_prime, ty):
 
 print("\n ##__Constraint 2__##")
 def c1(j, o, o_prime):
-    for j in jobs:
-        for o , o_prime in operations:
-            if (o != o_prime):
-                res1 = exe_before[j][o][o_prime] + exe_before[j][o_prime][o]
-                res1 = 1
-            else :
-                print("error c2")
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o in range(num_operations_by_job):
+                for o_prime in range(num_operations_by_job):
+                    if (o != o_prime):
+                        res1 = exe_before[j][j_prime][o][o_prime] + exe_before[j_prime][j][o_prime][o]
+                        res1 = 1
+                    else :
+                        print("error c2")
     return res1
 
 
