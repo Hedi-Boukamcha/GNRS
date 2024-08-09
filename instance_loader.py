@@ -313,7 +313,7 @@ def free(n, o, o_prime, j, j_prime, ty):
 
 
 print("\n ##__Constraint 2__##")
-def c1(j, o, o_prime):
+def c2(j, o, o_prime):
     for j in range(nombre_jobs):
         for j_prime in range(nombre_jobs):
             for o in range(num_operations_by_job):
@@ -327,9 +327,19 @@ def c1(j, o, o_prime):
 
 
 print("\n ##__Constraint 3__##")
-def c2(o, o_prime):
+def c3(j, o):
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
+            exe_start[j][o] >= end(o-1) + M * (3 * exe_parallel[j][o-1] + 1)
+    return exe_start
 
+
+print("\n ##__Constraint 4__##")
+def c4(j, o):
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
     return 
+
 
 
 '''
