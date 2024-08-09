@@ -230,7 +230,6 @@ for j, job in enumerate(data):
     big = job['big']
     if big == 1:
         job_station[j][1] = 1
-
 for row in job_station:
     print(row)
 
@@ -333,18 +332,24 @@ print("\n ##__Constraint 3__##")
 def c3(j, o):
     for j in range(nombre_jobs):
         for o_prime in range(num_operations_by_job):
-                if (o != o_prime):
-                    exe_start[j][o] >= end(o_prime) + M * (3 * exe_parallel[j][o-1] + 1)
+                if (o != 0):
+                    print("error c3")
+                else:
+                    exe_start[j][o-1] >= end(o-1) + M * (3 * exe_parallel[j][o-1] + 1) 
     return exe_start
 
 
 print("\n ##__Constraint 4__##")
 def c4(j, o):
     for j in range(nombre_jobs):
-        for o in range(num_operations_by_job):
-            exe_start[j][o] >= end(o-1) + 2 * M  - I * (1 + exe_parallel[j][o-1] + 1)
+        for j_prime in range(nombre_jobs):
+            for o in range(num_operations_by_job):
+                for o_prime in range(num_operations_by_job):
+                    if (o == o_prime):
+                        print("error c4")
+                    else:
+                        exe_start[j][o] >= end(o_prime) + 2 * M  - I * (1 + exe_mode[j_prime][o_prime][1] - exe_before[j][j_prime][o][o_prime])
     return exe_start
-
 
 
 '''
