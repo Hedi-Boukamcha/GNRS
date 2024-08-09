@@ -18,13 +18,14 @@ types = []
 operation_type = []
 operations_by_job = []
 job_types = []
+modes = []
+stations = []
 
 # Initialiser des compteurs pour les opérations et les types
 nombre_jobs = len(data)
 nombre_operations = 0
 nombre_types = 0
 num_operations_by_job = 0
-s = 3
 
 print(f"Number of Jobs: {len(data)}")
 
@@ -58,9 +59,11 @@ print(f"Types of jobs: {job_types}")
     
 
 jobs = [nombre_jobs]
-types = [2]
+types = [[1, 0], [0, 1]]
 operations = [nombre_operations]
-          
+modes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]     
+stations = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
 
 #====================================================================================================================
 #                                                  =*= I. Parameters =*=
@@ -73,15 +76,15 @@ print(f"nombre_operations: {nombre_operations}")
 print(f"nombre_types: {nombre_types}")
 
 
-needed_proc = [[[0 for _ in range(2)] for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
+needed_proc = [[[0 for ty in range(len(types))] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 
 for i, job in enumerate(data):
     for j, operation in enumerate(job['operations']):
         type_value = operation['type']
         if type_value == 1:
-            needed_proc[i][j] = [1, 0]
+            needed_proc[i][j][0] = [1, 0]
         elif type_value == 2:
-            needed_proc[i][j] = [0, 1]
+            needed_proc[i][j][1] = [0, 1]    
 for row in needed_proc:
     print(row)
 
@@ -117,7 +120,7 @@ print(ddp,"\n")
 
 
 print(" \n ##__parametre 6__##")
-welding_time = [[0 for p in range(operations_by_job[p])] for p in range(nombre_jobs)]
+welding_time = [[0 for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for row in welding_time: 
     print(row)
 
@@ -156,7 +159,7 @@ print(f"\n La borne supérieure I = {I}")
 
 
 print("\n ##__Decision variable 1__##")
-entry_station_date = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+entry_station_date = [[0 for _ in range(len(stations))] for _ in range(nombre_jobs)]
 for row in entry_station_date:
     print(row)
 
@@ -172,27 +175,27 @@ for row in exe_start:
 
 
 print("\n ##__Decision variable 4__##")
-job_loaded = [[0 for _ in range(3)] for _ in range(nombre_jobs)]
+job_loaded = [[0 for _ in range(len(stations))] for _ in range(nombre_jobs)]
 for j, job in enumerate(data):
     if job["big"] == 1:
         station = 1  # La station 2 pour les pièces avec "big" = 1
     else:
         # Répartition aléatoire pour les autres stations
-        station = random.choice([0, 1, 2])  # Par exemple, choisir entre la station 0 et 1
+        station = random.choice(range(len(stations)))  # Par exemple, choisir entre la station 0 et 1
     job_loaded[j][station] = 1
 for row in job_loaded:
     print(row)
 
    
 print("\n ##__Decision variable 5__##")
-exe_mode = [[[0 for _ in range(3)] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+exe_mode = [[[0 for _ in range(len(modes))] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
 for j, job in enumerate(data):
     for o, operation in enumerate(job['operations']):
         if operation['type'] == 1:
-            mode = random.choice([[1, 0, 0], [0, 1, 0]])  # Mode A or B random
+            m = random.choice(range(len(modes)))  # Mode A or B random
         elif operation['type'] == 2:
-            mode = [0, 0, 1]  # Mode C
-        exe_mode[j][o] = mode
+            m = 2  # Mode C
+        exe_mode[j][o][m] = 1
 for row in exe_mode:
     print(row)
 
@@ -329,8 +332,9 @@ def c2(j, o, o_prime):
 print("\n ##__Constraint 3__##")
 def c3(j, o):
     for j in range(nombre_jobs):
-        for o in range(num_operations_by_job):
-            exe_start[j][o] >= end(o-1) + M * (3 * exe_parallel[j][o-1] + 1)
+        for o_prime in range(num_operations_by_job):
+                if (o != o_prime):
+                    exe_start[j][o] >= end(o_prime) + M * (3 * exe_parallel[j][o-1] + 1)
     return exe_start
 
 
@@ -338,7 +342,8 @@ print("\n ##__Constraint 4__##")
 def c4(j, o):
     for j in range(nombre_jobs):
         for o in range(num_operations_by_job):
-    return 
+            exe_start[j][o] >= end(o-1) + 2 * M  - I * (1 + exe_parallel[j][o-1] + 1)
+    return exe_start
 
 
 
