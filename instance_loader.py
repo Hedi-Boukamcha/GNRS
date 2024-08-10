@@ -315,7 +315,7 @@ def free(n, o, o_prime, j, j_prime, ty):
 
 
 print("\n ##__Constraint 2__##")
-def c2(j, o, o_prime):
+def c2(j, j_prime, o, o_prime):
     for j in range(nombre_jobs):
         for j_prime in range(nombre_jobs):
             for o in range(num_operations_by_job):
@@ -331,8 +331,8 @@ def c2(j, o, o_prime):
 print("\n ##__Constraint 3__##")
 def c3(j, o):
     for j in range(nombre_jobs):
-        for o_prime in range(num_operations_by_job):
-                if (o != 0):
+        for o in range(num_operations_by_job):
+                if (o == 0):
                     print("error c3")
                 else:
                     exe_start[j][o-1] >= end(o-1) + M * (3 * exe_parallel[j][o-1] + 1) 
@@ -340,7 +340,7 @@ def c3(j, o):
 
 
 print("\n ##__Constraint 4__##")
-def c4(j, o):
+def c4(j, j_prime, o, o_prime):
     for j in range(nombre_jobs):
         for j_prime in range(nombre_jobs):
             for o in range(num_operations_by_job):
@@ -348,7 +348,46 @@ def c4(j, o):
                     if (o == o_prime):
                         print("error c4")
                     else:
-                        exe_start[j][o] >= end(o_prime) + 2 * M  - I * (1 + exe_mode[j_prime][o_prime][1] - exe_before[j][j_prime][o][o_prime])
+                        exe_start[j][o] >= end(o_prime) + 2 * M  - I * (1 + exe_mode[j_prime][o_prime][1] - exe_before[j_prime][j][o_prime][o])
+    return exe_start
+
+
+print("\n ##__Constraint 5__##")
+def c5(j, j_prime, o, o_prime):
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o in range(num_operations_by_job):
+                for o_prime in range(num_operations_by_job):
+                    if (o == o_prime):
+                        print("error c5")
+                    else:
+                        exe_start[j][o] >= end(o_prime) + 2 * M  - I * (1 + exe_mode[j_prime][o_prime][2] - exe_before[j_prime][j][o_prime][o])
+    return exe_start
+
+
+print("\n ##__Constraint 6__##")
+def c6(j, j_prime, o, o_prime):
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o in range(num_operations_by_job):
+                for o_prime in range(num_operations_by_job):
+                    if (o == o_prime):
+                        print("error c6")
+                    else:
+                        exe_start[j][o] >= end(o_prime) + 2 * M  - I * (1 - exe_before[j_prime][j][o_prime][o] - exe_parallel[j][o])
+    return exe_start
+
+
+print("\n ##__Constraint 7__##")
+def c7(j, j_prime, o, o_prime):
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o in range(num_operations_by_job):
+                for o_prime in range(num_operations_by_job):
+                    if (o == o_prime):
+                        print("error c7")
+                    else:
+                        exe_start[j][o] >= exe_start[j_prime][o_prime] + (((pos_j[j] * exe_mode[j_prime][o_prime][1]) + 2 * M) * (1- job_modeB[j])) - I * (1 - exe_before[j_prime][j][o_prime][o])
     return exe_start
 
 
