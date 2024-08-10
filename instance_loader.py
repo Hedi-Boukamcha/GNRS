@@ -44,13 +44,13 @@ print(f"Number of Operations: {nombre_operations}")
 print(f"Number of Types: {nombre_types}")'''
 
 
-for i, job in enumerate(data):
+for job in data:
     job_operations = len(job['operations'])
     operations_by_job.append(job_operations)
     num_operations_by_job += 1
 print(f"Operations by Job: {num_operations_by_job}")
 
-for i, job in enumerate(data):
+for job in data:
     row = []
     for operation in job['operations']:
         row.append(operation['type'])
@@ -389,6 +389,55 @@ def c7(j, j_prime, o, o_prime):
                     else:
                         exe_start[j][o] >= exe_start[j_prime][o_prime] + (((pos_j[j] * exe_mode[j_prime][o_prime][1]) + 2 * M) * (1- job_modeB[j])) - I * (1 - exe_before[j_prime][j][o_prime][o])
     return exe_start
+
+
+print("\n ##__Constraint 8__##")
+def c8(j, o):
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
+                exe_parallel[j][o] >= needed_proc[j][o][1]
+    return exe_parallel
+
+
+print("\n ##__Constraint 9__##")
+def c9(j):
+    terms = []
+    for j in range(nombre_jobs):
+        for s in range(len(stations)):
+                terms.append(entry_station_date[j][s] - M * job_station[j][s] * (1 - job_unload[j][s]) * (pos_j[j] + job_robot[j]))
+                exe_start[j][0] >= sum(terms) + M
+    return exe_start
+
+
+print("\n ##__Constraint 10__##")
+def c10(j, o, m):
+    res = 1
+    terms = []
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
+            for m in range(len(modes)):
+                terms.append(exe_mode[j][o][m])
+                res = sum(terms)
+    return res
+
+
+print("\n ##__Constraint 11__##")
+def c11(j, o):
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
+            exe_mode[j][o][2] = needed_proc[j][i][1]
+    return exe_mode
+
+
+print("\n ##__Constraint 12__##")
+def c12(j, o):
+    res = 1
+    terms = []
+    for j in range(nombre_jobs):
+        for s in range(len(stations)):
+            terms.append(job_loaded[j][s])
+            res = sum(terms)
+    return res
 
 
 '''
