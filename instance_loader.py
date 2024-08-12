@@ -280,7 +280,7 @@ def end(j, o):
 
 
 print("\n ##__Constraint 24__##")
-def free(n, o, o_prime, j, j_prime):
+def free(nombre_jobs, o, o_prime, j, j_prime):
     f = 0
     terms = []
     for q in range(nombre_jobs):
@@ -289,8 +289,8 @@ def free(n, o, o_prime, j, j_prime):
                 term1 = terms.append(needed_proc[q][x][1] * exe_before[j][q][o][x])
                 term2 = terms.append(needed_proc[q][x][1] * exe_before[q][j_prime][x][o_prime])
                 term3 = terms.append( (-1) * (needed_proc[q][x][1] * exe_before[j][j_prime][o][o_prime]))
-    f = sum(terms)
-    if n==2 :
+                f = terms.append(term1 + term2 + term3)
+    if (nombre_jobs == 2) :
         result_free = end(o_prime, j_prime) - I * (3 - exe_before[j][j_prime][o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3])
     else:
         result_free = end(o_prime, j_prime) - I * (4 - exe_before[j][j_prime][o][o_prime] - exe_mode[j][o][2] - exe_mode[j][o_prime][3] 
@@ -321,11 +321,10 @@ def c2(j, j_prime, o, o_prime):
             for o in range(num_operations_by_job):
                 for o_prime in range(num_operations_by_job):
                     if (o != o_prime):
-                        res1 = exe_before[j][j_prime][o][o_prime] + exe_before[j_prime][j][o_prime][o]
-                        res1 = 1
+                        1 == exe_before[j][j_prime][o][o_prime] + exe_before[j_prime][j][o_prime][o]
                     else :
                         print("error c2")
-    return res1
+    return True
 
 
 print("\n ##__Constraint 3__##")
@@ -411,14 +410,13 @@ def c9(j):
 
 print("\n ##__Constraint 10__##")
 def c10(j, o, m):
-    res = 1
     terms = []
     for j in range(nombre_jobs):
         for o in range(num_operations_by_job):
             for m in range(len(modes)):
                 terms.append(exe_mode[j][o][m])
-                res = sum(terms)
-    return res
+                1 == sum(terms)
+    return True
 
 
 print("\n ##__Constraint 11__##")
@@ -431,13 +429,128 @@ def c11(j, o):
 
 print("\n ##__Constraint 12__##")
 def c12(j, o):
-    res = 1
     terms = []
     for j in range(nombre_jobs):
         for s in range(len(stations)):
             terms.append(job_loaded[j][s])
-            res = sum(terms)
-    return res
+            1 == sum(terms)
+    return True
+
+
+print("\n ##__Constraint 13__##")
+def c13(j):
+    for j in range(nombre_jobs):
+        job_loaded[j][2] >= lp[j]
+    return True
+
+
+print("\n ##__Constraint 14__##")
+def c14(j, o):
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
+            delay[j] >= end(j, o) + L + M - ddp[j] 
+    return True
+
+print("\n ##__Constraint 15__##")
+def c15(j, o, j_prime, o_prime, nombre_jobs):
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o in range(num_operations_by_job[j]):
+                for o_prime in range(num_operations_by_job[j_prime]):
+                    if (j == j_prime):
+                        print("!!! Error c15 !!!")
+                    else:
+                        delay[j] >= free(nombre_jobs, o, o_prime, j, j_prime) + L + 3 * M - ddp[j] 
+    return True
+
+
+print("\n ##__Constraint 16__##")
+def c16(j, j_prime, o_prime):
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o_prime in range(num_operations_by_job[j_prime]):
+                for s in range(len(stations)):
+                    if (j == j_prime):
+                        print("!!! Error c16 !!!")
+                    else:
+                        entry_station_date[j][s] >= end(j_prime, o_prime) - prec(j_prime, j, s) + 2 * L + M
+    return True
+
+
+print("\n ##__Constraint 17__##")
+def c17(nombre_jobs, j, j_prime, o_prime, j_second, o_second):
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for o_prime in range(num_operations_by_job[j_prime]):
+                for o_second in range(num_operations_by_job[j_second]):
+                    for s in range(len(stations)):
+                        if (j != j_prime) and (j != j_second) and (j_second != j_prime):
+                            entry_station_date[j][s] >= free(nombre_jobs, o_prime, o_second, j_prime, j_second) - prec(j_prime, j, s) + 2 * L + 3 * M
+                        else:
+                            print("!!! Error c17 !!!")
+    return True
+
+
+print("\n ##__Constraint 18__##")
+def c18(j):
+    terms = []
+    f1 = 0
+    for j in range(nombre_jobs):
+        for s in range(len(stations)):
+            term1 = terms.append(job_unload[j][s] * M * job_robot[j])
+            term2 = terms.append(job_unload[j][s] * 3 * M * job_modeB[j])
+            term3 = terms.append(job_unload[j][s] * 2 * L)
+            f1 = terms.append(term1 + term2 + term3)
+            for s_prime in range(len(stations)):
+                entry_station_date[j][s] >= sum(terms) + ( - I + I * job_loaded[j][s_prime])
+    return True
+
+
+print("\n ##__Constraint 19__##")
+def c19(j, j_prime):
+    terms = []
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for s in range(len(stations)):
+                if (j == j_prime):
+                    print("!!! Error c19 !!!")
+                else:
+                    term1 = terms.append(job_station[j][s] * 2 * L)
+                    term2 = terms.append(job_station[j][s] * M * job_robot[j_prime])
+                    term3 = terms.append(job_station[j][s] * 3 * M * job_modeB[j])
+                    term4 = terms.append(- I + I * job_loaded[j][s])
+                    entry_station_date[j][s] >= term1 + term2 + term3 + term4
+    return True
+
+
+print("\n ##__Constraint 20__##")
+def c20(j, o):
+    terms = []
+    for j in range(nombre_jobs):
+        for j_prime in range(nombre_jobs):
+            for s in range(len(stations)):
+                if (j == j_prime):
+                    print("!!! Error c19 !!!")
+                else:
+                    term1 = terms.append(entry_station_date[j][s] + I * 3)
+                    term2 = terms.append(entry_station_date[j][s] - I * job_station[j][s])
+                    term3 = terms.append(entry_station_date[j][s] - I * exe_before[j_prime][j][0][0])
+                    term4 = terms.append(entry_station_date[j][s] - I * job_loaded[j_prime][s])
+                    1 >= entry_station_date[j][s] + term1 + term2 + term3 + term4
+    return True
+
+
+print("\n ##__Constraint 21__##")
+def c21(j, o):
+    terms = []
+    for j in range(nombre_jobs):
+        for o in range(num_operations_by_job):
+            for s in range(len(stations)):
+                term1 = terms.append(job_unload[j][s] * M * job_robot[j])
+                term2 = terms.append(job_unload[j][s] * 2 * M * job_modeB[j])
+    exe_start[j][o] >= sum(terms)
+    return True
+
 
 
 '''
