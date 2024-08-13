@@ -3,9 +3,10 @@ from ortools.sat.python import cp_model
 import random
 
 
-def initialize_data(data):
-    jobs = []
-    operations = []
+def init_vars(data, model: cp_model.CpModel, i: Instance):
+    s = Solution()
+    jobs = [nombre_jobs]
+    operations = [nombre_operations]
     types = []
     operation_type = []
     operations_by_job = []
@@ -40,17 +41,19 @@ def initialize_data(data):
         job_types.append(row)
     print(f"Types of jobs: {job_types}")
 
-    jobs = [nombre_jobs]
-    operations = [nombre_operations]
+    
+    s.entry_station_date = [[model.NewIntVar(0, f'entry_station_date_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
+    s.delay = [model.NewIntVar(0, f'delay_{j}') for j in range(nombre_jobs)]  
+    s.exe_start = [[model.NewIntVar(0, f'exe_start_{j}_{o}') for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+    s.job_loaded = [[model.NewBoolVar(f'job_loaded_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
+    s.exe_mode = [[[model.NewBoolVar(f'exe_mode_{j}_{o}_{m}') for m in range(len(modes))] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+    s.exe_before = [[[[model.NewBoolVar(f'exe_before_{j}_{o}_{j_prime}_{o_prime}') for o_prime in range(operations_by_job[j_prime])] for o in range(operations_by_job[j])] for j_prime in range(nombre_jobs)] for j in range(nombre_jobs)]
+    s.exe_parallel = [[model.NewBoolVar(f'exe_parallel_{j}_{o}') for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+    s.job_unload = [[model.NewBoolVar(f'job_unload_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
     
 
-    return {
-        'jobs': jobs,
-        'operations': operations,
-        'types': types,
-        'operation_type': operation_type,
-        'operations_by_job': operations_by_job,
-        'job_types': job_types,
-        'modes': modes,
-        'stations': stations
-    }
+    return model, s
+
+
+   
+    
