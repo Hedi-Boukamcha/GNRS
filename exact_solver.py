@@ -45,11 +45,11 @@ def init_vars(data, model: cp_model.CpModel, i: Instance):
     s.entry_station_date = [[model.NewIntVar(0, f'entry_station_date_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
     s.delay = [model.NewIntVar(0, f'delay_{j}') for j in range(nombre_jobs)]  
     s.exe_start = [[model.NewIntVar(0, f'exe_start_{j}_{o}') for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
-    s.job_loaded = [[model.NewBoolVar(f'job_loaded_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
-    s.exe_mode = [[[model.NewBoolVar(f'exe_mode_{j}_{o}_{m}') for m in range(len(modes))] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
-    s.exe_before = [[[[model.NewBoolVar(f'exe_before_{j}_{o}_{j_prime}_{o_prime}') for o_prime in range(operations_by_job[j_prime])] for o in range(operations_by_job[j])] for j_prime in range(nombre_jobs)] for j in range(nombre_jobs)]
-    s.exe_parallel = [[model.NewBoolVar(f'exe_parallel_{j}_{o}') for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
-    s.job_unload = [[model.NewBoolVar(f'job_unload_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
+    s.job_loaded = [[model.NewBoolVar(0, f'job_loaded_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
+    s.exe_mode = [[[model.NewBoolVar(0, f'exe_mode_{j}_{o}_{m}') for m in range(len(modes))] for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+    s.exe_before = [[[[model.NewBoolVar(0, f'exe_before_{j}_{o}_{j_prime}_{o_prime}') for o_prime in range(operations_by_job[j_prime])] for o in range(operations_by_job[j])] for j_prime in range(nombre_jobs)] for j in range(nombre_jobs)]
+    s.exe_parallel = [[model.NewBoolVar(0, f'exe_parallel_{j}_{o}') for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+    s.job_unload = [[model.NewBoolVar(0, f'job_unload_{j}_{s}') for s in range(len(stations))] for j in range(nombre_jobs)]
     
 
     return model, s

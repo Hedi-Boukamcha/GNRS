@@ -11,11 +11,12 @@ class Solution:
 
 
 class Instance:
-    def __init__(self, data, nombre_jobs, operations_by_job, types):
+    def __init__(self, data, nombre_jobs, operations_by_job, types, Solution):
         self.data = data
         self.nombre_jobs = nombre_jobs
         self.operations_by_job = operations_by_job
         self.types = types
+        self.s = Solution()
         
         self.needed_proc = self.initialize_needed_proc()
         self.lp = self.initialize_lp()
@@ -26,10 +27,13 @@ class Instance:
         self.L = 2  
         self.M = 3  
         self.I = self.calculate_upper_bound()
-
+        
+        self.job_station = self.initialize_job_station()
+        self.job_modeB = self.initialize_job_modeB()
+        self.job_robot = self.initialize_job_robot()
 
     def initialize_needed_proc(self):
-        needed_proc = [[[0 for _ in range(len(self.types))] for _ in range(self.operations_by_job[j])] for j in range(self.nombre_jobs)]
+        needed_proc = [],[], []
         for i, job in enumerate(self.data):
             for j, operation in enumerate(job['operations']):
                 type_value = operation['type']
@@ -79,12 +83,29 @@ class Instance:
         return I
 
         
+    def initialize_job_station(self):
+        job_station = [], []
+        for j, job in enumerate(self.data):
+            big = job['big']
+            if big == 1:
+                job_station[j][1] = 1
+        for row in job_station:
+            print(row)
+        return job_station
+        
+    def initialize_job_modeB(self):
+        job_modeB = []
+        s = Solution()
+        for j in range(self.nombre_jobs):
+            for o in range(self.operations_by_job[j]):
+                if s.exe_mode[j][o][1] == 1:  # Vérifie si l'opération o du job j est en mode B
+                    job_modeB[j] = 1
+                    break
+        return job_modeB
 
-
-
-
-
-
+    def initialize_job_robot(self):
+        job_robot = []
+        return job_robot
 
 
 
