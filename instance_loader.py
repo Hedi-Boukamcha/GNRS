@@ -37,18 +37,12 @@ for job in data:
 print(f"Number of Operations: {nombre_operations}")
 
 
-'''for job in data:
-    for operation in job['operations']:
-        types.append(operation['type'])
-        nombre_types += 1
-print(f"Number of Types: {nombre_types}")'''
-
-
 for job in data:
     job_operations = len(job['operations'])
     operations_by_job.append(job_operations)
     num_operations_by_job += 1
 print(f"Operations by Job: {num_operations_by_job}")
+
 
 for job in data:
     row = []
