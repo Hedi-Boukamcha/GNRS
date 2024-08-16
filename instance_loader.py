@@ -115,6 +115,9 @@ print(ddp,"\n")
 
 print(" \n ##__parametre 6__##")
 welding_time = [[0 for o in range(operations_by_job[j])] for j in range(nombre_jobs)]
+for j, job in enumerate(data):
+        for o, operation in enumerate(job['operations']):
+            welding_time[j][o] = operation['pocessing_time']
 for row in welding_time: 
     print(row)
 

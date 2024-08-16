@@ -4,26 +4,33 @@ import numpy as np
 
 class Solution:
     def __init__(self):
-        self.entry_station_date, self.exe_start, self.job_loaded , self.exe_parallel, self.job_unload = [], []
+        self.entry_station_date = [], []
+        self.exe_start = [], []
+        self.job_loaded = [], []
+        self.exe_parallel = [], []
+        self.job_unload = [], []
         self.delay = []
         self.exe_mode = [], [], []
         self.exe_before = [], [], [], []
-
+        
 
 class Instance:
-    def __init__(self, data, nombre_jobs, operations_by_job, types, Solution):
+    def __init__(self, data):
         self.data = data
-        self.nombre_jobs = nombre_jobs
-        self.operations_by_job = operations_by_job
-        self.types = types
+        self.nb_jobs = len(data)
+        self.nb_types = 2
+        self.nb_stations = 3
+        self.nb_modes = 3
+        self.has_history = False
         self.s = Solution()
         
+        self.operations_by_job = [len(job['operations']) for job in self.data]
         self.needed_proc = self.initialize_needed_proc()
-        self.lp = self.initialize_lp()
-        self.fj = self.initialize_fj()
-        self.ddp = self.initialize_ddp()
+        self.lp = [job['big'] for job in self.data] # self.initialize_lp()
+        #self.fj = self.initialize_fj()
+        self.due_date = [job['due_date'] for job in self.data] # self.initialize_ddp()
         self.welding_time = self.initialize_welding_time()
-        self.pos_j = self.initialize_pos_j()
+        self.pos_j = [job['pos_time'] for job in self.data] #self.initialize_pos_j()
         self.L = 2  
         self.M = 3  
         self.I = self.calculate_upper_bound()
@@ -33,39 +40,35 @@ class Instance:
         self.job_robot = self.initialize_job_robot()
 
     def initialize_needed_proc(self):
-        needed_proc = [],[], []
-        for i, job in enumerate(self.data):
-            for j, operation in enumerate(job['operations']):
-                type_value = operation['type']
-                if type_value == 1:
-                    needed_proc[i][j][0] = [1, 0]
-                elif type_value == 2:
-                    needed_proc[i][j][1] = [0, 1]    
+        needed_proc = [[[0 for ty in range(self.types)] for o in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
+        for j, job in enumerate(self.data):
+            for o, operation in enumerate(job['operations']):
+                needed_proc[j][o][operation['type']-1] = 1  
         return needed_proc
 
-
-    def initialize_lp(self):
+    '''def initialize_lp(self):
         lp = []
         for job in self.data:
             lp.append(job['big'])
         return lp
 
-
     def initialize_fj(self):
-        return [0 for _ in range(self.nombre_jobs)]
-
+        fj = []
+        return fj
 
     def initialize_ddp(self):
-        ddp = []
+        due_date = []
         for job in self.data:
-            ddp.append(job['due_date'])
-        return ddp
+            due_date.append(job['due_date'])
+        return due_date'''
 
 
     def initialize_welding_time(self):
-        welding_time = [[0 for _ in range(self.operations_by_job[j])] for j in range(self.nombre_jobs)]
+        welding_time = [[0 for _ in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
+        for j, job in enumerate(self.data):
+            for o, operation in enumerate(job['operations']):
+                welding_time[j][o] = operation['pocessing_time']
         return welding_time
-
 
     def initialize_pos_j(self):
         pos_j = []
@@ -82,12 +85,11 @@ class Instance:
                 I += (welding_time_value + self.pos_j[j] + 3 * self.M + 2 * self.L)
         return I
 
-        
     def initialize_job_station(self):
         job_station = [], []
         for j, job in enumerate(self.data):
             big = job['big']
-            if big == 1:
+            if (big == 1):
                 job_station[j][1] = 1
         for row in job_station:
             print(row)
@@ -96,9 +98,9 @@ class Instance:
     def initialize_job_modeB(self):
         job_modeB = []
         s = Solution()
-        for j in range(self.nombre_jobs):
+        for j in range(self.nb_jobs):
             for o in range(self.operations_by_job[j]):
-                if s.exe_mode[j][o][1] == 1:  # Vérifie si l'opération o du job j est en mode B
+                if (s.exe_mode[j][o][1] == 1):  
                     job_modeB[j] = 1
                     break
         return job_modeB
