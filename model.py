@@ -69,12 +69,12 @@ class Instance:
             for o, operation in enumerate(job['operations']):
                 welding_time[j][o] = operation['pocessing_time']
         return welding_time
-
+    '''
     def initialize_pos_j(self):
         pos_j = []
         for job in self.data:
             pos_j.append(job['pos_time'])
-        return pos_j
+        return pos_j'''
 
 
     def calculate_upper_bound(self):
@@ -86,27 +86,15 @@ class Instance:
         return I
 
     def initialize_job_station(self):
-        job_station = [], []
-        for j, job in enumerate(self.data):
-            big = job['big']
-            if (big == 1):
-                job_station[j][1] = 1
-        for row in job_station:
-            print(row)
+        job_station = [[0 for _ in range(3)] for _ in range(self.nb_jobs)]
         return job_station
         
     def initialize_job_modeB(self):
-        job_modeB = []
-        s = Solution()
-        for j in range(self.nb_jobs):
-            for o in range(self.operations_by_job[j]):
-                if (s.exe_mode[j][o][1] == 1):  
-                    job_modeB[j] = 1
-                    break
+        job_modeB = [0 for _ in range(self.nb_jobs)]
         return job_modeB
 
     def initialize_job_robot(self):
-        job_robot = []
+        job_robot = [0 for _ in range(self.nb_jobs)]
         return job_robot
 
 
