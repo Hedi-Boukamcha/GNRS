@@ -69,6 +69,8 @@ class Instance:
             for o, operation in enumerate(job['operations']):
                 welding_time[j][o] = operation['pocessing_time']
         return welding_time
+    
+    
     '''
     def initialize_pos_j(self):
         pos_j = []
