@@ -40,7 +40,7 @@ class Instance:
         self.job_robot = self.initialize_job_robot()
 
     def initialize_needed_proc(self):
-        needed_proc = [[[0 for ty in range(self.types)] for o in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
+        needed_proc = [[[0 for ty in range(self.nb_types)] for o in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
         for j, job in enumerate(self.data):
             for o, operation in enumerate(job['operations']):
                 needed_proc[j][o][operation['type']-1] = 1  
@@ -88,7 +88,7 @@ class Instance:
         return I
 
     def initialize_job_station(self):
-        job_station = [[0 for _ in range(3)] for _ in range(self.nb_jobs)]
+        job_station = [[0 for _ in range(self.nb_stations)] for _ in range(self.nb_jobs)]
         return job_station
         
     def initialize_job_modeB(self):

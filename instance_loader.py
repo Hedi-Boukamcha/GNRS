@@ -2,7 +2,6 @@ import json
 import numpy as np
 import pandas as pd
 import random
-
 from ortools.sat.python import cp_model
 
 file_path = '1st_instance.json'
