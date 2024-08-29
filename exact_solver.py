@@ -86,13 +86,8 @@ def free(i: Instance, j: int, j_prime: int, o: int, o_prime: int):
             for q in range(i.nb_jobs):
                 if (q != j) and (q != j_prime):
                     for x in range(i.operations_by_job[q]):
-                        print("q", q)
-                        print("x", x)
-                        print("a",i.needed_proc[q][x][0])
                         term1 = i.needed_proc[q][x][0]
                         term2 = (i.s.exe_before[j][q][o][x] + i.s.exe_before[q][j_prime][x][o_prime]) - i.s.exe_before[j][j_prime][o][o_prime]
-                        print(term1)
-                        print(term2)
                         terms.append(term1 * term2)
                     if (i.nb_jobs == 2):
                         result_free = end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][1] - i.s.exe_mode[j][o_prime][2])
@@ -104,13 +99,12 @@ def free(i: Instance, j: int, j_prime: int, o: int, o_prime: int):
 
 def c2(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
-        for j_prime in range(i.nb_jobs):
-            for o in range(i.operations_by_job[j]):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    if (o != o_prime):
-                        model.Add(1 == i.s.exe_before[j][j_prime][o][o_prime] + i.s.exe_before[j_prime][j][o_prime][o])
-                    else :
-                        print("error c2")
+        for o in range(i.operations_by_job[j]):
+            for o_prime in range(i.operations_by_job[j]):
+                if (o != o_prime):
+                    model.Add(1 == i.s.exe_before[j][j][o][o_prime] + i.s.exe_before[j][j][o_prime][o])
+                else :
+                    print("error c2")
     return model, i.s
 
 
@@ -123,49 +117,47 @@ def c3(model: cp_model.CpModel, i: Instance):
 
 def c4(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
-        for j_prime in range(i.nb_jobs):
-            for o in range(i.operations_by_job[j]):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    if (o == o_prime):
-                        print("error c4")
-                    else:
-                        model.Add(i.s.exe_start[j][o] >= end(i, j, o_prime) + 2 * i.M  - i.I * (1 + i.s.exe_mode[j_prime][o_prime][1] - i.s.exe_before[j_prime][j][o_prime][o]))
+        for o in range(i.operations_by_job[j]):
+            for o_prime in range(i.operations_by_job[j]):
+                if (o == o_prime):
+                    print("error c4")
+                else:
+                    model.Add(i.s.exe_start[j][o] >= end(i, j, o_prime) + 2 * i.M  - i.I * (1 + i.s.exe_mode[j][o_prime][1] - i.s.exe_before[j][j][o_prime][o]))
     return model, i.s
 
 
 def c5(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
-        for j_prime in range(i.nb_jobs):
-            for o in range(i.operations_by_job[j]):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    if (o == o_prime):
-                        print("error c5")
-                    else:
-                        model.Add(i.s.exe_start[j][o] >= end(i, j, o_prime) + 2 * i.M  - i.I * (1 + i.s.exe_mode[j_prime][o_prime][2] - i.s.exe_before[j_prime][j][o_prime][o]))
+        for o in range(i.operations_by_job[j]):
+            for o_prime in range(i.operations_by_job[j]):
+                if (o == o_prime):
+                    print("error c5")
+                else:
+                    model.Add(i.s.exe_start[j][o] >= end(i, j, o_prime) + 2 * i.M  - i.I * (1 + i.s.exe_mode[j][o_prime][2] - i.s.exe_before[j][j][o_prime][o]))
     return model, i.s
 
 
 def c6(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
-        for j_prime in range(i.nb_jobs):
-            for o in range(i.operations_by_job[j]):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    if (o == o_prime):
-                        print("error c6")
-                    else:
-                        model.Add(i.s.exe_start[j][o] >= end(i, j, o_prime) + 2 * i.M  - i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] - i.s.exe_parallel[j][o]))
+        for o in range(i.operations_by_job[j]):
+            for o_prime in range(i.operations_by_job[j]):
+                if (o == o_prime):
+                    print("error c6")
+                else:
+                    model.Add(i.s.exe_start[j][o] >= end(i, j, o_prime) + 2 * i.M  - i.I * (1 - i.s.exe_before[j][j][o_prime][o] - i.s.exe_parallel[j][o]))
     return model, i.s
 
 
 def c7(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
-        for j_prime in range(i.nb_jobs):
-            for o in range(i.operations_by_job[j]):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    if (o == o_prime):
-                        print("error c7")
-                    else:
-                        model.Add(i.s.exe_start[j][o] >= i.s.exe_start[j_prime][o_prime] + (((i.pos_j[j] * i.s.exe_mode[j_prime][o_prime][1]) + 2 * i.M) * (1- i.job_modeB[j])) - i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o]))
+        for o in range(i.operations_by_job[j]):
+            for o_prime in range(i.operations_by_job[j]):
+                if (o == o_prime):
+                    print("error c7")
+                else:
+                    model.Add(i.s.exe_start[j][o] >= i.s.exe_start[j][o_prime] + 
+                                (((i.pos_j[j] * i.s.exe_mode[j][o_prime][1]) + 2 * i.M) * (1- i.job_modeB[j]))
+                                - i.I * (1 - i.s.exe_before[j][j][o_prime][o]))
     return model, i.s
 
 
@@ -227,104 +219,107 @@ def c14(model: cp_model.CpModel, i: Instance):
 def c15(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
         for j_prime in range(1, i.nb_jobs):
-            for o in range(i.operations_by_job[j]):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    if (j == j_prime):
-                        print("!!! Error c15 !!!")
-                    else:
+            if (j == j_prime):
+                print("!!! Error c15 !!!")
+            else:
+                for o in range(i.operations_by_job[j]):
+                    for o_prime in range(i.operations_by_job[j_prime]):
                         model.Add(i.s.delay[j] >= free(i, o, o_prime, j, j_prime) + i.L + 3 * i.M - i.due_date[j])
-                        print("c15", i.s.delay[j])
     return model, i.s
 
 
 def c16(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
-        for j_prime in range(1, i.nb_jobs):
+        for j_prime in range(i.nb_jobs):
             if (j == j_prime):
                 print("!!! Error c16 !!!")
             else:
                 for o_prime in range(i.operations_by_job[j_prime]):
                     for c in range(i.nb_stations):
-                            model.Add(i.s.entry_station_date[j][c] >= end(i, j_prime, o_prime) - prec(i, j_prime, j, c) + 2 * i.L + i.M)
-                            print("c16", i.s.entry_station_date[j][c])
+                        model.Add(i.s.entry_station_date[j][c] >= end(i, j_prime, o_prime) - prec(i, j_prime, j, c) + 2 * i.L + i.M)
     return model, i.s
 
 
 def c17(model: cp_model.CpModel, i: Instance):
     for j in range(i.nb_jobs):
         for j_prime in range(i.nb_jobs):
-            for j_second in range(i.nb_jobs):
-                for o_prime in range(i.operations_by_job[j_prime]):
-                    for o_second in range(i.operations_by_job[j_second]):
-                        for c in range(i.nb_stations):
-                            if (j != j_prime) and (j != j_second) and (j_second != j_prime):
-                                model.Add(i.s.entry_station_date[j][c] >= free(i, o_prime, o_second, j_prime, j_second) - prec(i, j_prime, j, c) + 2 * i.L + 3 * i.M)
-                            else:
-                                print("!!! Error c17 !!!")
+            if (j == j_prime):
+                print("!!! Error c17 !!!")
+            else:
+                for j_second in range(i.nb_jobs):
+                    if (j == j_second):
+                        print("!!! Error c17 !!!")
+                    else:
+                        for o_prime in range(i.operations_by_job[j_prime]):
+                            for o_second in range(i.operations_by_job[j_second]):
+                                for c in range(i.nb_stations):
+                                    model.Add(i.s.entry_station_date[j][c] >= free(i, o_prime, o_second, j_prime, j_second) - prec(i, j_prime, j, c) + 2 * i.L + 3 * i.M)
     return model, i.s
 
 
 def c18(model: cp_model.CpModel, i: Instance):
     terms = []
-    f1 = 0
+    res = 0
     for j in range(i.nb_jobs):
         for c in range(i.nb_stations):
-            term1 = terms.append(i.s.job_unload[j][c] * i.M * i.job_robot[j])
-            term2 = terms.append(i.s.job_unload[j][c] * 3 * i.M * i.job_modeB[j])
-            term3 = terms.append(i.s.job_unload[j][c] * 2 * i.L)
-            f1 = terms.append(i.s.job_unload[j][c] * i.M * i.job_robot[j] + 
-                              i.s.job_unload[j][c] * 3 * i.M * i.job_modeB[j] + 
-                              i.s.job_unload[j][c] * 2 * i.L)
-            for s_prime in range(i.nb_stations):
-                model.Add(i.s.entry_station_date[j][c] >= sum(terms) + ( - i.I + i.I * i.s.job_loaded[j][s_prime]))
+            term1 = i.s.job_unload[j][c] * i.M * i.job_robot[j]
+            term2 = i.s.job_unload[j][c] * 3 * i.M * i.job_modeB[j]
+            term3 = i.s.job_unload[j][c] * 2 * i.L
+            res = term1 + term2 + term3
+            terms.append(res)
+            for c_prime in range(i.nb_stations):
+                model.Add(i.s.entry_station_date[j][c] >= sum(terms) + ( - i.I + i.I * i.s.job_loaded[j][c_prime]))
     return model, i.s
 
 
 def c19(model: cp_model.CpModel, i: Instance):
     terms = []
+    res = 0
     for j in range(i.nb_jobs):
         for j_prime in range(i.nb_jobs):
-            for c in range(i.nb_stations):
-                if (j == j_prime):
-                    print("!!! Error c19 !!!")
-                else:
-                    term1 = terms.append(i.job_station[j][c] * 2 * i.L)
-                    term2 = terms.append(i.job_station[j][c] * i.M * i.job_robot[j_prime])
-                    term3 = terms.append(i.job_station[j][c] * 3 * i.M * i.job_modeB[j])
-                    term4 = terms.append(- i.I + i.I * i.s.job_loaded[j][c])
-                    model.Add(i.s.entry_station_date[j][c] >= i.job_station[j][c] * 2 * i.L
-                            + i.job_station[j][c] * i.M * i.job_robot[j_prime]
-                            + i.job_station[j][c] * 3 * i.M * i.job_modeB[j]
-                            + (- i.I + i.I * i.s.job_loaded[j][c]))
+            if (j == j_prime):
+                print("!!! Error c19 !!!")
+            else:
+                for c in range(i.nb_stations):
+                    term1 = i.job_station[j][c] * 2 * i.L
+                    term2 = i.job_station[j][c] * i.M * i.job_robot[j_prime]
+                    term3 = i.job_station[j][c] * 3 * i.M * i.job_modeB[j]
+                    term4 = (- i.I + i.I * i.s.job_loaded[j][c])
+                    res = term1 + term2 + term3 + term4
+                    terms.append(res)
+                    model.Add(i.s.entry_station_date[j][c] >= res)
     return model, i.s
 
 
 def c20(model: cp_model.CpModel, i: Instance):
     terms = []
+    res = 0
     for j in range(i.nb_jobs):
         for j_prime in range(i.nb_jobs):
-            for c in range(i.nb_stations):
-                if (j == j_prime):
-                    print("!!! Error c20 !!!")
-                else:
-                    term1 = terms.append(i.s.entry_station_date[j][c] + i.I * 3)
-                    term2 = terms.append(i.s.entry_station_date[j][c] - i.I * i.job_station[j][c])
-                    term3 = terms.append(i.s.entry_station_date[j][c] - i.I * i.s.exe_before[j_prime][j][0][0])
-                    term4 = terms.append(i.s.entry_station_date[j][c] - i.I * i.s.job_loaded[j_prime][c])
-                    model.Add(1 >= i.s.entry_station_date[j][c] + i.s.entry_station_date[j][c] + i.I * 3
-                               + i.s.entry_station_date[j][c] - i.I * i.job_station[j][c]
-                                 + i.s.entry_station_date[j][c] - i.I * i.s.exe_before[j_prime][j][0][0]
-                                   + i.s.entry_station_date[j][c] - i.I * i.s.job_loaded[j_prime][c])
+            if (j == j_prime):
+                print("!!! Error c20 !!!")
+            else:
+                for c in range(i.nb_stations):
+                    term1 = i.s.entry_station_date[j][c] + i.I * 3
+                    term2 = i.s.entry_station_date[j][c] - i.I * i.job_station[j][c]
+                    term3 = i.s.entry_station_date[j][c] - i.I * i.s.exe_before[j_prime][j][0][0]
+                    term4 = i.s.entry_station_date[j][c] - i.I * i.s.job_loaded[j_prime][c]
+                    res = term1 + term2 + term3 + term4
+                    terms.append(res)
+                    model.Add(1 >= res)
     return model, i.s
 
 
 def c21(model: cp_model.CpModel, i: Instance):
     terms = []
+    res = 0
     for j in range(i.nb_jobs):
         for o in range(i.operations_by_job[j]):
             for c in range(i.nb_stations):
-                term1 = terms.append(i.s.job_unload[j][c] * i.M * i.job_robot[j])
-                term2 = terms.append(i.s.job_unload[j][c] * 2 * i.M * i.job_modeB[j])
+                term1 = i.s.job_unload[j][c] * i.M * i.job_robot[j]
+                term2 = i.s.job_unload[j][c] * 2 * i.M * i.job_modeB[j]
+                res = term1 + term2
+                terms.append(res)
                 model.Add(i.s.exe_start[j][o] >= sum(terms))
     return model, i.s
 
