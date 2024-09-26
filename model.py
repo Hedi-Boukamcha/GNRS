@@ -39,6 +39,18 @@ class Instance:
         self.job_modeB = self.initialize_job_modeB()
         self.job_robot = self.initialize_job_robot()
 
+    def loop_modes(self):
+        return range(i.nb_modes)
+
+    def loop_stations(self):
+        return range(i.nb_stations)
+
+    def loop_jobs(self):
+        return range(self.nb_jobs)
+
+    def loop_operations(self, j, exclude_first=False):
+        return range(1, self.operations_by_job[j]) if exclude_first else range(self.operations_by_job[j])
+
     def initialize_needed_proc(self):
         needed_proc = [[[0 for ty in range(self.nb_types)] for o in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
         for j, job in enumerate(self.data):
@@ -62,22 +74,19 @@ class Instance:
             due_date.append(job['due_date'])
         return due_date'''
 
-
     def initialize_welding_time(self):
         welding_time = [[0 for _ in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
         for j, job in enumerate(self.data):
             for o, operation in enumerate(job['operations']):
                 welding_time[j][o] = operation['pocessing_time']
         return welding_time
-    
-    
+      
     '''
     def initialize_pos_j(self):
         pos_j = []
         for job in self.data:
             pos_j.append(job['pos_time'])
         return pos_j'''
-
 
     def calculate_upper_bound(self):
         I = 0
