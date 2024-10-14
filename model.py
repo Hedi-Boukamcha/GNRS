@@ -105,8 +105,11 @@ class MathInstance:
 
     def loop_jobs(self):
         return range(self.nb_jobs)
+    
+    def last_operations(self, j: int):
+        return self.operations_by_job[j] - 1
 
-    def loop_operations(self, j, exclude_first=False):
+    def loop_operations(self, j: int, exclude_first: bool =False):
         return range(1, self.operations_by_job[j]) if exclude_first else range(self.operations_by_job[j])
 
 

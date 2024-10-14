@@ -48,6 +48,7 @@ def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
         return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C] 
                                      - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
 
+# Either o_prime before o ; Or o before o_prime [one and only one priority]
 def c2(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
@@ -57,12 +58,15 @@ def c2(model: cp_model.CpModel, i: MathInstance):
                         model.Add(1 == i.s.exe_before[j][j_prime][o][o_prime] + i.s.exe_before[j_prime][j][o_prime][o])
     return model, i.s
 
+# An operation o starts after the end of the previous one o_prime of the same job (plus some robot moves)
 def c3(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j, exclude_first=True):
-            model.Add(i.s.exe_start[j][o] >= end(i, j, o-1) + i.M * (3 * i.s.exe_parallel[j][o-1] + 1)) 
+            model.Add(i.s.exe_start[j][o] >= end(i, j, o-1) + i.M * (3*i.s.exe_parallel[j][o-1] + 1)) 
     return model, i.s
 
+# An operation o starts after the end of the previous one o_prime according to decided priority
+# Part 1/2: Except if o is in parrallel (mode B)
 def c4(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
@@ -72,6 +76,8 @@ def c4(model: cp_model.CpModel, i: MathInstance):
                         model.Add(i.s.exe_start[j][o] >= end(i, j_prime, o_prime) + 2*i.M  - i.I*(1 + i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_before[j_prime][j][o_prime][o]))
     return model, i.s
 
+# An operation o starts after the end of the previous one o_prime according to decided priority
+# Part 2/2: Except if o_prime can have someone in parrallel (mode C)
 def c5(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
@@ -145,8 +151,7 @@ def c13(model: cp_model.CpModel, i: MathInstance):
 
 def c14(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        for o in i.loop_operations(j):
-            model.Add(i.s.delay[j] >= end(i, j, o) + i.L + i.M - i.due_date[j])
+        model.Add(i.s.delay[j] >= end(i, j, i.last_operations(j)) + i.L + i.M - i.due_date[j])
     return model, i.s
 
 def c15(model: cp_model.CpModel, i: MathInstance):
