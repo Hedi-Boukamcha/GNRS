@@ -6,9 +6,9 @@ import json
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
 
 def init_vars(model: cp_model.CpModel, i: MathInstance):
-    i.s.entry_station_date = [[model.NewIntVar(0, 1000, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
-    i.s.delay = [model.NewIntVar(0, 1000, f'delay_{j}') for j in i.loop_jobs()]  
-    i.s.exe_start = [[model.NewIntVar(0, 1000, f'exe_start_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
+    i.s.entry_station_date = [[model.NewIntVar(0, i.I, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
+    i.s.delay = [model.NewIntVar(0, i.I, f'delay_{j}') for j in i.loop_jobs()]  
+    i.s.exe_start = [[model.NewIntVar(0, i.I, f'exe_start_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
     i.s.job_loaded = [[model.NewBoolVar(f'job_loaded_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
     i.s.exe_mode = [[[model.NewBoolVar(f'exe_mode_{j}_{o}_{m}') for m in i.loop_modes()] for o in i.loop_operations(j)] for j in i.loop_jobs()]
     i.s.exe_before = [[[[model.NewBoolVar(f'exe_before_{j}_{j_prime}_{o}_{o_prime}') for o_prime in i.loop_operations(j_prime)] for o in i.loop_operations(j)] for j_prime in i.loop_jobs()] for j in i.loop_jobs()]
