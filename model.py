@@ -1,6 +1,18 @@
 from ortools.sat.python import cp_model
 import numpy as np
 
+PROCEDE_1: int = 0
+PROCEDE_2: int = 1
+
+PROCEDE_1_SEQ_MODE_A: int = 0
+PROCEDE_1_PARALLEL_MODE_B: int = 1
+PROCEDE_2_MODE_C: int = 2
+
+STATION_1: int = 0
+STATION_2: int = 1
+STATION_3: int = 2
+
+FIRST_OP: int = 0
 
 class Solution:
     def __init__(self):
@@ -12,7 +24,6 @@ class Solution:
         self.delay = []
         self.exe_mode = [], [], []
         self.exe_before = [], [], [], []
-        
 
 class Instance:
     def __init__(self, data):
@@ -40,10 +51,10 @@ class Instance:
         self.job_robot = self.initialize_job_robot()
 
     def loop_modes(self):
-        return range(i.nb_modes)
+        return range(self.nb_modes)
 
     def loop_stations(self):
-        return range(i.nb_stations)
+        return range(self.nb_stations)
 
     def loop_jobs(self):
         return range(self.nb_jobs)
