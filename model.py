@@ -1,5 +1,6 @@
 from ortools.sat.python import cp_model
 import numpy as np
+import json
 
 PROCEDE_1: int = 0
 PROCEDE_2: int = 1
@@ -14,7 +15,44 @@ STATION_3: int = 2
 
 FIRST_OP: int = 0
 
-class Solution:
+class Operation:
+    def __init__(self, type: int = 0, processing_time: int = 0):
+        self.type = type
+        self.processing_time = processing_time
+    
+    def __str__(self):
+        return f"{{'type':{self.type}, 'processing_time':{self.processing_time}}}"
+
+class Job:
+    def __init__(self, big: int = 0, due_date: int = 0, pos_time: int = 0, operations: list[Operation] = [], status: int = 0, blocked: int = 0):
+        self.operations: list[Operation] = operations
+        self.big: int = big
+        self.due_date: int = due_date
+        self.pos_time: int = pos_time
+        self.status: int = status
+        self.blocked: int = blocked
+    
+    def __str__(self):
+        return f"{{'big':{self.big}, 'due_date':{self.due_date}, 'pos_time':{self.pos_time}, 'status':{self.status}, 'blocked':{self.blocked}, 'operations':{self.operations}}}"
+
+class Instance:
+    def __init__(self, jobs: list[Job] = []):
+        self.jobs: list[Job] = jobs
+
+    def __str__(self):
+        return f"{self.jobs}"
+
+    def load(path: str):
+        with open(path, 'r') as f:
+            _data = json.load(f)
+        jobs = []
+        for job_data in _data:
+            operations = [Operation(type=op["type"], processing_time=op["processing_time"]) for op in job_data["operations"]]
+            job = Job(big=job_data["big"], due_date=job_data["due_date"], pos_time=job_data["pos_time"], operations=operations, status=job_data["status"], blocked=job_data["blocked"])
+            jobs.append(job)
+        return Instance(jobs=jobs)
+
+class MathSolution:
     def __init__(self):
         self.entry_station_date = [], []
         self.exe_start = [], []
@@ -25,30 +63,39 @@ class Solution:
         self.exe_mode = [], [], []
         self.exe_before = [], [], [], []
 
-class Instance:
-    def __init__(self, data):
-        self.data = data
-        self.nb_jobs = len(data)
-        self.nb_types = 2
-        self.nb_stations = 3
-        self.nb_modes = 3
-        self.has_history = False
-        self.s = Solution()
-        
-        self.operations_by_job = [len(job['operations']) for job in self.data]
-        self.needed_proc = self.initialize_needed_proc()
-        self.lp = [job['big'] for job in self.data] # self.initialize_lp()
-        #self.fj = self.initialize_fj()
-        self.due_date = [job['due_date'] for job in self.data] # self.initialize_ddp()
-        self.welding_time = self.initialize_welding_time()
-        self.pos_j = [job['pos_time'] for job in self.data] #self.initialize_pos_j()
+class MathInstance:
+    def __init__(self, jobs: list[Job]):
+        self.s = MathSolution()
+        self.nb_jobs: int = len(jobs)
+        self.nb_types: int = 2
+        self.nb_stations: int = 3
+        self.nb_modes: int = 3
+        self.has_history: bool = False
         self.L = 2  
         self.M = 3  
-        self.I = self.calculate_upper_bound()
-        
-        self.job_station = self.initialize_job_station()
-        self.job_modeB = self.initialize_job_modeB()
-        self.job_robot = self.initialize_job_robot()
+        self.I = 0
+
+        self.lp = [job.big for job in jobs]
+        self.operations_by_job = [len(job.operations) for job in jobs]
+        self.due_date = [job.due_date for job in jobs]
+        self.pos_j = [job.pos_time for job in jobs]
+
+        self.needed_proc = [[[0 for _ in range(self.nb_types)] for _ in job.operations] for job in jobs]
+        self.welding_time = [[0 for _ in job.operations] for job in jobs]
+        self.job_station = [[0 for _ in range(self.nb_stations)] for _ in jobs]
+        self.job_modeB = [0 for _ in jobs]
+        self.job_robot = [0 for _ in jobs]
+        for j, job in enumerate(jobs):
+            self.job_modeB[j] = 1 if (job.status == 3) else 0
+            self.job_robot[j] = 1 if (job.status == 1 or job.status == 2) else 0
+            if job.status > 0:
+                self.has_history = True
+            for c in range(self.nb_stations):
+                self.job_station[j][c] = 1 if (job.blocked == c and job.status > 0) else 0
+            for o, operation in enumerate(job.operations):
+                self.needed_proc[j][o][operation.type-1] = 1  
+                self.welding_time[j][o] = operation.processing_time
+                self.I += (operation.processing_time + self.pos_j[j] + 3 * self.M + 2 * self.L)
 
     def loop_modes(self):
         return range(self.nb_modes)
@@ -58,66 +105,12 @@ class Instance:
 
     def loop_jobs(self):
         return range(self.nb_jobs)
+    
+    def last_operations(self, j: int):
+        return self.operations_by_job[j] - 1
 
-    def loop_operations(self, j, exclude_first=False):
+    def loop_operations(self, j: int, exclude_first: bool =False):
         return range(1, self.operations_by_job[j]) if exclude_first else range(self.operations_by_job[j])
-
-    def initialize_needed_proc(self):
-        needed_proc = [[[0 for ty in range(self.nb_types)] for o in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
-        for j, job in enumerate(self.data):
-            for o, operation in enumerate(job['operations']):
-                needed_proc[j][o][operation['type']-1] = 1  
-        return needed_proc
-
-    '''def initialize_lp(self):
-        lp = []
-        for job in self.data:
-            lp.append(job['big'])
-        return lp
-
-    def initialize_fj(self):
-        fj = []
-        return fj
-
-    def initialize_ddp(self):
-        due_date = []
-        for job in self.data:
-            due_date.append(job['due_date'])
-        return due_date'''
-
-    def initialize_welding_time(self):
-        welding_time = [[0 for _ in range(self.operations_by_job[j])] for j in range(self.nb_jobs)]
-        for j, job in enumerate(self.data):
-            for o, operation in enumerate(job['operations']):
-                welding_time[j][o] = operation['pocessing_time']
-        return welding_time
-      
-    '''
-    def initialize_pos_j(self):
-        pos_j = []
-        for job in self.data:
-            pos_j.append(job['pos_time'])
-        return pos_j'''
-
-    def calculate_upper_bound(self):
-        I = 0
-        for j, job in enumerate(self.data):
-            for o, _ in enumerate(job['operations']):
-                welding_time_value = self.welding_time[j][o]
-                I += (welding_time_value + self.pos_j[j] + 3 * self.M + 2 * self.L)
-        return I
-
-    def initialize_job_station(self):
-        job_station = [[0 for _ in range(self.nb_stations)] for _ in range(self.nb_jobs)]
-        return job_station
-        
-    def initialize_job_modeB(self):
-        job_modeB = [0 for _ in range(self.nb_jobs)]
-        return job_modeB
-
-    def initialize_job_robot(self):
-        job_robot = [0 for _ in range(self.nb_jobs)]
-        return job_robot
 
 
 
