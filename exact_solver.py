@@ -267,6 +267,7 @@ def solver(instance_file):
         result_values = None
     # Retourner le statut, les valeurs des variables, le modèle et le solveur
     '''
+        result_values = None
     return status, result_values, model, solver
 
 if __name__ == "__main__":
