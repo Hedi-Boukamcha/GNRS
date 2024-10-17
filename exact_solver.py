@@ -192,6 +192,7 @@ def c18(model: cp_model.CpModel, i: MathInstance):
             model.Add(i.s.entry_station_date[j][c] >= sum(terms) - i.I*(1-i.s.job_loaded[j][c_prime]))
     return model, i.s
 
+# 
 def c19(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
@@ -200,6 +201,7 @@ def c19(model: cp_model.CpModel, i: MathInstance):
                     model.Add(i.s.entry_station_date[j][c] >= i.job_station[j_prime][c]*(2*i.L + i.M*i.job_robot[j_prime] + 3*i.M*i.job_modeB[j_prime]) - i.I*(1-i.s.job_loaded[j][c]))
     return model, i.s
 
+# If a job is executed before one that have an history (already either in robot or positioner), the later should be removed
 def c20(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
@@ -208,14 +210,14 @@ def c20(model: cp_model.CpModel, i: MathInstance):
                     model.Add(1 <= i.s.entry_station_date[j][c] + i.I*(3 - i.job_station[j][c] - i.s.exe_before[j_prime][j][FIRST_OP][FIRST_OP] - i.s.job_loaded[j_prime][c]))
     return model, i.s
 
+# The start of the first operation of any job should wait for possible uloading time of another job (either from robot or positioner)
 def c21(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        for o in i.loop_operations(j):
-            terms = []
-            for p in i.loop_jobs():
-                for c in i.loop_stations():
-                    terms.append(i.s.job_unload[p][c] * (i.M*i.job_robot[p] + 2*i.M*i.job_modeB[p]))
-            model.Add(i.s.exe_start[j][o] >= sum(terms))
+        terms = []
+        for p in i.loop_jobs():
+            for c in i.loop_stations():
+                terms.append(i.s.job_unload[p][c] * (i.M*i.job_robot[p] + 2*i.M*i.job_modeB[p]))
+        model.Add(i.s.exe_start[j][0] >= sum(terms))
     return model, i.s
 
 def solver(instance_file, debug: bool=True):
