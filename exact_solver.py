@@ -144,34 +144,39 @@ def c12(model: cp_model.CpModel, i: MathInstance):
         model.Add(1 == sum(terms))
     return model, i.s
 
+# A large job should enter only the station 2! Other jobs have the choice...
 def c13(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         model.Add(i.s.job_loaded[j][STATION_2] >= i.lp[j])
     return model, i.s
 
+# Delay case 1: |end last operation - deadline|
 def c14(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        model.Add(i.s.delay[j] >= end(i, j, i.last_operations(j)) + i.L + i.M - i.due_date[j])
+        model.Add(i.s.delay[j] - end(i, j, i.last_operations(j)) >= i.L + i.M - i.due_date[j])
     return model, i.s
 
+# Delay case 2: still equals |end - deadline| but this time, the job is blocked in mode B and waits for the end of another job
 def c15(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if (j != j_prime):
                 for o in i.loop_operations(j):
                     for o_prime in i.loop_operations(j_prime):
-                        model.Add(i.s.delay[j] >= free(i, j, j_prime, o, o_prime) + i.L + 3*i.M - i.due_date[j])
+                        model.Add(i.s.delay[j] - free(i, j, j_prime, o, o_prime) >= i.L + 3*i.M - i.due_date[j])
     return model, i.s
 
+# A Job enters into a station only after the previous has exited (case 1: no parallelism)
 def c16(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if (j != j_prime):
                 for o_prime in i.loop_operations(j_prime):
                     for c in i.loop_stations():
-                        model.Add(i.s.entry_station_date[j][c] >= end(i, j_prime, o_prime) - prec(i, j_prime, j, c) + 2*i.L + i.M)
+                        model.Add(i.s.entry_station_date[j][c] - end(i, j_prime, o_prime) + prec(i, j_prime, j, c) >= 2*i.L + i.M)
     return model, i.s
 
+# A Job enters into a station only after the previous has exited (which sometimes requires waiting for it to be freed from a third job - in case of last operation in B mode)
 def c17(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
@@ -180,7 +185,7 @@ def c17(model: cp_model.CpModel, i: MathInstance):
                     for o_prime in i.loop_operations(j_prime):
                         for o_second in i.loop_operations(j_second):
                             for c in i.loop_stations():
-                                model.Add(i.s.entry_station_date[j][c] >= free(i, j_prime, j_second, o_prime, o_second) - prec(i, j_prime, j, c) + 2*i.L + 3*i.M)
+                                model.Add(i.s.entry_station_date[j][c] - free(i, j_prime, j_second, o_prime, o_second) + prec(i, j_prime, j, c) >= 2*i.L + 3*i.M)
     return model, i.s
 
 # A possible entering date into a loading station must wait for unloading times (part 1): same job in unloaded from another station
@@ -190,7 +195,7 @@ def c18(model: cp_model.CpModel, i: MathInstance):
             terms = []
             for c in i.loop_stations():
                 terms.append(i.s.job_unload[j][c_prime] * (i.M*i.job_robot[j] + 3*i.M*i.job_modeB[j] + 2*i.L))
-            model.Add(i.s.entry_station_date[j][c] >= sum(terms) - i.I*(1-i.s.job_loaded[j][c_prime]))
+            model.Add(0 >= sum(terms) - i.I*(1-i.s.job_loaded[j][c_prime]) - i.s.entry_station_date[j][c])
     return model, i.s
 
 # A possible entering date into a loading station must wait for unloading times (part 2): another job is unloaded from the same station
@@ -199,7 +204,7 @@ def c19(model: cp_model.CpModel, i: MathInstance):
         for j_prime in i.loop_jobs():
             if (j != j_prime):
                 for c in i.loop_stations():
-                    model.Add(i.s.entry_station_date[j][c] >= i.job_station[j_prime][c]*(2*i.L + i.M*i.job_robot[j_prime] + 3*i.M*i.job_modeB[j_prime]) - i.I*(1-i.s.job_loaded[j][c]))
+                    model.Add(0 >= i.job_station[j_prime][c]*(2*i.L + i.M*i.job_robot[j_prime] + 3*i.M*i.job_modeB[j_prime]) - i.I*(1-i.s.job_loaded[j][c]) - i.s.entry_station_date[j][c])
     return model, i.s
 
 # If a job is executed before one that have an history (already either in robot or positioner), the later should be removed
@@ -218,7 +223,7 @@ def c21(model: cp_model.CpModel, i: MathInstance):
         for p in i.loop_jobs():
             for c in i.loop_stations():
                 terms.append(i.s.job_unload[p][c] * (i.M*i.job_robot[p] + 2*i.M*i.job_modeB[p]))
-        model.Add(i.s.exe_start[j][0] >= sum(terms))
+        model.Add(0 >= sum(terms) - i.s.exe_start[j][0])
     return model, i.s
 
 def solver(instance_file, debug: bool=True):
