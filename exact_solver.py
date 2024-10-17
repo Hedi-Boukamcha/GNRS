@@ -254,7 +254,28 @@ def solver(instance_file, debug: bool=True):
         print("Solution optimale trouvée!")
         print(f'fn obj= {solver.ObjectiveValue()}')
     else:
-        print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
+        '''
+        print(f"Pas de solution optimale trouvée. Statut: {status}")
+        
+        sol_matrix = []
+        for j in i.loop_jobs():
+            row = []
+            for c in i.loop_stations():
+                value = solver.Value(i.s.entry_station_date[j][c])
+                row.append(value)
+                print(f"Valeur de i.s.entry_station_date[{j}][{c}] après résolution = {value}")
+            sol_matrix.append(row)
+
+        for row in sol_matrix:
+            print(row)
+        result_values = None
+    # Retourner le statut, les valeurs des variables, le modèle et le solveur
+    '''
+        result_values = None
+    return status, result_values, model, solver
+
+
+    print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
         
 if __name__ == "__main__":
     #solver('./mini_instance_1.json') # OPTIMAL
