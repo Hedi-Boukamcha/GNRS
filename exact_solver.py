@@ -87,13 +87,14 @@ def c5(model: cp_model.CpModel, i: MathInstance):
                         model.Add(i.s.exe_start[j][o] >= end(i, j_prime, o_prime) + 2 * i.M  - i.I * (1 + i.s.exe_mode[j][o][PROCEDE_2_MODE_C] - i.s.exe_before[j_prime][j][o_prime][o]))
     return model, i.s
 
+# An non-parallel operation starts only after the end of the previous operation (regardless of the process because the robot is already busy)
 def c6(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] >= end(i, j_prime, o_prime) + 2 * i.M  - i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] - i.s.exe_parallel[j][o]))
+                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] + i.s.exe_parallel[j][o]) >= 2*i.M)
     return model, i.s
 
 # An operation starts only after a previous operation started + two robot moves + possibly a positioner time (only if the previous job is not already on the positioner)
