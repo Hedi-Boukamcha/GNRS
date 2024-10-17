@@ -96,31 +96,33 @@ def c6(model: cp_model.CpModel, i: MathInstance):
                         model.Add(i.s.exe_start[j][o] >= end(i, j_prime, o_prime) + 2 * i.M  - i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] - i.s.exe_parallel[j][o]))
     return model, i.s
 
+# An operation starts only after a previous operation started + two robot moves + possibly a positioner time (only if the previous job is not already on the positioner)
 def c7(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] >= i.s.exe_start[j_prime][o_prime] + 
-                                (i.pos_j[j]*i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] + 2*i.M) * (1-i.job_modeB[j])
-                                - i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]))
+                        model.Add(i.s.exe_start[j][o] - i.s.exe_start[j_prime][o_prime] - (i.pos_j[j_prime]*i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] - 2*i.M) * (1-i.job_modeB[j_prime]) + i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]) >= 0)
     return model, i.s
 
+# Only operation needing Process 2 can be executed in parallel (meaning: there is another job in the positioner for Process 1)
 def c8(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             model.Add(i.s.exe_parallel[j][o] >= i.needed_proc[j][o][PROCEDE_2])
     return model, i.s
 
+# The first operation of a job (that is not removed form a station & has no history) starts its first operation after being loaded + one robot move
 def c9(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         terms = []
         for c in i.loop_stations():
             terms.append(i.s.entry_station_date[j][c] - i.M*i.job_station[j][c] * (1-i.s.job_unload[j][c]) * (i.pos_j[j]+i.job_robot[j]))
-        model.Add(i.s.exe_start[j][FIRST_OP] >= sum(terms) + i.M)
+        model.Add(i.s.exe_start[j][FIRST_OP] - sum(terms) >= i.M)
     return model, i.s
 
+# Operations are executed in one and exactly one mode
 def c10(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
@@ -130,12 +132,14 @@ def c10(model: cp_model.CpModel, i: MathInstance):
             model.Add(1 == sum(terms))
     return model, i.s
 
+# Operation requirering Process 2 are executed in Mode C (neither A or B - reserved for Process 1)
 def c11(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             model.Add(i.s.exe_mode[j][o][PROCEDE_2_MODE_C] == i.needed_proc[j][o][PROCEDE_2])
     return model, i.s
 
+# Each must enter one and exactly one loading station!
 def c12(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         terms = []
