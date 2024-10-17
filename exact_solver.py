@@ -270,5 +270,5 @@ def solver(instance_file, debug: bool=True):
 
 if __name__ == "__main__":
     #solver('./mini_instance_1.json') # OPTIMAL
-    solver('./mini_instance_2.json') # INFEASIBLE
-    #solver('./1st_instance.json') # INFEASIBLE
+    #solver('./mini_instance_2.json') # OPTIMAL
+    solver('./1st_instance.json') # OPTIMAL
