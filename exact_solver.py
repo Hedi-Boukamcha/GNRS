@@ -183,16 +183,17 @@ def c17(model: cp_model.CpModel, i: MathInstance):
                                 model.Add(i.s.entry_station_date[j][c] >= free(i, j_prime, j_second, o_prime, o_second) - prec(i, j_prime, j, c) + 2*i.L + 3*i.M)
     return model, i.s
 
+# A possible entering date into a loading station must wait for unloading times (part 1): same job in unloaded from another station
 def c18(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for c_prime in i.loop_stations():
             terms = []
             for c in i.loop_stations():
-                terms.append(i.s.job_unload[j][c] * (i.M*i.job_robot[j] + 3*i.M*i.job_modeB[j] + 2*i.L))
+                terms.append(i.s.job_unload[j][c_prime] * (i.M*i.job_robot[j] + 3*i.M*i.job_modeB[j] + 2*i.L))
             model.Add(i.s.entry_station_date[j][c] >= sum(terms) - i.I*(1-i.s.job_loaded[j][c_prime]))
     return model, i.s
 
-# 
+# A possible entering date into a loading station must wait for unloading times (part 2): another job is unloaded from the same station
 def c19(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
