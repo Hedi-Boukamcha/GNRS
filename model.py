@@ -59,6 +59,7 @@ class MathSolution:
         self.job_loaded = [], []
         self.exe_parallel = [], []
         self.job_unload = [], []
+        self.C_max = None,
         self.delay = []
         self.exe_mode = [], [], []
         self.exe_before = [], [], [], []

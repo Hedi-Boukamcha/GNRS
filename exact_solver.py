@@ -7,6 +7,7 @@ STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL
 
 def init_vars(model: cp_model.CpModel, i: MathInstance):
     i.s.entry_station_date = [[model.NewIntVar(0, i.I, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
+    i.s.C_max = model.NewIntVar(0, i.I, "C_max")
     i.s.delay = [model.NewIntVar(0, i.I, f'delay_{j}') for j in i.loop_jobs()]  
     i.s.exe_start = [[model.NewIntVar(0, i.I, f'exe_start_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
     i.s.job_loaded = [[model.NewBoolVar(f'job_loaded_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
@@ -23,7 +24,8 @@ def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms = []
     for j in i.loop_jobs():        
         terms.append(i.s.delay[j])
-    model.Minimize(sum(terms))
+    #total_delay = cp_model.LinearExpr.Sum(terms)
+    model.Minimize(i.s.C_max + sum(terms))
     return model, i.s
 
 def prec(i: MathInstance, j: int, j_prime: int, c: int): #c = station
@@ -47,6 +49,11 @@ def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
                     terms.append(i.needed_proc[q][x][PROCEDE_1] * term)
         return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C] 
                                      - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
+
+def c1(model: cp_model.CpModel, i: MathInstance):
+    for j in i.loop_jobs():
+        model.Add(i.s.C_max >= i.due_date[j])
+    return model, i.s
 
 # Either o_prime before o ; Or o before o_prime [one and only one priority]
 def c2(model: cp_model.CpModel, i: MathInstance):
@@ -252,7 +259,7 @@ def solver(instance_file, debug: bool=True):
     solver = cp_model.CpSolver()
     init_vars(model, i)
     init_objective_function(model, i)
-    for constraint in [c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+    for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
         model, i.s = constraint(model, i)
 
     if debug:
@@ -264,6 +271,9 @@ def solver(instance_file, debug: bool=True):
     
     if status == cp_model.OPTIMAL:
         print("Solution optimale trouvée!")
+        total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
+        print("Total des delays =", total_delay)
+        print("C_max =", solver.Value(i.s.C_max))
         print(f'fn obj= {solver.ObjectiveValue()}')
     else:
         print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
@@ -271,4 +281,5 @@ def solver(instance_file, debug: bool=True):
 if __name__ == "__main__":
     #solver('./mini_instance_1.json') # OPTIMAL
     #solver('./mini_instance_2.json') # OPTIMAL
-    solver('./1st_instance.json') # OPTIMAL
+    #solver('data/instances/instance_3.json') # OPTIMAL
+    solver('data/instances/simple_instances/instance_1.json')

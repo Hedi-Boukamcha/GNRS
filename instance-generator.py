@@ -44,6 +44,16 @@ def download_instances(dossier, fichier, instances):
             f.write(f"    {inst},\n")
         f.write("]\n")
 
+def download_instances_json(dossier, fichier, instances):
+    os.makedirs(dossier, exist_ok=True)
+
+    for i, instance in enumerate(instances):
+        nom_fichier = f"{fichier}_{i+1}.json"
+        chemin = os.path.join(dossier, nom_fichier)
+        with open(chemin, "w") as f:
+            json.dump(instance, f, indent=4)
+
+
 
 if __name__ == "__main__":
     # Exemple : générer 3 instances de taille 4 jobs / 3 opérations max
@@ -53,5 +63,5 @@ if __name__ == "__main__":
         generate_instance(5, 2),
         generate_instance(3, 4),
     ]
-    
-    download_instances("data", "instances.py", all_instances)
+
+    download_instances_json("data/instances", "instance", all_instances)
