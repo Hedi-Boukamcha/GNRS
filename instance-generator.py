@@ -2,7 +2,7 @@ import json
 import os
 import random
 
-def generate_instance(
+def generate_controledSize_instance(
     nombre_jobs: int = 5,
     max_operations_par_job: int = 20,
     types_operations: list = [1, 2],
@@ -58,10 +58,10 @@ def download_instances_json(dossier, fichier, instances):
 if __name__ == "__main__":
     # Exemple : générer 3 instances de taille 4 jobs / 3 opérations max
     
-    all_instances = [
-        generate_instance(4, 3),
-        generate_instance(5, 2),
-        generate_instance(3, 4),
+    all_controledSize_instances = [
+        generate_controledSize_instance(4, 3),
+        generate_controledSize_instance(5, 2),
+        generate_controledSize_instance(3, 4),
     ]
 
-    download_instances_json("data/instances", "instance", all_instances)
+    download_instances_json("data/instances/controled_sizes", "instance", all_controledSize_instances)
