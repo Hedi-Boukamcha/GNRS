@@ -282,4 +282,4 @@ if __name__ == "__main__":
     #solver('./mini_instance_1.json') # OPTIMAL
     #solver('./mini_instance_2.json') # OPTIMAL
     #solver('data/instances/instance_3.json') # OPTIMAL
-    solver('data/instances/simple_instances/instance_1.json')
+    solver('data/instances/load_variants/instance_1.json')
