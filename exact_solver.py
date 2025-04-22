@@ -1,3 +1,5 @@
+import csv
+import os
 from model import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
 from ortools.sat.python import cp_model
 import random
@@ -39,7 +41,7 @@ def end(i: MathInstance, j: int, o: int):
 
 def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
     if (i.nb_jobs == 2):
-        return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j][o_prime][PROCEDE_2_MODE_C])
+        return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C])
     else:
         terms = []
         for q in i.loop_jobs():
@@ -239,6 +241,39 @@ def c21(model: cp_model.CpModel, i: MathInstance):
         model.Add(0 >= sum(terms) - i.s.exe_start[j][0])
     return model, i.s
 
+import csv
+import os
+
+def save_solution_to_csv( instance: Instance, i:MathInstance, solver, num_instance=None):
+
+    headers = [
+        "job_id", "operation_id", "big", "due_date", "pos_time", "status", "blocked",
+        "op_type", "processing_time",
+        "exe_mode", "exe_start", "delay"
+    ]
+
+    rows = []
+    for j, job in enumerate(instance.jobs):
+        for o, op in enumerate(job.operations):
+            exe_mode = None
+            for m in i.loop_modes():
+                if solver.BooleanValue(i.s.exe_mode[j][o][m]):
+                    exe_mode = m
+            exe_start = solver.Value(i.s.exe_start[j][o])
+            delay = solver.Value(i.s.delay[j])
+            rows.append([
+                j, o, job.big, job.due_date, job.pos_time, job.status, job.blocked,
+                op.type, op.processing_time,
+                exe_mode, exe_start, delay
+            ])
+
+    path = os.path.join('data/solutions/controlled_sizes', 'solution.csv')
+    
+    with open(path, "w", newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(headers)
+        writer.writerows(rows)
+    
 def solver(instance_file, debug: bool=True):
     instance: Instance = Instance.load(instance_file) # PPO instance
     print("---------------------------------------")
@@ -275,11 +310,13 @@ def solver(instance_file, debug: bool=True):
         print("Total des delays =", total_delay)
         print("C_max =", solver.Value(i.s.C_max))
         print(f'fn obj= {solver.ObjectiveValue()}')
+        save_solution_to_csv(instance, i, solver, num_instance=3)
+
     else:
         print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
 
 if __name__ == "__main__":
-    #solver('./mini_instance_1.json') # OPTIMAL
-    #solver('./mini_instance_2.json') # OPTIMAL
-    #solver('data/instances/instance_3.json') # OPTIMAL
-    solver('data/instances/load_variants/instance_1.json')
+    #solver('./mini_instance_1.json')
+    #solver('./mini_instance_2.json') 
+    solver('data/instances/controlled_sizes/instance_2.json')
+    #solver('data/instances/load_variants/instance_3.json')

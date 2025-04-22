@@ -88,7 +88,6 @@ def generate_loadVariants_instance(min_jobs: int = 1, max_jobs: int = 15):
 
     return instance
 
-
 def download_instances(folder, file, instances):
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, file)
