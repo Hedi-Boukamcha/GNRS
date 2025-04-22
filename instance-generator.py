@@ -2,6 +2,7 @@ import json
 import os
 import random
 
+
 def generate_controledSize_instance(
         nombre_jobs: int = 5,
         max_operations_par_job: int = 20,

@@ -2,6 +2,7 @@ import csv
 import os
 from model import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
 from ortools.sat.python import cp_model
+from solver_result import save_solution_to_csv
 import random
 import json
 
@@ -241,54 +242,31 @@ def c21(model: cp_model.CpModel, i: MathInstance):
         model.Add(0 >= sum(terms) - i.s.exe_start[j][0])
     return model, i.s
 
-import csv
-import os
+def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
 
-def save_solution_to_csv( instance: Instance, i:MathInstance, solver, num_instance=None):
+    instance_files = sorted([
+        os.path.join(instances_folder, f)
+        for f in os.listdir(instances_folder)
+        if f.endswith('.json')
+    ]) # PPO instance
 
-    headers = [
-        "job_id", "operation_id", "big", "due_date", "pos_time", "status", "blocked",
-        "op_type", "processing_time",
-        "exe_mode", "exe_start", "delay"
-    ]
+    for idx, file in enumerate(instance_files):
+        print(f"\n=== Résolution de {file} ===")
+        instance: Instance = Instance.load(file)
+        print("---------------------------------------")
+        print("=*= DISPLAY INSTANCE IN OOP MODE (_mode readable for human_)=*=")
+        print(instance)
+        print(instance.jobs[0])
+        print(instance.jobs[0].operations[0])
+        print("---------------------------------------")
 
-    rows = []
-    for j, job in enumerate(instance.jobs):
-        for o, op in enumerate(job.operations):
-            exe_mode = None
-            for m in i.loop_modes():
-                if solver.BooleanValue(i.s.exe_mode[j][o][m]):
-                    exe_mode = m
-            exe_start = solver.Value(i.s.exe_start[j][o])
-            delay = solver.Value(i.s.delay[j])
-            rows.append([
-                j, o, job.big, job.due_date, job.pos_time, job.status, job.blocked,
-                op.type, op.processing_time,
-                exe_mode, exe_start, delay
-            ])
-
-    path = os.path.join('data/solutions/controlled_sizes', 'solution.csv')
-    
-    with open(path, "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(headers)
-        writer.writerows(rows)
-    
-def solver(instance_file, debug: bool=True):
-    instance: Instance = Instance.load(instance_file) # PPO instance
-    print("---------------------------------------")
-    print("=*= DISPLAY INSTANCE IN OOP MODE (_mode readable for human_)=*=")
-    print(instance)
-    print(instance.jobs[0])
-    print(instance.jobs[0].operations[0])
-    print("---------------------------------------")
-    i: MathInstance = MathInstance(instance.jobs) # Math instance
-    print("=*= DISPLAY INSTANCE IN CP MODE (_mode usable for math_)=*=")
-    print(i.welding_time)
-    print(i.has_history)
-    print(i.lp)
-    print(i.needed_proc)
-    print("---------------------------------------")
+        i: MathInstance = MathInstance(instance.jobs) # Math instance
+        print("=*= DISPLAY INSTANCE IN CP MODE (_mode usable for math_)=*=")
+        print(i.welding_time)
+        print(i.has_history)
+        print(i.lp)
+        print(i.needed_proc)
+        print("---------------------------------------")
 
     model = cp_model.CpModel()
     solver = cp_model.CpSolver()
@@ -304,19 +282,26 @@ def solver(instance_file, debug: bool=True):
 
     status = solver.Solve(model)
     
-    if status == cp_model.OPTIMAL:
-        print("Solution optimale trouvée!")
-        total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
-        print("Total des delays =", total_delay)
-        print("C_max =", solver.Value(i.s.C_max))
-        print(f'fn obj= {solver.ObjectiveValue()}')
-        save_solution_to_csv(instance, i, solver, num_instance=3)
+    for idx, file in enumerate(instance_files):
+        print(f"\n=== Résolution de {file} ===")
+        if status == cp_model.OPTIMAL:
+            print("Solution optimale trouvée!")
+            total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
+            print("Total des delays =", total_delay)
+            print("C_max =", solver.Value(i.s.C_max))
+            print(f'fn obj= {solver.ObjectiveValue()}')
+            
+            # Sauvegarder la solution dans un fichier CSV
+            instance_type = file.split('/')[2]  # Type d'instance, extrait du chemin
+            num_instance = int(file.split('_')[-1].split('.')[0])  # Numéro de l'instance extrait du nom du fichier
+            save_solution_to_csv(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
 
-    else:
-        print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
+
+        else:
+            print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
 
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
     #solver('./mini_instance_2.json') 
-    solver('data/instances/controlled_sizes/instance_2.json')
+    solver()
     #solver('data/instances/load_variants/instance_3.json')
