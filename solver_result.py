@@ -1,8 +1,5 @@
-
-
 import csv
 import os
-
 from model import Instance, MathInstance
 
 

@@ -3,6 +3,7 @@ import os
 from model import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
 from ortools.sat.python import cp_model
 from solver_result import save_solution_to_csv
+from date_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
 import random
 import json
 
@@ -242,6 +243,47 @@ def c21(model: cp_model.CpModel, i: MathInstance):
         model.Add(0 >= sum(terms) - i.s.exe_start[j][0])
     return model, i.s
 
+def solver_per_file(instance_file, debug: bool=True):
+    instance: Instance = Instance.load(instance_file) # PPO instance
+    print("---------------------------------------")
+    print("=*= DISPLAY INSTANCE IN OOP MODE (_mode readable for human_)=*=")
+    print(instance)
+    print(instance.jobs[0])
+    print(instance.jobs[0].operations[0])
+    print("---------------------------------------")
+    i: MathInstance = MathInstance(instance.jobs) # Math instance
+    print("=*= DISPLAY INSTANCE IN CP MODE (_mode usable for math_)=*=")
+    print(i.welding_time)
+    print(i.has_history)
+    print(i.lp)
+    print(i.needed_proc)
+    print("---------------------------------------")
+
+    model = cp_model.CpModel()
+    solver = cp_model.CpSolver()
+    init_vars(model, i)
+    init_objective_function(model, i)
+    for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+        model, i.s = constraint(model, i)
+
+    if debug:
+        solver.parameters.log_search_progress = True
+        solver.parameters.cp_model_probing_level = 0
+        solver.parameters.enumerate_all_solutions = True
+
+    status = solver.Solve(model)
+    
+    if status == cp_model.OPTIMAL:
+        print("Solution optimale trouvée!")
+        total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
+        print("Total des delays =", total_delay)
+        print("C_max =", solver.Value(i.s.C_max))
+        print(f'fn obj= {solver.ObjectiveValue()}')
+        gantt_cp_solution(instance, i, solver, instance_file)
+
+    else:
+        print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
+
 def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
 
     instance_files = sorted([
@@ -268,21 +310,21 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
         print(i.needed_proc)
         print("---------------------------------------")
 
-    model = cp_model.CpModel()
-    solver = cp_model.CpSolver()
-    init_vars(model, i)
-    init_objective_function(model, i)
-    for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
-        model, i.s = constraint(model, i)
-
-    if debug:
-        solver.parameters.log_search_progress = True
-        solver.parameters.cp_model_probing_level = 0
-        solver.parameters.enumerate_all_solutions = True
-
-    status = solver.Solve(model)
-    
     for idx, file in enumerate(instance_files):
+        model = cp_model.CpModel()
+        solver = cp_model.CpSolver()
+        init_vars(model, i)
+        init_objective_function(model, i)
+        for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+            model, i.s = constraint(model, i)
+
+        if debug:
+            solver.parameters.log_search_progress = True
+            solver.parameters.cp_model_probing_level = 0
+            solver.parameters.enumerate_all_solutions = True
+
+        status = solver.Solve(model)
+    
         print(f"\n=== Résolution de {file} ===")
         if status == cp_model.OPTIMAL:
             print("Solution optimale trouvée!")
@@ -294,14 +336,14 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
             # Sauvegarder la solution dans un fichier CSV
             instance_type = file.split('/')[2]  # Type d'instance, extrait du chemin
             num_instance = int(file.split('_')[-1].split('.')[0])  # Numéro de l'instance extrait du nom du fichier
-            save_solution_to_csv(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
-
-
+            save_solution_to_csv(instance, i, solver, instance_type, num_instance)
+            simulate_schedule(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
         else:
             print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
 
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
-    #solver('./mini_instance_2.json') 
-    solver()
-    #solver('data/instances/load_variants/instance_3.json')
+    #solver('./mini_instance_2.json')
+    solver_per_file('./2nd_instance.json')
+    #solver_per_file('data/instances/controled_sizes/instance_2.json')
+    #solver()

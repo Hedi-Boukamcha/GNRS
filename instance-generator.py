@@ -26,12 +26,18 @@ def generate_controledSize_instance(
         }
 
         nb_operations = random.randint(1, max_operations_par_job)
+        last_type = None 
+
         for _ in range(nb_operations):
+            # Exclure le type précédent
+            available_types = [t for t in types_operations if t != last_type]
+            chosen_type = random.choice(available_types)
             op = {
-                "type": random.choice(types_operations),
+                "type": chosen_type,
                 "processing_time": random.randint(duree_min, duree_max)
             }
             job["operations"].append(op)
+            last_type = chosen_type
 
         instance.append(job)
     return instance
@@ -113,16 +119,16 @@ def download_instances_json(folder, file, instances):
 if __name__ == "__main__":
     
     all_controledSize_instances = [
+        generate_controledSize_instance(2, 3),
         generate_controledSize_instance(4, 3),
-        generate_controledSize_instance(5, 2),
-        generate_controledSize_instance(3, 4),
+        generate_controledSize_instance(6, 3),
     ]
+    download_instances_json("data/instances/controled_sizes", "instance", all_controledSize_instances)
 
-    all_loadVariants_instances = [
+
+    """all_loadVariants_instances = [
         generate_loadVariants_instance(1, 5),
         generate_loadVariants_instance(1, 10),
         generate_loadVariants_instance(1, 15),
-    ]
-
-    download_instances_json("data/instances/controled_sizes", "instance", all_controledSize_instances)
-    download_instances_json("data/instances/load_variants", "instance", all_loadVariants_instances)
+    ]"""
+    #download_instances_json("data/instances/load_variants", "instance", all_loadVariants_instances)
