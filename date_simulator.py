@@ -31,22 +31,21 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
     tasks = []
     job_colors = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5']
     
-    job_to_station = {}  # job index -> station index
     for j, job in enumerate(instance.jobs):
-        # Assign a single station per job based on its size
-        if job.big == 1:
-            job_to_station[j] = 1  # Station 2
-        else:
-            job_to_station[j] = random.choice([0, 1, 2])  # petite pièce → aléatoire
+        assigned_station = None
+        for c in [0, 1, 2]:
+            if solver.BooleanValue(i.s.job_loaded[j][c]):
+                assigned_station = c
+                break
+        if assigned_station is None:
+            assigned_station = 0
 
-    for j, job in enumerate(instance.jobs):
-        assigned_station = job_to_station[j]
         for o, op in enumerate(job.operations):
             start = solver.Value(i.s.exe_start[j][o])
             modeB = solver.BooleanValue(i.s.exe_mode[j][o][1])
             duration = i.welding_time[j][o] + (i.pos_j[j] if modeB else 0)
             end = start + duration
-            station_str = f"n°{assigned_station + 1}"
+            station = f"n°{assigned_station + 1}"
 
             if op.type == 2:
                 mode_str = "Mode C"
@@ -55,7 +54,7 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
 
             proc_type = 1 if op.type == 2 else 0
             tasks.append({
-                "label": f"J{j+1} O{o+1} S{station_str} ({mode_str})",
+                "label": f"J{j+1} O{o+1} S{station} ({mode_str})",
                 "start": start,
                 "end": end,
                 "duration": duration,
