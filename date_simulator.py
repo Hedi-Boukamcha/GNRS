@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 
 def plot_gantt_chart(tasks, instance_file: str):
     fig, ax = plt.subplots(figsize=(14, 6))
-    for idx, task in enumerate(reversed(tasks)):
-        ax.barh(idx, task["duration"], left=task["start"], color=task["color"], edgecolor='black')
-        ax.text(task["start"] + 0.2, idx, f'{task["label"]}', va='center', fontsize=9, color='black')
-        ax.vlines([task["start"], task["end"]], ymin=-1, ymax=len(tasks), linestyles='dotted', color='gray')
+    for task in tasks:
+        level = 0 if task["proc_type"] == PROCEDE_1 else 1
+        ax.barh(level, task["duration"], left=task["start"], color=task["color"], edgecolor='black')
+        ax.text(task["start"] + 0.2, level, f'{task["label"]}', va='center', fontsize=8, color='black')
+        ax.vlines([task["start"], task["end"]], ymin=-1, ymax=2, linestyles='dotted', color='gray')
 
     ax.set_xlabel("Temps")
-    ax.set_yticks([])
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["Procédé 1", "Procédé 2"])
     ax.set_title(f"Diagramme de Gantt - {instance_file}")
     plt.tight_layout()
     plt.show()
@@ -45,15 +47,21 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
             duration = i.welding_time[j][o] + (i.pos_j[j] if modeB else 0)
             end = start + duration
             station_str = f"n°{assigned_station + 1}"
-            mode_str = "Mode B" if modeB else "Mode A"
 
+            if op.type == 2:
+                mode_str = "Mode C"
+            else:
+                mode_str = "Mode B" if modeB else "Mode A"
+
+            proc_type = 1 if op.type == 2 else 0
             tasks.append({
                 "label": f"J{j+1} O{o+1} S{station_str} ({mode_str})",
                 "start": start,
                 "end": end,
                 "duration": duration,
                 "color": job_colors[j % len(job_colors)],
-                "station": assigned_station
+                "station": assigned_station,
+                "proc_type": proc_type
             })
 
     plot_gantt_chart(tasks, instance_file)
