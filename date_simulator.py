@@ -1,20 +1,25 @@
 import random
-from model import Instance, MathInstance, PROCEDE_1, PROCEDE_2
+from models.instance import Instance, MathInstance, PROCEDE_1, PROCEDE_2
 import matplotlib.pyplot as plt
 
 def plot_gantt_chart(tasks, instance_file: str):
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(10, 3))
     for task in tasks:
         level = 0 if task["proc_type"] == PROCEDE_1 else 1
         ax.barh(level, task["duration"], left=task["start"], color=task["color"], edgecolor='black')
-        ax.text(task["start"] + 0.2, level, f'{task["label"]}', va='center', fontsize=8, color='black')
-        ax.vlines([task["start"], task["end"]], ymin=-1, ymax=2, linestyles='dotted', color='gray')
+        ax.text(task["start"] + 0.2, level, f'{task["label"]}', va='bottom', fontsize=8, color='black')
+        time_points = sorted(set([task["start"] for task in tasks] + [task["end"] for task in tasks]))
+       
+    ax.set_xticks(time_points)
+    ax.set_xticklabels([f'{t:.1f}' for t in time_points], rotation=45, fontsize=8)
 
+    ax.set_xlim(0, max(time_points) + 1)
     ax.set_xlabel("Temps")
     ax.set_yticks([0, 1])
     ax.set_yticklabels(["Procédé 1", "Procédé 2"])
     ax.set_title(f"Diagramme de Gantt - {instance_file}")
     plt.tight_layout()
+    plt.grid(True, axis='x', linestyle='--', alpha=0.3)
     plt.show()
 
 def get_station_from_operation(op):
@@ -46,12 +51,10 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
             duration = i.welding_time[j][o] + (i.pos_j[j] if modeB else 0)
             end = start + duration
             station = f"n°{assigned_station + 1}"
-
             if op.type == 2:
                 mode_str = "Mode C"
             else:
                 mode_str = "Mode B" if modeB else "Mode A"
-
             proc_type = 1 if op.type == 2 else 0
             tasks.append({
                 "label": f"J{j+1} O{o+1} S{station} ({mode_str})",

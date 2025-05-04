@@ -1,6 +1,6 @@
 import csv
 import os
-from model import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
+from models.instance import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
 from ortools.sat.python import cp_model
 from solver_result import save_solution_to_csv
 from date_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
@@ -337,13 +337,13 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
             instance_type = file.split('/')[2]  # Type d'instance, extrait du chemin
             num_instance = int(file.split('_')[-1].split('.')[0])  # Numéro de l'instance extrait du nom du fichier
             save_solution_to_csv(instance, i, solver, instance_type, num_instance)
-            simulate_schedule(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
+            #simulate_schedule(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
         else:
             print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
 
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
     #solver('./mini_instance_2.json')
-    solver_per_file('./2nd_instance.json')
-    #solver_per_file('data/instances/controled_sizes/instance_2.json')
+    solver_per_file('data/instances/debug/3rd_instance.json')
+    #solver_per_file('data/instances/train/controled_sizes/instance_2.json')
     #solver()

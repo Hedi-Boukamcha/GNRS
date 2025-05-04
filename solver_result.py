@@ -1,6 +1,6 @@
 import csv
 import os
-from model import Instance, MathInstance
+from models.instance import Instance, MathInstance
 
 
 def save_solution_to_csv(instance: Instance, i:MathInstance, solver, instance_type, num_instance):
