@@ -8,6 +8,8 @@ import random
 import json
 
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
+W_Cmax: int = 0
+W_delay: int = 1
 
 def init_vars(model: cp_model.CpModel, i: MathInstance):
     i.s.entry_station_date = [[model.NewIntVar(0, i.I, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
@@ -26,10 +28,11 @@ def is_same(j: int, j_prime: int, o: int, o_prime):
 
 def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms = []
+    terms.append(W_Cmax * i.s.C_max)
     for j in i.loop_jobs():        
-        terms.append(i.s.delay[j])
+        terms.append(W_delay * i.s.delay[j])
     #total_delay = cp_model.LinearExpr.Sum(terms)
-    model.Minimize(i.s.C_max + sum(terms))
+    model.Minimize(sum(terms))
     return model, i.s
 
 def prec(i: MathInstance, j: int, j_prime: int, c: int): #c = station
@@ -56,7 +59,7 @@ def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
 
 def c1(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        model.Add(i.s.C_max >= i.due_date[j])
+        model.Add(i.s.C_max >= end(i, j, i.last_operations(j)))
     return model, i.s
 
 # Either o_prime before o ; Or o before o_prime [one and only one priority]
@@ -106,7 +109,7 @@ def c6(model: cp_model.CpModel, i: MathInstance):
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] + i.s.exe_parallel[j][o]) >= 2*i.M)
+                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] - i.s.exe_parallel[j][o]) >= 2*i.M)
     return model, i.s
 
 # An operation starts only after a previous operation started + two robot moves + possibly a positioner time (only if the previous job is not already on the positioner)
@@ -116,7 +119,7 @@ def c7(model: cp_model.CpModel, i: MathInstance):
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] - i.s.exe_start[j_prime][o_prime] - (i.pos_j[j_prime]*i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] - 2*i.M) * (1-i.job_modeB[j_prime]) + i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]) >= 0)
+                        model.Add(i.s.exe_start[j][o] - i.s.exe_start[j_prime][o_prime] - (i.pos_j[j_prime]*i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] + 2*i.M) * (1-i.job_modeB[j_prime]) + i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]) >= 0)
     return model, i.s
 
 # Only operation needing Process 2 can be executed in parallel (meaning: there is another job in the positioner for Process 1)
@@ -211,8 +214,8 @@ def c18(model: cp_model.CpModel, i: MathInstance):
         for c_prime in i.loop_stations():
             terms = []
             for c in i.loop_stations():
-                terms.append(i.s.job_unload[j][c_prime] * (i.M*i.job_robot[j] + 3*i.M*i.job_modeB[j] + 2*i.L))
-            model.Add(0 >= sum(terms) - i.I*(1-i.s.job_loaded[j][c_prime]) - i.s.entry_station_date[j][c])
+                terms.append(i.s.job_unload[j][c] * (i.M*i.job_robot[j] + 3*i.M*i.job_modeB[j] + 2*i.L))
+            model.Add(0 >= sum(terms) - i.I*(1-i.s.job_loaded[j][c_prime]) - i.s.entry_station_date[j][c_prime])
     return model, i.s
 
 # A possible entering date into a loading station must wait for unloading times (part 2): another job is unloaded from the same station
@@ -267,9 +270,18 @@ def solver_per_file(instance_file, debug: bool=True):
         model, i.s = constraint(model, i)
 
     if debug:
+        solver.parameters.max_time_in_seconds = 60.0 * 60.0
+        solver.parameters.relative_gap_limit = 0.000001
+        solver.parameters.absolute_gap_limit = 0.000001
+        solver.parameters.use_implied_bounds = True
+        solver.parameters.use_probing_search = True
+        solver.parameters.cp_model_presolve = True
+        solver.parameters.optimize_with_core = True
         solver.parameters.log_search_progress = True
-        solver.parameters.cp_model_probing_level = 0
-        solver.parameters.enumerate_all_solutions = True
+        solver.parameters.enumerate_all_solutions = False
+        # solver.parameters.log_search_progress = True
+        # solver.parameters.cp_model_probing_level = 0
+        # solver.parameters.enumerate_all_solutions = True
 
     status = solver.Solve(model)
     
@@ -344,6 +356,6 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
     #solver('./mini_instance_2.json')
-    solver_per_file('data/instances/debug/3rd_instance.json')
+    solver_per_file('data/instances/debug/2nd_instance.json')
     #solver_per_file('data/instances/train/controled_sizes/instance_2.json')
     #solver()
