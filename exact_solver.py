@@ -31,19 +31,21 @@ def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms.append(W_Cmax * i.s.C_max)
     for j in i.loop_jobs():        
         terms.append(W_delay * i.s.delay[j])
-    #total_delay = cp_model.LinearExpr.Sum(terms)
     model.Minimize(sum(terms))
     return model, i.s
 
+# Check if job j is loaded on station c and if its loaded before j'
 def prec(i: MathInstance, j: int, j_prime: int, c: int): #c = station
     return i.I * (3 - i.s.exe_before[j][j_prime][FIRST_OP][FIRST_OP] - i.s.job_loaded[j][c] - i.s.job_loaded[j_prime][c])
 
+# Check the real end date of operation o of job j considering the mandatory robot travel and position time (if mode B)
 def end(i: MathInstance, j: int, o: int):
     if (o == 0):
         return i.s.exe_start[j][o] + i.welding_time[j][o] + ((i.pos_j[j] * i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B]) * (1 - i.job_modeB[j]))
     else:
         return i.s.exe_start[j][o] + i.welding_time[j][o] + (i.pos_j[j] * i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B])
 
+# Check the time at which the robot could be free to move job j after its operation o considering anther operation o' of job j' that could occupy the robot arm
 def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
     if (i.nb_jobs == 2):
         return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C])
@@ -57,6 +59,7 @@ def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
         return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C] 
                                      - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
 
+# Cmax computation
 def c1(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         model.Add(i.s.C_max >= end(i, j, i.last_operations(j)))
@@ -134,7 +137,7 @@ def c9(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         terms = []
         for c in i.loop_stations():
-            terms.append(i.s.entry_station_date[j][c] - i.M*i.job_station[j][c] * (1-i.s.job_unload[j][c]) * (i.pos_j[j]+i.job_robot[j]))
+            terms.append(i.s.entry_station_date[j][c] - i.M*i.job_station[j][c] * (1-i.s.job_unload[j][c]) * (i.job_modeB[j]+i.job_robot[j]))
         model.Add(i.s.exe_start[j][FIRST_OP] - sum(terms) >= i.M)
     return model, i.s
 
@@ -233,17 +236,18 @@ def c20(model: cp_model.CpModel, i: MathInstance):
         for j_prime in i.loop_jobs():
             if (j != j_prime):
                 for c in i.loop_stations():
-                    model.Add(1 <= i.s.entry_station_date[j][c] + i.I*(3 - i.job_station[j][c] - i.s.exe_before[j_prime][j][FIRST_OP][FIRST_OP] - i.s.job_loaded[j_prime][c]))
+                    model.Add(1 <= i.s.job_unload[j][c] + i.I*(3 - i.job_station[j][c] - i.s.exe_before[j_prime][j][FIRST_OP][FIRST_OP] - i.s.job_loaded[j_prime][c]))
     return model, i.s
 
 # The start of the first operation of any job should wait for possible uloading time of another job (either from robot or positioner)
 def c21(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        terms = []
-        for p in i.loop_jobs():
-            for c in i.loop_stations():
-                terms.append(i.s.job_unload[p][c] * (i.M*i.job_robot[p] + 2*i.M*i.job_modeB[p]))
-        model.Add(0 >= sum(terms) - i.s.exe_start[j][0])
+        for o in i.loop_operations(j):
+            terms = []
+            for p in i.loop_jobs():
+                for c in i.loop_stations():
+                    terms.append(i.s.job_unload[p][c] * (i.M*i.job_robot[p] + 2*i.M*i.job_modeB[p]))
+            model.Add(0 >= sum(terms) - i.s.exe_start[j][o])
     return model, i.s
 
 def solver_per_file(instance_file, debug: bool=True):
