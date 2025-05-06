@@ -59,11 +59,19 @@ def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
         return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C] 
                                      - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
 
-# Cmax computation
-def c1(model: cp_model.CpModel, i: MathInstance):
+# Cmax computation (case 1: no parallelism)
+def c1_s(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        model.Add(i.s.C_max >= end(i, j, i.last_operations(j)))
+        model.Add(i.s.C_max >= end(i, j, i.last_operations(j)) + i.L + i.M)
     return model, i.s
+
+# Cmax computation (case 2: with parallelism)
+def c1_p(model: cp_model.CpModel, i: MathInstance):
+    for j in i.loop_jobs():
+        for j_prime in i.loop_jobs():
+            if (j != j_prime):
+                for o_prime in i.loop_operations(j_prime):
+                    model.Add(i.s.C_max >= free(i, j, j_prime, i.last_operations(j), o_prime) + i.L + 3*i.M)
 
 # Either o_prime before o ; Or o before o_prime [one and only one priority]
 def c2(model: cp_model.CpModel, i: MathInstance):
