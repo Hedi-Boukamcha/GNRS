@@ -112,7 +112,7 @@ def c6(model: cp_model.CpModel, i: MathInstance):
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] - i.s.exe_parallel[j][o]) >= 2*i.M)
+                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I * (1 - i.s.exe_before[j_prime][j][o_prime][o] + i.s.exe_parallel[j][o]) >= 2*i.M)
     return model, i.s
 
 # An operation starts only after a previous operation started + two robot moves + possibly a positioner time (only if the previous job is not already on the positioner)
