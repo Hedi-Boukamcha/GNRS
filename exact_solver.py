@@ -72,6 +72,7 @@ def c1_p(model: cp_model.CpModel, i: MathInstance):
             if (j != j_prime):
                 for o_prime in i.loop_operations(j_prime):
                     model.Add(i.s.C_max >= free(i, j, j_prime, i.last_operations(j), o_prime) + i.L + 3*i.M)
+    return model, i.s
 
 # Either o_prime before o ; Or o before o_prime [one and only one priority]
 def c2(model: cp_model.CpModel, i: MathInstance):
@@ -278,7 +279,7 @@ def solver_per_file(instance_file, debug: bool=True):
     solver = cp_model.CpSolver()
     init_vars(model, i)
     init_objective_function(model, i)
-    for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+    for constraint in [c1_s,c1_p,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
         model, i.s = constraint(model, i)
 
     if debug:
@@ -371,3 +372,4 @@ if __name__ == "__main__":
     solver_per_file('data/instances/debug/2nd_instance.json')
     #solver_per_file('data/instances/train/controled_sizes/instance_2.json')
     #solver()
+
