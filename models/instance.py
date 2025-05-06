@@ -33,7 +33,7 @@ class Job:
         self.blocked: int = blocked
     
     def __str__(self):
-        return f"{{'big':{self.big}, 'due_date':{self.due_date}, 'pos_time':{self.pos_time}, 'status':{self.status}, 'blocked':{self.blocked}, 'operations':{self.operations}}}"
+        return f"{{'big':{self.big}, 'due_date':{self.due_date}, 'pos_time':{self.pos_time}, 'status':{self.status}, 'blocked':{self.blocked}, 'operations':{[o.__str__() for o in self.operations]}}}"
 
 class Instance:
     def __init__(self, jobs: list[Job] = []):
@@ -51,6 +51,10 @@ class Instance:
             job = Job(big=job_data["big"], due_date=job_data["due_date"], pos_time=job_data["pos_time"], operations=operations, status=job_data["status"], blocked=job_data["blocked"])
             jobs.append(job)
         return Instance(jobs=jobs)
+    
+    def display(self):
+        for j in self.jobs:
+            print(j)
 
 class MathSolution:
     def __init__(self):
@@ -60,6 +64,10 @@ class MathSolution:
         self.exe_parallel = [], []
         self.job_unload = [], []
         self.C_max = None,
+        self.end_j = []
+        self.end_o = []
+        self.free_j = []
+        self.free_o = []
         self.delay = []
         self.exe_mode = [], [], []
         self.exe_before = [], [], [], []
@@ -74,7 +82,7 @@ class MathInstance:
         self.has_history: bool = False
         self.L = 2  
         self.M = 3  
-        self.I = 0
+        self.I = 0 #10_000
 
         self.lp = [job.big for job in jobs]
         self.operations_by_job = [len(job.operations) for job in jobs]
@@ -88,15 +96,14 @@ class MathInstance:
         self.job_robot = [0 for _ in jobs]
         for j, job in enumerate(jobs):
             self.job_modeB[j] = 1 if (job.status == 3) else 0
-            self.job_robot[j] = 1 if (job.status == 1 or job.status == 2) else 0
+            self.job_robot[j] = 1 if (job.status == 2) else 0
             if job.status > 0:
                 self.has_history = True
-            for c in range(self.nb_stations):
-                self.job_station[j][c] = 1 if (job.blocked == c and job.status > 0) else 0
+                self.job_station[j][job.blocked-1] = 1
             for o, operation in enumerate(job.operations):
                 self.needed_proc[j][o][operation.type-1] = 1  
                 self.welding_time[j][o] = operation.processing_time
-                self.I += (operation.processing_time + self.pos_j[j] + 3 * self.M + 2 * self.L)
+                self.I += operation.processing_time + self.pos_j[j] + 3*self.M + 2*self.L
 
     def loop_modes(self):
         return range(self.nb_modes)

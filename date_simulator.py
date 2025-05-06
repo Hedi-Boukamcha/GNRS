@@ -46,9 +46,13 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
             assigned_station = 0
 
         for o, op in enumerate(job.operations):
-            start = solver.Value(i.s.exe_start[j][o])
+            is_removed: bool = False
             modeB = solver.BooleanValue(i.s.exe_mode[j][o][1])
-            duration = i.welding_time[j][o] + (i.pos_j[j] if modeB else 0)
+            for c in i.loop_stations():
+                is_removed = is_removed or solver.BooleanValue(i.s.job_unload[j][c])
+            has_pos_j = modeB and (o>0 or is_removed or not i.job_modeB[j])
+            start = solver.Value(i.s.exe_start[j][o])
+            duration = i.welding_time[j][o] + (i.pos_j[j] if has_pos_j else 0)
             end = start + duration
             station = f"n°{assigned_station + 1}"
             if op.type == 2:

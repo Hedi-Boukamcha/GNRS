@@ -140,7 +140,7 @@ def simulate_all_jobs(jobs: List[Job], state: SystemState):
             if job.status == "waiting":
                 can_start = True  # ici on pourra vérifier station/robot dispo
                 if can_start:
-                    simulate_job_step(job, state)
+                    simulate_job(job, state)
         state.time += 1
     return state
 
