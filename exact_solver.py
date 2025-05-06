@@ -9,12 +9,12 @@ import json
 from display_solution import pretty_print_solution
 
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
-W_Cmax: int = 0
-W_delay: int = 1
+W_Cmax: int = 1
+W_delay: int = 99
 
 def init_vars(model: cp_model.CpModel, i: MathInstance):
     i.s.entry_station_date = [[model.NewIntVar(0, i.I, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
-    #i.s.C_max = model.NewIntVar(0, i.I, "C_max")
+    i.s.C_max = model.NewIntVar(0, i.I, "C_max")
     i.s.delay = [model.NewIntVar(0, i.I, f'delay_{j}') for j in i.loop_jobs()] 
     i.s.end_j = [model.NewIntVar(0, i.I, f'end_j_{j}') for j in i.loop_jobs()] 
     i.s.end_o =  [[model.NewIntVar(0, i.I, f'end_o_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
@@ -34,9 +34,9 @@ def is_same(j: int, j_prime: int, o: int, o_prime):
 
 def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms = []
-    #terms.append(W_Cmax * i.s.C_max)
+    terms.append(W_Cmax * i.s.C_max)
     for j in i.loop_jobs():        
-        terms.append(i.s.delay[j]) # W_delay * 
+        terms.append( W_delay * i.s.delay[j])
     model.Minimize(sum(terms))
     return model, i.s
 
@@ -68,16 +68,13 @@ def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
 # Cmax computation (case 1: no parallelism)
 def c1_s(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        model.Add(i.s.C_max >= end(i, j, i.last_operations(j)) + i.L + i.M)
+        model.Add(i.s.C_max >= i.s.end_j[j] + i.L + i.M)
     return model, i.s
 
 # Cmax computation (case 2: with parallelism)
 def c1_p(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        for j_prime in i.loop_jobs():
-            if (j != j_prime):
-                for o_prime in i.loop_operations(j_prime):
-                    model.Add(i.s.C_max >= free(i, j, j_prime, i.last_operations(j), o_prime) + i.L + 3*i.M)
+        model.Add(i.s.C_max >= i.s.free_j[j] + i.L + 3*i.M)
     return model, i.s
 
 def c_end_and_free(model: cp_model.CpModel, i: MathInstance):
@@ -320,7 +317,7 @@ def solver_per_file(instance_file, debug: bool=True):
     solver = cp_model.CpSolver()
     init_vars(model, i)
     init_objective_function(model, i)
-    for constraint in [c_end_and_free,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+    for constraint in [c_end_and_free,c1_s,c1_p,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
         model, i.s = constraint(model, i)
 
     if debug:
@@ -343,7 +340,7 @@ def solver_per_file(instance_file, debug: bool=True):
         print("Solution optimale trouvée!")
         total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
         print("Total des delays =", total_delay)
-        #print("C_max =", solver.Value(i.s.C_max))
+        print("C_max =", solver.Value(i.s.C_max))
         print(f'fn obj= {solver.ObjectiveValue()}')
         instance.display()
         for j in i.loop_jobs():
