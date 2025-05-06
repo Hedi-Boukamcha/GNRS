@@ -270,7 +270,7 @@ def solver_per_file(instance_file, debug: bool=True):
     i: MathInstance = MathInstance(instance.jobs) # Math instance
     print("=*= DISPLAY INSTANCE IN CP MODE (_mode usable for math_)=*=")
     print(i.welding_time)
-    print(i.has_history)
+    print("-----------------------------HISTORY", i.has_history)
     print(i.lp)
     print(i.needed_proc)
     print("---------------------------------------")
@@ -340,7 +340,7 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
         solver = cp_model.CpSolver()
         init_vars(model, i)
         init_objective_function(model, i)
-        for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+        for constraint in [c1_s,c1_p,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
             model, i.s = constraint(model, i)
 
         if debug:
@@ -369,7 +369,7 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
     #solver('./mini_instance_2.json')
-    solver_per_file('data/instances/debug/2nd_instance.json')
+    solver_per_file('data/instances/debug/1st_instance.json')
     #solver_per_file('data/instances/train/controled_sizes/instance_2.json')
     #solver()
 
