@@ -44,8 +44,8 @@ from typing import Callable, Dict, List, Tuple, Optional
 # ---------------------------------------------------------------------------
 # Basic timing constants (minutes) – tune to your shop‑floor values
 # ---------------------------------------------------------------------------
-M_DEFAULT: int = 10   # one robot travel between any two nodes
-L_DEFAULT: int = 5    # load OR unload time at a station (arm stays)
+M_DEFAULT: int = 3   # one robot travel between any two nodes
+L_DEFAULT: int = 2    # load OR unload time at a station (arm stays)
 
 # ---------------------------------------------------------------------------
 # Generic single‑server resource with an availability date
@@ -180,29 +180,29 @@ class Simulator:
 
         job = self._jobs.get(job_id)
         if job is None:
-            raise RuntimeError(f"unknown job {job_id}")
+            raise RuntimeError(f"Unknown job {job_id}")
 
         # precedence satisfied?
         op = next((o for o in job.ops if o.op_id == op_id), None)
         if op is None:
             raise RuntimeError(f"job {job_id} has no op {op_id}")
         if op.done:
-            raise RuntimeError("operation already executed")
+            raise RuntimeError("Operation already executed")
         earlier_unsolved = any(not o.done for o in job.ops if o.op_id < op_id)
         if earlier_unsolved:
-            raise RuntimeError("technological predecessor not finished yet")
+            raise RuntimeError("Operation not finished yet")
 
-        # feasibility of the chosen mode wrt process type
+        # feasibility of the chosen mode and process type
         if op.process == 2 and mode != "C":
             raise RuntimeError("process 2 ops must run in mode C")
 
         # fast‑forward time by executing due events ----------------------
-        self._flush_events()
+        self._flush_events()   
 
-        # reserve / pick a loading station ------------------------------
+        # reserve / pick a loading station -------------------------------
         st = self._choose_station(job)
 
-        # compose the micro‑timeline for the selected mode --------------
+        # compose the micro‑timeline for the selected mode ---------------
         if mode == "A":
             start, end = self._play_mode_A(op, st)
         elif mode == "B":
@@ -247,8 +247,8 @@ class Simulator:
 
         if not candidates:
             # wait for the very first station to become free
-            soonest = min(self._stations, key=lambda s: s.busy_until)
-            self._time = soonest.busy_until
+            soonest_free = min(self._stations, key=lambda s: s.busy_until)
+            self._time = soonest_free.busy_until
             return self._choose_station(job)  # retry after time jump
 
         # prefer side stations for small parts to keep #2 available
@@ -266,11 +266,11 @@ class Simulator:
         return 0 if self._time == 0 else self.M
 
     def _play_mode_A(self, op: Operation, st: Station) -> Tuple[int, int]:
-        """Process 1, robot holds the part: arm busy from load till unload."""
+        """Process 1, robot holds the job: arm busy from load till unload."""
         t0 = self._time + self._travel_time_if_needed()
         load_s, load_e = self._arm.reserve(t0, self.L + self.M)
         weld_s, weld_e = self._process1.reserve(load_e, op.weld_time)
-        self._arm.busy_until = weld_e  # holds the torch/part
+        self._arm.busy_until = weld_e  # holds the torch/job
         unload_s, unload_e = self._arm.reserve(weld_e, self.L + self.M)
         st.busy_until = unload_e
         self._time = load_s  # timeline anchored at load start
