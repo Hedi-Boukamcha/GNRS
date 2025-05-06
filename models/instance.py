@@ -112,17 +112,3 @@ class MathInstance:
 
     def loop_operations(self, j: int, exclude_first: bool =False):
         return range(1, self.operations_by_job[j]) if exclude_first else range(self.operations_by_job[j])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
