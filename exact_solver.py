@@ -84,11 +84,21 @@ def c2(model: cp_model.CpModel, i: MathInstance):
                         model.Add(1 == i.s.exe_before[j][j_prime][o][o_prime] + i.s.exe_before[j_prime][j][o_prime][o])
     return model, i.s
 
-# An operation o starts after the end of the previous one o_prime of the same job (plus some robot moves)
+# An operation o starts after the end of the previous one o_prime of the same job (plus 1 to 4 robot moves in case of parallel)
 def c3(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j, exclude_first=True):
             model.Add(i.s.exe_start[j][o] - end(i, j, o-1) - i.M * (3*i.s.exe_parallel[j][o-1] + 1) >= 0) 
+    return model, i.s
+
+# An operation o starts after the end of the previous one o_prime of the same job (plus 3 robot moves): the previous one was bloqued by another operation
+def c3_b(model: cp_model.CpModel, i: MathInstance):
+    for j in i.loop_jobs():
+        for o in i.loop_operations(j, exclude_first=True):
+            for j_prime in i.loop_jobs():
+                if j_prime != j:
+                    for o_prime in i.loop_operations(j_prime):
+                        model.Add(i.s.exe_start[j][o] - free(i, j, j_prime, o-1, o_prime) >= 3*i.M) 
     return model, i.s
 
 # An operation o starts after the end of the previous one o_prime according to decided priority
@@ -340,7 +350,7 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
         solver = cp_model.CpSolver()
         init_vars(model, i)
         init_objective_function(model, i)
-        for constraint in [c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+        for constraint in [c1_s,c1_p,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
             model, i.s = constraint(model, i)
 
         if debug:
