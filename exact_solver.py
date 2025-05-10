@@ -98,7 +98,7 @@ def c2(model: cp_model.CpModel, i: MathInstance):
                         model.Add(1 == i.s.exe_before[j][j_prime][o][o_prime] + i.s.exe_before[j_prime][j][o_prime][o])
     return model, i.s
 
-# An operation o starts after the end of the previous one o_prime of the same job (plus 1 to 4 robot moves in case of parallel)
+# An operation o starts after the end of the previous one o-1 of the same job (plus 1 to 4 robot moves in case of parallel)
 def c3(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j, exclude_first=True):
@@ -137,7 +137,7 @@ def c5(model: cp_model.CpModel, i: MathInstance):
                         model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I*(1 + i.s.exe_mode[j][o][PROCEDE_2_MODE_C] - i.s.exe_before[j_prime][j][o_prime][o]) >= 2*i.M)
     return model, i.s
 
-# An non-parallel operationo starts after the end of the previous one o_prime according to decided priority
+# A non-parallel operation o starts after the end of the previous one o_prime according to decided priority
 # Part 3/3: Case of no exeption (the robot was really busy with the previous op..)
 def c6(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
@@ -246,7 +246,7 @@ def c17(model: cp_model.CpModel, i: MathInstance):
                                 model.Add(i.s.entry_station_date[j][c] - free(i, j_prime, j_second, o_prime, o_second) + prec(i, j_prime, j, c) >= 2*i.L + 3*i.M)
     return model, i.s
 
-# A possible entering date into a loading station must wait for unloading times (part 1): same job in unloaded from another station
+# A possible entering date into a loading station must wait for unloading times (part 1): same job is unloaded from another station
 def c18(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for c_prime in i.loop_stations():
@@ -282,7 +282,7 @@ def c20(model: cp_model.CpModel, i: MathInstance):
                     model.Add(1 <= i.s.job_unload[j][c] + i.I*(3 - i.job_station[j][c] - i.s.exe_before[j_prime][j][FIRST_OP][FIRST_OP] - i.s.job_loaded[j_prime][c]))
     return model, i.s
 
-# The start of the first operation of any job should wait for possible uloading time of another job (either from robot or positioner)
+# The start of the first operation of any job should wait for possible unloading time of another job (either from robot or positioner)
 def c21(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
@@ -413,7 +413,7 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
     #solver('./mini_instance_2.json')
-    solver_per_file('data/instances/debug/2nd_instance.json')
+    solver_per_file('data/instances/debug/3rd_instance.json')
     #solver_per_file('data/instances/train/controled_sizes/instance_2.json')
     #solver()
 
