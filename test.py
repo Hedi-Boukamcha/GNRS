@@ -75,6 +75,10 @@ class Simulator:
         self.robot = Robot()
         self.station_locked: Dict[str, bool] = {"S1": False, "S2": False, "S3": False}
         self.wait_B: Deque[Tuple[int, int]] = deque()  # (job_id, ready_at)
+        self.locked: Dict[str, bool] = {"S1": False, "S2": False, "S3": False}
+        self.wait_B: Deque[Tuple[int, float]] = deque()  # (job_id, ready)
+        self.proc_busy: Dict[str, float] = {"Proc1": 0.0, "Proc2": 0.0}
+
 
     # Helpers ---------------------------------------------------------------
     def _add_evt(self, src: str, dst: str, evt: str, dur: int, job: Optional[int]):
@@ -85,6 +89,28 @@ class Simulator:
         self.events.append(Event(src, dst, start, evt, end, dur, job))
         self.robot.free_at = end
         self.robot.loc = dst
+    
+    def _move(self, dst: str, job_id=None):
+        if self.robot.loc == dst:
+            return
+        # Aucune durée entre deux stations
+        if self.robot.loc.startswith("S") and dst.startswith("S"):
+            self.robot.loc = dst
+            return
+        self._add_evt(self.robot.loc, dst, "move", M, job_id)
+
+    def _wait_station(self, st: str):
+        if not self.locked[st]:
+            return
+        # chercher la prochaine fin d’événement concernant cette station
+        fut = [e.end for e in self.events
+            if e.dest == st and e.event in {"move", "hold"} and e.end > self.robot.free_at]
+        if fut:
+            self.robot.free_at = min(fut)
+        else:
+            self.robot.free_at += M  # garde-fou
+        self._collect_B_ready()     # on libère peut-être la station
+
 
     @staticmethod
     def _mode(proc: int, parallel: bool):
@@ -137,34 +163,48 @@ class Simulator:
             self.robot.free_at = next_time
             self._collect_finished_B()
 
-    def _do_decision(self, job_id: int, op_idx: int, par: bool):
+    def _do_decision(self, job_id: int, op_idx: int, parallel: bool):
         job = self.jobs[job_id]
-        op = job.operations[op_idx]
         if job.station == "":
             job.station = self._default_station(job)
-        # attendre station dispo pour CHARGEMENT initial (si première op)
-        self._wait_station(job.station)
-        self.station_locked[job.station] = True  # station bloquée jusqu’à fin pièce
+        op = job.operations[op_idx]
+        mode = self._mode(op.proc, parallel)
 
-        # aller à la station (0 s si déjà dessus)
-        self._move_to(job.station)
+        # Si la pièce est encore sur Pos et l’opération est Proc2 ➜ déplacer direct si libre
+        if self.robot.loc == "Pos" and job.next_op() == op:
+            if op.proc == 2 and self.robot.free_at >= self.proc_busy["Proc2"]:
+                self._move("Proc2", job_id)
+            else:
+                # Proc2 pas libre → on attend (calendrier robot reste). Décision refile plus tard
+                self.robot.free_at = max(self.robot.free_at, self.proc_busy["Proc2"])
+                self._move("Proc2", job_id)
+        else:
+            # Cas normal : aller à la station (et attendre si verrouillée)
+            self._wait_station(job.station)
+            self.locked[job.station] = True   # on (re)verrouille pour cette pièce
+                #self._collect_B_ready()
+            self.locked[job.station] = True
+            self._move(job.station)
+            # move station -> Pos/ProcX
+            dest = "Pos" if mode == "B" else f"Proc{op.proc}"
+            self._move(dest, job_id)
 
-        # mode & déplacement vers ressource
-        mode = self._mode(op.proc, par)
-        dest = "Pos" if mode == "B" else f"Proc{op.proc}"
-        self._move_to(dest, job_id)
+        # Si la station n'est pas libre est la piece en cours doit se decharger pour qu'une nouvelle piece en attente se charge 
 
+
+        # Exécution ---------------------------------------------------------
         if mode == "B":
-            # fixation
             self._add_evt("Pos", "Pos", "pos", op.pos_time or job.pos_time or POS_T, job_id)
             ready = self.robot.free_at + op.processing_time
             self.wait_B.append((job_id, ready))
+            self.proc_busy["Proc1"] = ready
         else:
-            # hold (robot immobilisé pendant le procédé)
-            self._add_evt(dest, dest, "hold", op.processing_time, job_id)
-            # retour station + dépose finale → déverrouille station
-            self._move_to(job.station, job_id)
-            self.station_locked[job.station] = False
+            hold_dest = f"Proc{op.proc}"
+            self._add_evt(hold_dest, hold_dest, "hold", op.processing_time, job_id)
+            self.proc_busy[hold_dest] = self.robot.free_at
+            # retour station et déverrouille
+            self._move(job.station, job_id)
+            self.locked[job.station] = False
 
         job.advance()
 
@@ -205,12 +245,29 @@ if __name__ == "__main__":
     job_data = load_jobs_from_json(args.instance)
     sim = Simulator(job_data)
     
-    decisions = [
+    decisions1 = [
         (1, 0, True),
         (0, 0, True),
         (1, 1, False),
         (2, 0, False)
     ]
+    decisions2 = [
+        (0, 0, True),  # Job 1 / op 1 – mode C
+        (1, 0, True),  # Job 2 / op 1 – mode B
+        (2, 0, True),  # Job 3 / op 1 – mode C
+        (2, 1, True),  # Job 3 / op 2 – mode B
+        (3, 0, True),  # Job 4 / op 1 – mode C
+        (3, 1, False),  # Job 4 / op 2 – mode A
+    ]
+    decisions3 = [
+        (0, 0, True),  # Job 1 / op 1 – mode Bje ve
+        (2, 0, True),  # Job 3 / op 1 – mode C
+        (1, 0, True),  # Job 2 / op 1 – mode C
+    ]
     sim = Simulator(job_data)
-    sim.execute(decisions)
+    sim.execute(decisions1)
     sim.show()
+
+# python3 test.py data/instances/debug/1st_instance.json
+# python3 test.py data/instances/debug/2nd_instance.json
+# python3 test.py data/instances/debug/3rd_instance.json
