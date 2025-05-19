@@ -1,253 +1,216 @@
-# simulateur_robotique.py
-from pathlib import Path
+from __future__ import annotations
+import csv
 import json
-from typing import List, Dict, Optional, Tuple
-from dataclasses import dataclass
+from pathlib import Path
+
+
+"""
+
+Execution debug instance
+1- python3 simulator.py data/instances/debug/1st_instance.json
+2- python3 simulator.py data/instances/debug/2nd_instance.json
+3- python3 simulator.py data/instances/debug/3rd_instance.json
+
+"""
+
+"""Robot calendar simulator
+--------------------------------------------------
+Implements the rules converged on with the user (Instance 1 timeline)
+* single timeline for the robot (list of Event)
+* object‑oriented organisation (RobotState, Job, Station, Simulator)
+* works for any instance + decision list (job_id, op_id, parallel)
+
+Key constants (can be tuned):
+    M   : robot displacement time between two nodes (s)
+    POS : positioning time on the positioner (mode B) (s)
+
+Loading / unloading time L is NOT counted in the robot calendar
+(stations handle it in their own timeline).
+
+Usage example is provided in __main__ at the bottom.
+"""
+
 import argparse
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Tuple, Deque
+from collections import deque
 
-# Constantes par défaut
-M_DEFAULT = 3  # Durée de déplacement
-L_DEFAULT = 2  # Temps de chargement/déchargement
+# ─────────────────────────────────────────────────────────────── constants ──
+M: float = 3   # movement robot
+POS: float = 5  # fixation mode B
+DEFAULT_CSV = Path("data/calendars/robot_calender.csv")
 
-# Événement générique
-dataclass
+
+# ---------------------------------------------------------------- events ──
+@dataclass
 class Event:
-    start: int
-    end: int
-    event_type: str
-    source: Optional[str] = None
-    dest: Optional[str] = None
-    job_id: Optional[int] = None
-    op_id: Optional[int] = None
+    source: str
+    dest: str
+    start: float
+    event: str  # "move" | "pos" | "hold"
+    end: float
+    duration: float
+    job: Optional[int] = None
 
-
-class Calendar:
-    def __init__(self):
-        self.events: List[Dict] = []
-
-    def add_event(self, **kwargs):
-        self.events.append(kwargs)
-
-    def get_last_event(self):
-        return self.events[-1] if self.events else None
-
-    def clear_after(self, time: int):
-        self.events = [e for e in self.events if e["start"] <= time]
-
-    def next_available(self) -> int:
-        return self.events[-1]["end"] if self.events else 0
-
-
-class Station:
-    def __init__(self, station_id: int):
-        self.id = station_id
-        self.calendar = Calendar()
-
-
-class Robot:
-    def __init__(self):
-        self.calendar = Calendar()
-
-
-class Positioner:
-    def __init__(self):
-        self.calendar = Calendar()
-
-
-class Proc1:
-    def __init__(self):
-        self.calendar = Calendar()
-
-
-class Proc2:
-    def __init__(self):
-        self.calendar = Calendar()
-
-
+@dataclass
 class Operation:
-    def __init__(self, op_type: int, duration: int):
-        self.type = op_type
-        self.processing_time = duration
+    proc: int
+    processing_time: float
+    pos_time: float
 
-
+@dataclass
 class Job:
-    def __init__(self, job_id: int, data: Dict):
-        self.id = job_id
-        self.big = data.get("big", 0)
-        self.due_date = data.get("due_date", 0)
-        self.operations = [Operation(op["type"], op["processing_time"]) for op in data["operations"]]
-        self.calendar = Calendar()
+    job_id: int
+    big: bool
+    due_date: float
+    pos_time: float
+    operations: List[Operation]
+    status: int = 0
+    blocked: int = 0
+    current_station: str = "S1"
+    current_op: int = 0
 
+    def advance(self):
+        self.current_op += 1
 
-class SystemState:
-    def __init__(self, jobs: List[Job]):
-        self.robot = Robot()
-        self.positioner = Positioner()
-        self.proc1 = Proc1()
-        self.proc2 = Proc2()
-        self.stations = {i: Station(i) for i in [1, 2, 3]}
-        self.jobs = {job.id: job for job in jobs}
+# ───────────────────────────────────────────── robot ──
+@dataclass
+class RobotState:
+    loc: str = "S1"
+    free_at: float = 0.0
 
-
+# ───────────────────────────────────────────── core ──
 class Simulator:
-    def __init__(self, job_data: List[Dict], M=M_DEFAULT, L=L_DEFAULT):
-        self.jobs = [Job(i, job_data[i]) for i in range(len(job_data))]
-        self.state = SystemState(self.jobs)
-        self.M = M
-        self.L = L
+    def __init__(self, jobs: List[Job]):
+        self.jobs: Dict[int, Job] = {j.job_id: j for j in jobs}
+        self.events: List[Event] = []
+        self.robot = RobotState()
+        self.wait_B: Deque[Tuple[int, float]] = deque()  # (job_id, ready_at)
 
-    def apply_decision(self, job_id: int, op_id: int, parallel: bool, start_time: int, station_id: Optional[int]):
-        job = self.state.jobs[job_id]
-        op = job.operations[op_id]
-        duration = op.processing_time
+    # ---------------- internal helper ----------------
+    def _append(self, src: str, dst: str, start: float, evt: str, dur: float, job: Optional[int] = None):
+        end = start + dur
+        self.events.append(Event(src, dst, start, evt, end, dur, job))
+        return end
 
-        if op_id == 0:
-            # Chargement sur station
-            station = self.state.stations[station_id]
-            load_start = start_time
-            load_end = load_start + self.L
+    @staticmethod
+    def _mode(proc: int, parallel: bool) -> str:
+        return "B" if (proc == 1 and parallel) else ("C" if proc == 2 else "A")
 
-            station.calendar.add_event(start=load_start, end=load_end, event_type="load", job_id=job_id)
-            job.calendar.add_event(start=load_start, end=load_end, event_type="load", source=f"S{station_id}", job_id=job_id, op_id=op_id)
+    @staticmethod
+    def _station_for(job: Job) -> str:
+        return "S2" if job.big else job.current_station or "S1"
 
-            # Mouvement robot vers station → positionneur ou proc1/proc2
-            move_start = load_end
-            move_end = move_start + self.M
+    # ---------------- algorithm ----------------------
+    def execute(self, decisions: List[Tuple[int, int, bool]]):
+        for j, op_idx, par in decisions:
+            self._collect_B_if_ready()
+            self._process_decision(j, op_idx, par)
+        self._flush_B()
 
-            self.state.robot.calendar.add_event(start=move_start, end=move_end, source=f"S{station_id}", dest="proc", event_type="move", job_id=job_id)
+    def _collect_B_if_ready(self):
+        while self.wait_B and self.wait_B[0][1] <= self.robot.free_at:
+            self._pickup_B()
 
-            if parallel:
-                # Mode B : déposer au positionneur → Proc1
-                pos_start = move_end
-                pos_end = pos_start + self.L
-                self.state.positioner.calendar.add_event(start=pos_start, end=pos_end, event_type="pos", job_id=job_id)
+    def _pickup_B(self):
+        job_id, ready = self.wait_B.popleft()
+        target = self._station_for(self.jobs[job_id])
+        self.robot.free_at = self._append("Pos", target, max(self.robot.free_at, ready), "move", M, job_id)
+        self.robot.loc = target
 
-                exe_start = pos_end
-                exe_end = exe_start + duration
-                self.state.proc1.calendar.add_event(start=exe_start, end=exe_end, event_type="execution", job_id=job_id)
-                job.calendar.add_event(start=exe_start, end=exe_end, event_type="execution", dest="Proc1", job_id=job_id, op_id=op_id)
-            else:
-                # Mode A : robot tient → Proc1
-                exe_start = move_end
-                exe_end = exe_start + duration
-                self.state.proc1.calendar.add_event(start=exe_start, end=exe_end, event_type="execution", job_id=job_id)
-                self.state.robot.calendar.add_event(start=exe_start, end=exe_end, source="holding", dest="Proc1", event_type="hold", job_id=job_id)
-                job.calendar.add_event(start=exe_start, end=exe_end, event_type="execution", dest="Proc1", job_id=job_id, op_id=op_id)
+    def _flush_B(self):
+        while self.wait_B:
+            self._pickup_B()
 
+    def _process_decision(self, job_id: int, op_idx: int, parallel: bool):
+        job = self.jobs[job_id]
+        op = job.operations[op_idx]
+        mode = self._mode(op.proc, parallel)
+
+        # amener robot à la station de la pièce (0 s Sx→Sy)
+        if not self.robot.loc.startswith("S"):
+            self.robot.free_at = self._append(self.robot.loc, job.current_station, self.robot.free_at, "move", M)
+            self.robot.loc = job.current_station
+        if self.robot.loc != job.current_station:
+            self.robot.free_at = self._append(self.robot.loc, job.current_station, self.robot.free_at, "move", 0.0)
+            self.robot.loc = job.current_station
+
+        # move station -> Pos / ProcX
+        dest = "Pos" if mode == "B" else f"Proc{op.proc}"
+        self.robot.free_at = self._append(self.robot.loc, dest, self.robot.free_at, "move", M, job_id)
+        self.robot.loc = dest
+
+        if mode == "B":
+            fix_end = self._append("Pos", "Pos", self.robot.free_at, "pos", op.pos_time or job.pos_time or job_id)
+            ready = fix_end + op.processing_time
+            self.wait_B.append((job_id, ready))
+            self.robot.free_at = fix_end
+            self.robot.loc = "Pos"
         else:
-            # Étape suivante : robot tient la pièce (Mode C → Proc2)
-            move_start = start_time
-            move_end = move_start + self.M
-            self.state.robot.calendar.add_event(start=move_start, end=move_end, source="pos", dest="proc2", event_type="move", job_id=job_id)
+            hold_end = self._append(dest, dest, self.robot.free_at, "hold", op.processing_time, job_id)
+            drop = self._station_for(job)
+            self.robot.free_at = self._append(dest, drop, hold_end, "move", M, job_id)
+            self.robot.loc = drop
 
-            exe_start = move_end
-            exe_end = exe_start + duration
-            self.state.proc2.calendar.add_event(start=exe_start, end=exe_end, event_type="execution", job_id=job_id)
-            self.state.robot.calendar.add_event(start=exe_start, end=exe_end, source="holding", dest="Proc2", event_type="hold", job_id=job_id)
-            job.calendar.add_event(start=exe_start, end=exe_end, event_type="execution", dest="Proc2", job_id=job_id, op_id=op_id)
+        job.advance()
+        job.current_station = self.robot.loc
 
-            # Mouvement retour vers station (déchargement fictif pour l’instant)
-            unload_start = exe_end
-            unload_end = unload_start + self.M
-            self.state.robot.calendar.add_event(start=unload_start, end=unload_end, source="proc2", dest="S?", event_type="move", job_id=job_id)
-
-    def find_earliest_start(self, job_id: int, op_id: int, parallel: bool) -> Tuple[int, Optional[int]]:
-        """
-        Étape 1 : Trouve la date de départ possible pour une opération (chargement si op 0, sinon exécution)
-        """
-        job = self.state.jobs[job_id]
-        op = job.operations[op_id]
-
-        if op_id == 0:
-            # Chercher une station libre (selon big ou pas)
-            station_ids = [1, 2, 3] if job.big == 0 else [2]  # Ex : seulement station 2 pour grosse pièce
-            earliest_times = []
-            for sid in station_ids:
-                station = self.state.stations[sid]
-                available = station.calendar.next_available()
-                earliest_times.append((available, sid))
-
-            # Choisir la première station libre
-            chosen_time, chosen_station = min(earliest_times, key=lambda x: x[0])
-            robot_available = self.state.robot.calendar.next_available()
-            start_time = max(chosen_time, robot_available)
-
-            return start_time, chosen_station
-
-        else:
-            # Opération suivante
-            if not parallel:
-                # Mode A (robot tient la pièce dans Proc1)
-                proc1_time = self.state.proc1.calendar.next_available()
-                robot_time = self.state.robot.calendar.next_available()
-                return max(proc1_time, robot_time), None
-
-            else:
-                # Mode C (robot tient la pièce dans Proc2)
-                proc2_time = self.state.proc2.calendar.next_available()
-                robot_time = self.state.robot.calendar.next_available()
-                return max(proc2_time, robot_time), None                        
-
-
-
-
-# Chargement de l'instance JSON
-def load_jobs_from_json(path: Path) -> List[Dict]:
-    with open(path, 'r') as f:
-        return json.load(f)
-
-
+    # ---------------- output -------------------------
+    def to_csv(self, path: str | Path):
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["source", "destination", "start", "end", "duration", "event", "job_id"])
+            for e in self.events:
+                w.writerow([e.source, e.dest, f"{e.start:.2f}", f"{e.end:.2f}", f"{e.duration:.2f}", e.event, e.job])
+        return path
     
+    def show(self):
+        head = f"{'src':>4} -> {'dst':>4}  start   end   dur  evt  job"
+        print(head) ; print("-" * len(head))
+        for e in self.events:
+            print(f"{e.job} {e.source:>4} -> {e.dest:>4}  {e.start:5.2f}  {e.end:5.2f}  {e.duration:4.2f}  {e.event:>4} ")
 
-def main():
+# ──────────────────────────────────────── loader ──
+
+def load_jobs_from_json(path: str | Path) -> List[Job]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    jobs: List[Job] = []
+    for idx, j in enumerate(data):
+        ops = [Operation(proc=o["type"], processing_time=o["processing_time"], pos_time=j["pos_time"]) for o in j["operations"]]
+        jobs.append(Job(
+            job_id=idx,
+            big=bool(j["big"]),
+            due_date=j["due_date"],
+            pos_time=j["pos_time"],
+            operations=ops,
+            status=j.get("status", 0),
+            blocked=j.get("blocked", 0),
+            current_station=j.get("station", "S1")
+        ))
+    return jobs
+
+# ───────────────────────────────────────────────────────────── example ──
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("instance", type=Path)
     args = parser.parse_args()
 
     job_data = load_jobs_from_json(args.instance)
     sim = Simulator(job_data)
-
-    # Exemple de décisions (job_id, op_id, mode)
+    
     decisions = [
         (1, 0, True),
         (0, 0, True),
         (1, 1, False),
         (2, 0, False)
     ]
+    sim = Simulator(job_data)
+    sim.execute(decisions)
+    sim.show()
 
-    for decision in decisions:
-        job_id, op_id, parallel = decision
-        start_time, station = sim.find_earliest_start(job_id, op_id, parallel)
-        print(f"Décision {decision} → start={start_time}, station={station}")
-    
-    print("\n==== CALENDRIERS ====\n")
+    # csv_path = args.csv or DEFAULT_CSV
+    # exported = sim.to_csv(csv_path)
+    # print(f"\n✔ Calendrier enregistré dans {exported}")
 
-    print("-- Robot --")
-    for e in sim.state.robot.calendar.events:
-        print(e)
-
-    print("-- Positionneur --")
-    for e in sim.state.positioner.calendar.events:
-        print(e)
-
-    print("-- Proc1 --")
-    for e in sim.state.proc1.calendar.events:
-        print(e)
-
-    print("-- Proc2 --")
-    for e in sim.state.proc2.calendar.events:
-        print(e)
-
-    for sid, station in sim.state.stations.items():
-        print(f"-- Station S{sid} --")
-        for e in station.calendar.events:
-            print(e)
-
-    for jid, job in sim.state.jobs.items():
-        print(f"-- Job {jid} --")
-        for e in job.calendar.events:
-            print(e)
-
-
-if __name__ == "__main__":
-        main()

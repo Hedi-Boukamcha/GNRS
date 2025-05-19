@@ -277,7 +277,7 @@ if __name__ == "__main__":
         (3, 1, 1),  # Job 4 / op 2 – mode A
     ]
     decisions3 = [
-        (0, 0, 2),  # Job 1 / op 1 – mode B
+        (0, 0, 2),  # Job 1 / op 1 – mode Bje ve
         (2, 0, 3),  # Job 3 / op 1 – mode C
         (1, 0, 3),  # Job 2 / op 1 – mode C
     ]
