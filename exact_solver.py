@@ -410,6 +410,7 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
         else:
             print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
 
+# python3 exact_solver.py
 if __name__ == "__main__":
     #solver('./mini_instance_1.json')
     #solver('./mini_instance_2.json')
