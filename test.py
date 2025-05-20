@@ -66,7 +66,6 @@ class StationCalendar:
     def add(self, start, end, event_type, job):
         self.events.append({"start": start, "end": end, "event_type": event_type, "job": job})
     def __iter__(self): return iter(self.events)
-    def __iter__(self): return iter(self.events)
 
 #############################################
 # Pos + Proc1 Calendar
@@ -149,8 +148,7 @@ class Simulator:
         if not self.locked[st]:
             return
         # chercher la prochaine fin d’événement concernant cette station
-        fin = [e.end for e in self.events
-            if e.dest == st and e.event in {"move", "hold"} and e.end > self.robot.free_at]
+        fin = [e.end for e in self.events if e.dest == st and e.event in {"move", "hold"} and e.end > self.robot.free_at]
         if fin:
             self.robot.free_at = min(fin)
         else:
@@ -183,10 +181,6 @@ class Simulator:
             self._move(job.station, job_id)
             # dépose finale déverrouille la station
             self.station_locked[job.station] = False
-
-    def _flush_B(self):
-        while self.wait_B:
-            self._collect_finished_B()
                 
     
     def _do_decision(self, job_id: int, op_idx: int, parallel: bool):
@@ -240,7 +234,6 @@ class Simulator:
         for job_id, op_id, parallel in decisions:
             self._collect_finished_B()
             self._do_decision(job_id, op_id, parallel)
-        self._flush_B()
 
 
     # Export CSV ------------------------------------------------------------
@@ -349,10 +342,11 @@ if __name__ == "__main__":
         (1, 0, True),  # Job 2 / op 1 – mode C
     ]
     sim = Simulator(job_data)
-    sim.execute(decisions2)
+    sim.execute(decisions1) 
     sim.show()
     sim.to_csv()
 
 # python3 test.py data/instances/debug/1st_instance.json
 # python3 test.py data/instances/debug/2nd_instance.json
 # python3 test.py data/instances/debug/3rd_instance.json
+# And change this sim.execute(decisions1) by decisions2 or decisions3
