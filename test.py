@@ -7,9 +7,9 @@ from pathlib import Path
 
 # Constantes globales -------------------------------------------------------
 L = 2
-M = 3     # déplacement Robot (s)
-POS_T = 5 # fixation en mode B (s)
-DEFAULT_CSV = Path("data/calendars/Robot_calender.csv")
+M = 3    
+POS_T = 5 
+DEFAULT_CSV = Path("data/calendars/debug/calendrier_complet.csv")
 
 # Data classes --------------------------------------------------------------
 @dataclass
@@ -109,8 +109,8 @@ class Simulator:
         self.robot = Robot()
         self.station_locked: Dict[str, bool] = {"S1": False, "S2": False, "S3": False}
         self.locked: Dict[str, bool] = {"S1": False, "S2": False, "S3": False}
-        self.wait_B: Deque[Tuple[int, float]] = deque()  # (job_id, ready)
-        self.proc_busy: Dict[str, float] = {"Proc1": 0, "Proc2": 0}
+        self.wait_B: Deque[Tuple[int, int]] = deque()  # (job_id, ready)
+        self.proc_busy: Dict[str, int] = {"Proc1": 0, "Proc2": 0}
         self.robot_calendar = RobotCalendar()
         self.proc1_calendar = Proc1PosCalendar()
         self.proc2_calendar = Proc2Calendar()
@@ -138,9 +138,10 @@ class Simulator:
         self.robot.loc, self.robot.free_at = dest, end
 
     def _move(self, dest, job_id):
-        if self.robot.loc == dest: return
-        if self.robot.loc.startswith("S") and [e.dest.startswith("S") for e in self.events]:
-            self.robot.loc = dest; return
+        # Ne pas compter de déplacement s'il s'agit d'un passage entre deux stations (Sx → Sy)
+        if self.robot.loc.startswith("S") and dest.startswith("S"):
+            self.robot.loc = dest
+            return
         self._add_event_line(self.robot.loc, dest, "move", M, job_id)
 
     # Attend que la station soit libre
@@ -243,21 +244,53 @@ class Simulator:
 
 
     # Export CSV ------------------------------------------------------------
-    def to_csv(self, path: Path | str = DEFAULT_CSV):
-        p = Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with p.open("w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            w.writerow(["job_id", "source", "destination", "start", "end", "duration", "event"])
-            for e in self.events:
-                w.writerow([e.job, e.source, e.dest, f"{e.start:.2f}", f"{e.end:.2f}", f"{e.duration:.2f}", e.event ])
-        return p
+    def to_csv(self, path: str | Path = DEFAULT_CSV) -> Path:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Robot
+        with (path.parent / "robot_calendar.csv").open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["job", "source", "dest", "start", "end", "event"])
+            for e in self.robot_calendar:
+                writer.writerow([e.job, e.source, e.dest, f"{e.start:.2f}", f"{e.end:.2f}", e.event])
+
+        # Jobs
+        for jid, events in self.job_calendars.items():
+            with (path.parent / f"job_{jid}_calendar.csv").open("w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["start", "end", "source", "dest", "event_type"])
+                for e in events:
+                    writer.writerow([f"{e['start']:.2f}", f"{e['end']:.2f}", e['source'], e['dest'], e['event_type']])
+
+        # Stations
+        for sid, cal in self.stations.items():
+            with (path.parent / f"{sid}_calendar.csv").open("w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["job", "start", "end", "event_type"])
+                for e in cal:
+                    writer.writerow([e['job'],f"{ e['start']:.2f}", f"{e['end']:.2f}", e['event_type']])
+
+        # Proc1 + Pos
+        with (path.parent / "proc1pos_calendar.csv").open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["job", "start", "end", "event_type"])
+            for e in self.proc1_calendar:
+                writer.writerow([e['job'], f"{e['start']:.2f}", f"{e['end']:.2f}", e['event_type']])
+
+        # Proc2
+        with (path.parent / "proc2_calendar.csv").open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["job", "start", "end", "event_type"])
+            for e in self.proc2_calendar:
+                writer.writerow([e['job'],f"{e['start']:.2f}", f"{e['end']:.2f}", e['event_type']])
+
+        return path
 
     def show(self):
         print("--- Robot Calendar ---")
         for e in self.robot_calendar:
-            print(f"{e.source:>3} -> {e.dest:<5} {e.start:6.2f} {e.end:6.2f} {e.duration:6.2f} {e.event:>4} {e.job}")
+            print(f"{e.job} {e.source:>3} -> {e.dest:<5} {e.start:6.2f} {e.end:6.2f} {e.duration:6.2f} {e.event:>4}")
         print("\n--- Job Calendars ---")
         for jid, lst in self.job_calendars.items():
             print(f"Job {jid}:")
@@ -266,14 +299,13 @@ class Simulator:
         for k, cal in self.stations.items():
             print(f"\n--- {k} Calendar ---")
             for ev in cal:
-                print(f" {ev['start']:6.2f}-{ev['end']:6.2f} {ev['event_type']:>10} job {ev['job']}")
+                print(f"job {ev['job']} {ev['start']:6.2f}-{ev['end']:6.2f} {ev['event_type']:>10}")
         print("\n--- Proc1 + Pos Calendar ---")
         for ev in self.proc1_calendar:
-            print(f" {ev['start']:6.2f}-{ev['end']:6.2f} {ev['event_type']:>10} job {ev['job']}")
+            print(f"job {ev['job']} {ev['start']:6.2f}-{ev['end']:6.2f} {ev['event_type']:>10}")
         print("\n--- Proc2 Calendar ---")
         for ev in self.proc2_calendar:
-            print(f" {ev['start']:6.2f}-{ev['end']:6.2f} {ev['event_type']:>10} job {ev['job']}")
-
+            print(f"job {ev['job']} {ev['start']:6.2f}-{ev['end']:6.2f} {ev['event_type']:>10}")
 
             
 
@@ -287,7 +319,7 @@ def load_jobs_from_json(p: str | Path) -> List[Job]:
         jobs.append(Job(idx, bool(j["big"]), j["pos_time"], ops))
     return jobs
 
-# CLI ----------------------------------------------------------------------
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -317,8 +349,9 @@ if __name__ == "__main__":
         (1, 0, True),  # Job 2 / op 1 – mode C
     ]
     sim = Simulator(job_data)
-    sim.execute(decisions1)
+    sim.execute(decisions2)
     sim.show()
+    sim.to_csv()
 
 # python3 test.py data/instances/debug/1st_instance.json
 # python3 test.py data/instances/debug/2nd_instance.json
