@@ -1,19 +1,12 @@
-from ortools.sat.python import cp_model
-import numpy as np
+from conf import *
 import json
 
-PROCEDE_1: int = 0
-PROCEDE_2: int = 1
-
-PROCEDE_1_SEQ_MODE_A: int = 0
-PROCEDE_1_PARALLEL_MODE_B: int = 1
-PROCEDE_2_MODE_C: int = 2
-
-STATION_1: int = 0
-STATION_2: int = 1
-STATION_3: int = 2
-
-FIRST_OP: int = 0
+# #####################################
+# =*= INSTANCE DATA FOR MATH SOLVER =*=
+# #####################################
+__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca"
+__version__ = "1.0.0"
+__license__ = "MIT"
 
 class Operation:
     def __init__(self, type: int = 0, processing_time: int = 0):
@@ -77,11 +70,11 @@ class MathInstance:
         self.s = MathSolution()
         self.nb_jobs: int = len(jobs)
         self.nb_types: int = 2
-        self.nb_stations: int = 3
+        self.nb_stations: int = NB_STATIONS
         self.nb_modes: int = 3
         self.has_history: bool = False
-        self.L = 2  
-        self.M = 3  
+        self.L = L 
+        self.M = M 
         self.I = 0 #10_000
 
         self.lp = [job.big for job in jobs]

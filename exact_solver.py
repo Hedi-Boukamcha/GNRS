@@ -2,11 +2,11 @@ import csv
 import os
 from models.instance import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
 from ortools.sat.python import cp_model
-from solver_result import save_solution_to_csv
+from _old.solver_result import save_solution_to_csv
 from date_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
 import random
 import json
-from display_solution import pretty_print_solution
+from _old.display_solution import pretty_print_solution
 
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
 W_Cmax: int = 1

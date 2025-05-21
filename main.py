@@ -4,15 +4,12 @@ import json
 
 from models.instance import Instance, MathInstance
 from exact_solver import solver_per_file
-from date_simulator import gantt_cp_solution
-
-
+from simulators.cp_simulator import gantt_cp_solution
 
 def load_instance(path: Path) -> Instance:
     with open(path) as f:
         data = json.load(f)
     return Instance.from_json(data)
-
 
 def main():
     parser = argparse.ArgumentParser(description="ALSTOM Robot")

@@ -28,12 +28,16 @@ class Operation:
     processing_time: int
     pos_time: int
 
+
 @dataclass
 class Job:
+    # instance data
     job_id: int
     big: bool
     pos_time: int
     operations: List[Operation]
+
+    # current state data
     station: str = ""    # choisi à l’entrée
     op_index: int = 0     # prochaine opération
 
