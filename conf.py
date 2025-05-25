@@ -20,6 +20,7 @@ FIRST_OP: int = 0
 POS_STATION: int   = 0
 POS_PROCESS_1: int = 1
 POS_PROCESS_2: int = 2
+LOCATION_NAMES: list[str] = ["stations", "process 1", "process 2"]
 
 LOAD: int    = 0
 MOVE: int    = 1
@@ -27,6 +28,7 @@ HOLD: int    = 2
 POS:  int    = 3
 EXECUTE: int = 4
 UNLOAD: int  = 5
+EVENT_NAMES: list[str] = ["load", "move", "hold", "pos", "execute", "unload"]
 
 NOT_YET: int = 0
 IN_SYSTEM: int = 1

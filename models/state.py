@@ -12,8 +12,8 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 # Events and Decision data ---------------------------------------------------------------------------------------
-Position = Union['Process1', 'Process2', 'Stations']
-
+Position = Union['Process', 'Process1', 'Process2', 'Stations']
+ 
 @dataclass
 class Decision: 
     def __init__(self, job_id: int, operation_id: int, parallel: bool = False):
@@ -23,6 +23,9 @@ class Decision:
 
     def clone(self) -> 'Decision':
         return Decision(self.job_id, self.operation_id, self.parallel)
+    
+    def __str__(self) -> str:
+        return f"Decision(job_id={self.job_id}, operation_id={self.operation_id}, parallel={self.parallel})"
 
 @dataclass
 class Event:
@@ -37,16 +40,18 @@ class Event:
         self.dest: Position            = dest
 
     def clone(self, job: 'JobState', source: Position = None, dest: Position = None, operation: 'OperationState' = None, station: 'StationState' = None):
-        e: Event    = Event(self.start, self.end, self.event_type)
-        e.job       = job
-        e.source    = source
-        e.dest      = dest
-        e.operation = operation
-        e.station   = station
-        return e
+        return Event(start=self.start, end=self.end, event_type=self.event_type, job=job, source=source, dest=dest, operation=operation, station=station)
 
     def duration(self) -> int:
         return self.end - self.start
+    
+    def __str__(self) -> str:
+        station: str = f", station={(self.station.id+1)}" if self.station is not None else ""
+        job: str = f", job={(self.job.id+1)}" if self.job is not None else ""
+        operation: str = f", operation={(self.operation.id+1)}" if self.operation is not None else ""
+        source: str = f", source={LOCATION_NAMES[self.source.position_type]}" if self.source is not None else ""
+        dest: str = f", dest={LOCATION_NAMES[self.dest.position_type]}" if self.dest is not None else ""
+        return f"Event(start={self.start}, end={self.end}, type={EVENT_NAMES[self.event_type]}{source}{dest}{station}{job}{operation})"
 
 @dataclass
 class Calendar:
@@ -60,18 +65,6 @@ class Calendar:
             if e.start > start_time:
                 return self.events[i-1] if i>0 else None
         return None
-    
-    def search(self, type: int=-1, job_id: int=-1, source: Position=None, dest: Position=None) -> tuple[int, Event]:
-        for rev_i, e in enumerate(reversed(self.events)):
-            if (type<0 or e.event_type==type) and (job_id<0 or e.job.id==job_id) and (source is None or e.source==source) and (dest is None or e.dest==dest):
-                position: int = len(self.events) - 1 - rev_i
-                return position, e
-        return -1, e
-    
-    def search_and_delete(self, type: int=-1, job_id: int=-1, source: Position=None, dest: Position=None):
-        i, _ = self.search(type, job_id, source, dest)
-        if i>=0:
-            del self.events[i]
 
     def get(self, i: int) -> 'Event':
         return self.events[i]
@@ -84,6 +77,12 @@ class Calendar:
     
     def has_events(self) -> bool:
         return self.len()>0
+    
+    def display_calendar(self, title: str):
+        print(f"==*== {title} Calendar ==*==")
+        for e in self.events:
+            print(e)
+        print("-----------------------------")
 
     def clone(self, new_state: 'State') -> 'Calendar':
         c: Calendar = Calendar()
@@ -108,6 +107,7 @@ class Calendar:
 @dataclass
 class State:
     def __init__(self, i: Instance, M: int, L: int, nb_stations: int=0, station_large: int=0, decisions: list[Decision] = [], automatic_build: bool=True):
+        self.i: Instance              = i
         self.L: int                    = L
         self.M: int                    = M
         self.cmax: int                 = 0
@@ -126,7 +126,16 @@ class State:
             self.processess    = [self.process1, self.process2]
             self.all_stations  = Stations(nb_stations=nb_stations, station_large=station_large)
             self.robot         = RobotState(init_position=self.all_stations)
-            self.job_sates     = [JobState(id, self.all_stations.stations, self.robot, job) for id, job in enumerate(i.jobs)]
+            self.job_sates     = [JobState(state=self, id=id, stations=self.all_stations.stations, robot=self.robot, job=job) for id, job in enumerate(i.jobs)]
+
+    def display_calendars(self):
+        self.process1.calendar.display_calendar("PROCESS #1")
+        self.process2.calendar.display_calendar("PROCESS #2")
+        self.robot.calendar.display_calendar("ROBOT")
+        for s in self.all_stations.stations:
+            s.calendar.display_calendar(f"LOADING STATION #{(s.id +1)}")
+        for j in self.job_sates:
+            j.calendar.display_calendar(f"JOB #{(j.id +1)}")
 
     def clone(self) -> 'State':
         # Stage 1: clone without links
@@ -135,9 +144,9 @@ class State:
         c.process1     = self.process1.clone()
         c.process2     = self.process2.clone()
         c.processess   = [c.process1, c.process2]
-        c.reward       = self.reward.clone()
+        c.reward       = self.reward.clone() if self.reward is not None else None
         c.robot        = self.robot.clone()
-        c.job_sates    = [j.clone() for j in self.job_sates]
+        c.job_sates    = [j.clone(c) for j in self.job_sates]
         c.all_stations = self.all_stations.clone()
 
         # State 2: clone all OOP links
@@ -186,10 +195,13 @@ class RobotState:
     def clone_calendar_and_current_job_and_location(self, new_state: State):
         new_state.robot.current_job = new_state.get_job(self.current_job)
         new_state.robot.calendar    = self.calendar.clone(new_state)
+        new_state.robot.location    = new_state.process1 if self.location.position_type == POS_PROCESS_1 \
+                                        else new_state.process2 if self.location.position_type == POS_PROCESS_2 \
+                                        else new_state.all_stations
 
 @dataclass
 class Stations:
-    def __init__(self, nb_stations: int=0, station_large: int=0):
+    def __init__(self, nb_stations: int=3, station_large: int=1):
         self.stations: list[StationState]       = [StationState(id, big=False) for id in range(nb_stations)]
         self.stations[station_large].accept_big = True
         self.position_type: int                 = POS_STATION
@@ -204,6 +216,7 @@ class Stations:
         s: Stations     = Stations()
         s.position_type = self.position_type
         s.stations      = [station.clone() for station in self.stations]
+        return s
     
     def clone_calendar_and_current_jobs(self, new_state: 'State'):
         for s in self.stations:
@@ -220,7 +233,7 @@ class StationState:
         self.calendar: Calendar     = Calendar()
 
     def clone(self) -> 'StationState':
-        s: StationState = StationState(self.id, self.big)
+        s: StationState = StationState(self.id, self.accept_big)
         s.free_at       = self.free_at
         s.accept_big    = self.accept_big
         return s
@@ -241,8 +254,8 @@ class Process:
 class Process1(Process):
     def __init__(self):
         super().__init__()
-        self.pos_is_full: bool      = False
-        self.position_type: int     = POS_PROCESS_1
+        self.pos_is_full: bool  = False
+        self.position_type: int = POS_PROCESS_1
         
     def clone(self) -> 'Process1':
         p1: Process1     = Process1()
@@ -258,7 +271,7 @@ class Process1(Process):
 class Process2(Process):
     def __init__(self):
         super().__init__()
-        self.position_type: int     = POS_PROCESS_2
+        self.position_type: int = POS_PROCESS_2
 
     def clone(self) -> 'Process2':
         p2: Process2     = Process2()
@@ -271,7 +284,7 @@ class Process2(Process):
 
 @dataclass
 class JobState:
-    def __init__(self, id: int, stations: list['StationState']=None, robot: RobotState=None, job: Job=None, build_history: bool=True):
+    def __init__(self, state: State, id: int, stations: list['StationState']=None, robot: RobotState=None, job: Job=None, build_operations: bool=True):
         self.id: int                       = id
         self.job: Job                      = job
         self.status: int                   = NOT_YET
@@ -281,31 +294,24 @@ class JobState:
         self.calendar: Calendar            = Calendar() 
         self.current_station: StationState = None
         self.operation_states: list[OperationState] = []
-        if build_history and job and job.status > 0:
-            self.status = IN_SYSTEM
-            robot.location = POS_PROCESS_1 if job.status == 2 and job.operations[0].type == PROCEDE_1 \
-                else POS_PROCESS_2 if job.status == 2 and job.operations[0].type == PROCEDE_2 \
-                else POS_STATION
-            self.location = POS_STATION if job.status == 1 \
-                else POS_PROCESS_1 if job.status == 3 \
-                else POS_PROCESS_1 if job.status == 2 and job.operations[0].type == PROCEDE_1 \
-                else POS_PROCESS_2 if job.status == 2 and job.operations[0].type == PROCEDE_2 \
-                else None
-            self.current_station = stations[job.blocked] if job.status > 0 else None
+        if build_operations:
             self.operation_states: list[OperationState] = [OperationState(id=id, job=self, operation=op) for id, op in enumerate(job.operations)] if job else []
 
     def get_last_executed_operation(self) -> 'OperationState':
-        for o in self.operation_states:
-            if o.status == DONE and o.remaining_time == 0:
+        for o in reversed(self.operation_states):
+            if o.remaining_time == 0:
                 return o
         return None
+    
+    def is_big(self) -> bool:
+        return self.job.big == 1
 
-    def clone(self) -> 'JobState':
-        j: JobState        = JobState(id=self.id, job=self.job, build_history=False)
+    def clone(self, state: State) -> 'JobState':
+        j: JobState        = JobState(state=state, id=self.id, job=self.job, build_operations=False)
         j.status           = self.status
         j.end              = self.end
         j.delay            = self.delay
-        j.operation_states = [OperationState(job=j, operation=op) for op in j.job.operations] if j.job else []
+        j.operation_states = [op.clone(j) for op in self.operation_states]
         return j
     
     def clone_calendar_and_location_and_current_station(self, new_state: 'State', new_job: 'JobState'):
@@ -336,7 +342,7 @@ class OperationState:
         self.id: int              = id
         self.start: int           = 0
         self.end: int             = 0
-        self.is_last: bool        = self.id == len(job.operation_states) - 1
+        self.is_last: bool        = self.id == len(job.job.operations) - 1
         self.remaining_time: int  = operation.processing_time if operation else 0
         self.status: int          = NOT_YET
         self.job: JobState        = job

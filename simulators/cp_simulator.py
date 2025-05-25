@@ -15,7 +15,7 @@ def plot_gantt_chart(tasks, instance_file: str):
 
     ax.set_xlim(0, max(time_points) + 1)
     ax.set_xlabel("Temps")
-    ax.set_yticks([0, 1])
+    ax.set_yticks([0, 1]) 
     ax.set_yticklabels(["Procédé 1", "Procédé 2"])
     ax.set_title(f"Diagramme de Gantt - {instance_file}")
     plt.tight_layout()

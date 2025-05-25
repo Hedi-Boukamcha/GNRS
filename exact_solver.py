@@ -2,11 +2,9 @@ import csv
 import os
 from models.instance import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
 from ortools.sat.python import cp_model
-from _old.solver_result import save_solution_to_csv
-from date_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
+from simulators.cp_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
 import random
 import json
-from _old.display_solution import pretty_print_solution
 
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
 W_Cmax: int = 1
@@ -392,7 +390,6 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
             solver.parameters.enumerate_all_solutions = True
 
         status = solver.Solve(model)
-        pretty_print_solution(instance, solver)
     
         print(f"\n=== Résolution de {file} ===")
         if status == cp_model.OPTIMAL:
@@ -405,7 +402,6 @@ def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
             # Sauvegarder la solution dans un fichier CSV
             instance_type = file.split('/')[2]  # Type d'instance, extrait du chemin
             num_instance = int(file.split('_')[-1].split('.')[0])  # Numéro de l'instance extrait du nom du fichier
-            save_solution_to_csv(instance, i, solver, instance_type, num_instance)
             #simulate_schedule(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
         else:
             print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
