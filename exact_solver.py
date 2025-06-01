@@ -5,11 +5,11 @@ from ortools.sat.python import cp_model
 from simulators.cp_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
 import random
 import json
+import argparse
+import pandas as pd
+import time
 
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
-W_Cmax: int = 1
-W_delay: int = 99
-
 def init_vars(model: cp_model.CpModel, i: MathInstance):
     i.s.entry_station_date = [[model.NewIntVar(0, i.I, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
     i.s.C_max = model.NewIntVar(0, i.I, "C_max")
@@ -32,9 +32,10 @@ def is_same(j: int, j_prime: int, o: int, o_prime):
 
 def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms = []
-    terms.append(W_Cmax * i.s.C_max)
+    terms.append(i.a * i.s.C_max)
+    b = 100 - i.a
     for j in i.loop_jobs():        
-        terms.append( W_delay * i.s.delay[j])
+        terms.append(b * i.s.delay[j])
     model.Minimize(sum(terms))
     return model, i.s
 
@@ -291,33 +292,17 @@ def c21(model: cp_model.CpModel, i: MathInstance):
             model.Add(i.s.exe_start[j][o] - sum(terms) >= 0)
     return model, i.s
 
-def solver_per_file(instance_file, debug: bool=True):
-    instance: Instance = Instance.load(instance_file) # PPO instance
-    print("---------------------------------------")
-    print("=*= DISPLAY INSTANCE IN OOP MODE (_mode readable for human_)=*=")
-    print(instance)
-    print(instance.jobs[0])
-    print(instance.jobs[0].operations[0])
-    print("---------------------------------------")
-    i: MathInstance = MathInstance(instance.jobs) # Math instance
-    print("=*= DISPLAY INSTANCE IN CP MODE (_mode usable for math_)=*=")
-    print(i.welding_time)
-    print("-----------------------------HISTORY", i.has_history)
-    print(i.lp)
-    print(i.needed_proc)
-    print(i.job_robot)
-    print(i.job_modeB)
-    print(i.job_station)
-    print("---------------------------------------")
-    print([i.last_operations(j) for j in i.loop_jobs()])
-
-    model = cp_model.CpModel()
-    solver = cp_model.CpSolver()
+def solver_per_file(path, id, debug: bool=True):
+    start_time = time.time()
+    instance_file = path+"instances_"+id+".json"
+    instance: Instance = Instance.load(instance_file)
+    i: MathInstance    = MathInstance(instance.jobs, instance.a)
+    model              = cp_model.CpModel()
+    solver             = cp_model.CpSolver()
     init_vars(model, i)
     init_objective_function(model, i)
     for constraint in [c_end_and_free,c1_s,c1_p,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
         model, i.s = constraint(model, i)
-
     if debug:
         solver.parameters.max_time_in_seconds = 60.0 * 60.0
         solver.parameters.relative_gap_limit = 0.0
@@ -326,91 +311,33 @@ def solver_per_file(instance_file, debug: bool=True):
         # solver.parameters.use_probing_search = True
         # solver.parameters.cp_model_presolve = True
         # solver.parameters.optimize_with_core = True
-        # solver.parameters.log_search_progress = True
-        # solver.parameters.enumerate_all_solutions = False
-        # solver.parameters.log_search_progress = True
+        solver.parameters.log_search_progress = True
+        solver.parameters.enumerate_all_solutions = False
+        solver.parameters.log_search_progress = True
         # solver.parameters.cp_model_probing_level = 0
-        # solver.parameters.enumerate_all_solutions = True
-
     status = solver.Solve(model)
-    
-    if status == cp_model.OPTIMAL:
-        print("Solution optimale trouvée!")
-        total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
-        print("Total des delays =", total_delay)
-        print("C_max =", solver.Value(i.s.C_max))
-        print(f'fn obj= {solver.ObjectiveValue()}')
-        instance.display()
-        for j in i.loop_jobs():
-            print(f"END J{j} = {solver.Value(i.s.end_j[j])} - FREE J{j} = {solver.Value(i.s.free_j[j])}")
-            for o in i.loop_operations(j):
-                print(f"--> END O{o} = {solver.Value(i.s.end_o[j][o])} - FREE O{o} = {solver.Value(i.s.free_o[j][o])} - PARALLEL = {solver.BooleanValue(i.s.exe_parallel[j][o])}")
-        gantt_cp_solution(instance, i, solver, instance_file)
-
-    else:
-        print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
-
-def solver(instances_folder='data/instances/controled_sizes', debug: bool=True):
-
-    instance_files = sorted([
-        os.path.join(instances_folder, f)
-        for f in os.listdir(instances_folder)
-        if f.endswith('.json')
-    ]) # PPO instance
-
-    for idx, file in enumerate(instance_files):
-        print(f"\n=== Résolution de {file} ===")
-        instance: Instance = Instance.load(file)
-        print("---------------------------------------")
-        print("=*= DISPLAY INSTANCE IN OOP MODE (_mode readable for human_)=*=")
-        print(instance)
-        print(instance.jobs[0])
-        print(instance.jobs[0].operations[0])
-        print("---------------------------------------")
-
-        i: MathInstance = MathInstance(instance.jobs) # Math instance
-        print("=*= DISPLAY INSTANCE IN CP MODE (_mode usable for math_)=*=")
-        print(i.welding_time)
-        print(i.has_history)
-        print(i.lp)
-        print(i.needed_proc)
-        print("---------------------------------------")
-
-    for idx, file in enumerate(instance_files):
-        model = cp_model.CpModel()
-        solver = cp_model.CpSolver()
-        init_vars(model, i)
-        init_objective_function(model, i)
-        for constraint in [c1_p,c1_s,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
-            model, i.s = constraint(model, i)
-
+    computing_time = time.time() - start_time
+    if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+        total_delay  = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
+        cmax         = solver.Value(i.s.C_max)
+        obj          = solver.ObjectiveValue()
+        s            = 'optimal' if status == cp_model.OPTIMAL else 'feasible'
+        gap          = abs(obj - solver.BestObjectiveBound()) / (solver.BestObjectiveBound() + 1e-8)
+        results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'a': [instance.a],'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
+        results.to_csv(path+"exact_solution_"+id+".csv", index=False)
         if debug:
-            solver.parameters.log_search_progress = True
-            solver.parameters.cp_model_probing_level = 0
-            solver.parameters.enumerate_all_solutions = True
+            gantt_cp_solution(instance, i, solver, instance_file)
+            instance.display()
+    else:
+        no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'a': [instance.a],'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
+        no_results.to_csv(path+"exact_solution_"+id+".csv", index=False)
 
-        status = solver.Solve(model)
-    
-        print(f"\n=== Résolution de {file} ===")
-        if status == cp_model.OPTIMAL:
-            print("Solution optimale trouvée!")
-            total_delay = sum(solver.Value(i.s.delay[j]) for j in i.loop_jobs())
-            print("Total des delays =", total_delay)
-            print("C_max =", solver.Value(i.s.C_max))
-            print(f'fn obj= {solver.ObjectiveValue()}')
-            
-            # Sauvegarder la solution dans un fichier CSV
-            instance_type = file.split('/')[2]  # Type d'instance, extrait du chemin
-            num_instance = int(file.split('_')[-1].split('.')[0])  # Numéro de l'instance extrait du nom du fichier
-            #simulate_schedule(instance, i, solver, instance_type, num_instance)  # Sauvegarder les résultats
-        else:
-            print(f"Pas de solution optimale trouvée. Statut: {STATUS_MEANING[status]}")
-
-# python3 exact_solver.py
+# TEST WITH: python exact_solver.py --type=train --size=s --id=1 path=./
 if __name__ == "__main__":
-    #solver('./mini_instance_1.json')
-    #solver('./mini_instance_2.json')
-    solver_per_file('data/instances/debug/3rd_instance.json')
-    #solver_per_file('data/instances/train/controled_sizes/instance_2.json')
-    #solver()
-
+    parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
+    parser.add_argument("--path", help="path to load the instances", required=True)
+    parser.add_argument("--type", help="type of the instance, either train or test", required=True)
+    parser.add_argument("--size", help="size of the instance, either s, m, l or xl", required=True)
+    parser.add_argument("--id", help="id of the instance to solve", required=True)
+    args = parser.parse_args()
+    solver_per_file(path=args.path+"data/instances/"+args.type+"/"+args.size,id=args.id)
