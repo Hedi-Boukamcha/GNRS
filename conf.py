@@ -34,3 +34,13 @@ NOT_YET: int = 0
 IN_SYSTEM: int = 1
 IN_EXECUTION: int = 2
 DONE: int = 3
+
+COLOR = {
+    "job":   "tab:blue",
+    "proc_1":    "tab:orange",
+    "proc_2":    "tab:orange",
+    "station": "tab:green",
+    "robot":   "tab:red",
+}
+
+INSTANCES_SIZES: list[str] = [("s", 3, 5), ("m", 7, 10), ("l", 15, 20), ("xl", 30, 50)]
