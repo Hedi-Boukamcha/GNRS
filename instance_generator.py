@@ -2,7 +2,7 @@ import json
 import os
 import random
 import argparse
-from conf import INSTANCES_SIZES
+from conf import INSTANCES_SIZES, M, L
 
 # ##########################
 # =*= INSTANCE GENERATOR =*=
@@ -11,41 +11,50 @@ __author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
-# TODO!
+# TODO
 # 1. station, procede etc. commencent a 0
 # 2. genere les due dates logiques avec le nb jobs (certains jobs on des dues dates loin ... nb ops + procesing times)
 
 def generate_controledSize_instance(
         nombre_jobs: int = 5,
-        max_operations_par_job: int = 20,
-        types_operations: list = [1, 2],
+        max_operations_par_job: int = 2,
+        types_operations: list = [0, 1],
         duree_min: int = 10,
         duree_max: int = 60,
+        pos_time: int = 5,
         due_date_min: int = 50,
-        due_date_max: int = 250
     ):
+    
     jobs = []
     for _ in range(nombre_jobs):
-        job = {
-            "big": random.randint(0, 1),
-            "due_date": random.randint(due_date_min, due_date_max),
-            "pos_time": 5,
-            "status": random.randint(0, 3),
-            "blocked": random.randint(0, 2),
-            "operations": []
-        }
         nb_operations = random.randint(1, max_operations_par_job)
         last_type = None 
+        total_processing_time = 0
         for _ in range(nb_operations):
             # Exclure le type précédent
             available_types = [t for t in types_operations if t != last_type]
             chosen_type = random.choice(available_types)
+            proc_time = random.randint(duree_min, duree_max)
             op = {
                 "type": chosen_type,
-                "processing_time": random.randint(duree_min, duree_max)
+                "processing_time": proc_time
             }
-            job["operations"].append(op)
             last_type = chosen_type
+            total_processing_time += proc_time
+
+            due_date_max = (2 * L + pos_time) * nombre_jobs + nb_operations * (2 * M + 60)
+            borne_inf = max(due_date_min, due_date_max // 3)
+            due_date = random.randint(borne_inf, due_date_max)
+
+        job = {
+            "big": random.randint(0, 1),
+            "due_date": due_date,
+            "pos_time": pos_time,
+            "status": random.randint(0, 3),
+            "blocked": random.randint(0, 2),
+            "operations": []
+        }
+        job["operations"].append(op)
         jobs.append(job)
     return {'a': random.randint(0, 10) * 10, 'jobs': jobs}
 
