@@ -44,3 +44,16 @@ COLOR = {
 }
 
 INSTANCES_SIZES: list[str] = [("s", 3, 5), ("m", 7, 10), ("l", 15, 20), ("xl", 30, 50)]
+
+# DL model configuration
+DROPOUT: float        = 0.1
+ATTENTION_HEADS: int  = 4
+JOB_DIM: int          = 16
+NODE_DIM: int         = 8
+GRAPH_DIM: int        = 32
+
+# Nb raw features
+JOB_FEATURES: int     = 13
+STATION_FEATURES: int = 2
+MACHINE_FEATURES: int = 3
+ROBOT_FEATURES: int   = 4
