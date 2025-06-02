@@ -4,6 +4,13 @@ import random
 import argparse
 from conf import INSTANCES_SIZES
 
+# ##########################
+# =*= INSTANCE GENERATOR =*=
+# ##########################
+__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca"
+__version__ = "1.0.0"
+__license__ = "MIT"
+
 def generate_controledSize_instance(
         nombre_jobs: int = 5,
         max_operations_par_job: int = 20,
@@ -65,4 +72,3 @@ if __name__ == "__main__":
         for i in range(nb_test):
             test_instances.append(generate_controledSize_instance(nombre_jobs=random.randint(job_min, job_max), max_operations_par_job=2))
         save_instances_json(base_path + "test/" + size_name + "/", test_instances)
-    

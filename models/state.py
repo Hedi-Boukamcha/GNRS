@@ -3,6 +3,8 @@ from typing import Union
 from models.instance import Operation, Job, Instance
 from conf import *
 from torch import Tensor
+from torch_geometric.data import HeteroData
+import torch
 
 # ######################################################
 # =*= GNN STATE: INSTANCE DATA AND PARTIAL SOLUTION =*=
@@ -118,7 +120,7 @@ class State:
         self.process2: Process2        = None
         self.all_stations: Stations    = None
         self.robot: RobotState         = None
-        self.job_sates: list[JobState] = []
+        self.job_states: list[JobState] = []
         self.processess: list[Process] = []
         if automatic_build:
             self.process1      = Process1()
@@ -126,7 +128,21 @@ class State:
             self.processess    = [self.process1, self.process2]
             self.all_stations  = Stations(nb_stations=nb_stations, station_large=station_large)
             self.robot         = RobotState(init_position=self.all_stations)
-            self.job_sates     = [JobState(state=self, id=id, stations=self.all_stations.stations, robot=self.robot, job=job) for id, job in enumerate(i.jobs)]
+            self.job_states     = [JobState(state=self, id=id, stations=self.all_stations.stations, robot=self.robot, job=job) for id, job in enumerate(i.jobs)]
+    
+    def min_action_time(self) -> int:
+        time: int = min(self.process1.free_at, self.process2.free_at, self.robot.free_at, min([s.free_at for s in self.all_stations.stations]))
+        return time
+
+    def compute_reward_values(self, end_time: int):
+        self.cmax = max(self.cmax, end_time)
+        self.total_delay = 0
+        for j in self.job_states:
+            if j.is_done():
+                j.delay = max(0, j.end - j.job.due_date) # real delay
+            else:
+                j.delay = max(0, self.robot.free_at - j.job.due_date) # minimal expected delay
+            self.total_delay += j.delay
 
     def display_calendars(self):
         self.process1.calendar.display_calendar("PROCESS #1")
@@ -134,7 +150,7 @@ class State:
         self.robot.calendar.display_calendar("ROBOT")
         for s in self.all_stations.stations:
             s.calendar.display_calendar(f"LOADING STATION #{(s.id +1)}")
-        for j in self.job_sates:
+        for j in self.job_states:
             j.calendar.display_calendar(f"JOB #{(j.id +1)}")
 
     def clone(self) -> 'State':
@@ -146,7 +162,7 @@ class State:
         c.processess   = [c.process1, c.process2]
         c.reward       = self.reward.clone() if self.reward is not None else None
         c.robot        = self.robot.clone()
-        c.job_sates    = [j.clone(c) for j in self.job_sates]
+        c.job_states    = [j.clone(c) for j in self.job_states]
         c.all_stations = self.all_stations.clone()
 
         # State 2: clone all OOP links
@@ -154,7 +170,7 @@ class State:
         self.process1.clone_calendar_and_current_job(c)
         self.process2.clone_calendar_and_current_job(c)
         self.all_stations.clone_calendar_and_current_jobs(c)
-        for j in self.job_sates:
+        for j in self.job_states:
             new_job: JobState = c.get_job(j)
             j.clone_calendar_and_location_and_current_station(c, new_job)
         return c
@@ -165,7 +181,7 @@ class State:
         return None
     
     def get_job_by_id(self, id: int) -> 'JobState':
-        for j in self.job_sates:
+        for j in self.job_states:
             if j.id == id:
                 return j
         return None
@@ -174,10 +190,119 @@ class State:
         if station:
             return self.all_stations.get(station.id)
         return None
+    
+    def std_time(self, time: int, min: int, max: int):
+        if max == min:
+            return 0.0
+        return 1.0 * (time - min) / (max - min)
 
-    def to_hyper_graph(self):
-        # TODO translate state into hyper graph (Pytorch Geometric HeteroData)
-        pass
+    def to_hyper_graph(self, last_job_in_pos: int, current_time: int):
+        data = HeteroData()
+        is_free_robot = float(self.robot.current_job is None)
+        data["robot"].x = torch.tensor([[
+            getattr(self.robot.location, "position_type", None) == POS_PROCESS_1,
+            getattr(self.robot.location, "position_type", None) == POS_PROCESS_2,
+            getattr(self.robot.location, "position_type", None) == POS_STATION,
+            self.robot.free_at / self.cmax]], dtype=torch.float)
+
+        # --- Procédés 1 --------------------------------------------------------------
+        is_free_proc1 = float(self.process1.current_job is None)
+        data["proc_1"].x = torch.tensor([
+            [is_free_proc1, 
+             self.process1.free_at] ])
+
+        # --- Procédés 2 --------------------------------------------------------------
+        is_free_proc2 = float(self.process2.current_job is None)
+        data["proc_2"].x = torch.tensor([
+            [is_free_proc2, 
+            self.process2.free_at] ])
+
+        # --- Stations --------------------------------------------------------------
+        stations = [self.all_stations.get(i) for i in range(3)]
+        data["station"].x = torch.tensor([[s.accept_big, 
+                                        s.current_job is not None, 
+                                        s.free_at]for s in stations])
+
+        # --- job --------------------------------------------------------------
+        job_x, id_map = [], {}                    # id logique ➜ index PyG
+        for idx, job in enumerate(self.job_states):
+            id_map[job.id] = idx
+            j = job
+
+            first_op = j.operation_states[0]
+            for op in j.operation_states:
+                if op.start:                
+                    first_op = op
+                    break
+            start_time = first_op.start
+
+            last_op = j.operation_states[-1]
+            if last_op.remaining_time == 0:
+                end_time = last_op.end
+            else:
+                end_time = 0.0
+                        
+            job_x.append([
+                float(j.job.big),
+                float(j.job.due_date),
+                float(getattr(j.location, "position_type", None) == POS_PROCESS_1),
+                float(getattr(j.location, "position_type", None) == POS_PROCESS_2),
+                float(getattr(j.location, "position_type", None) == POS),
+                float(j.job.blocked),
+                float(j.is_done()),
+                float(j.job.pos_time),
+                start_time,
+                end_time
+            ])
+        data["job"].x = torch.tensor(job_x)
+
+        # ========= 2. EDGES ==========================================================
+        
+        # (1) job ─operation→ proc --------------------------------------------------
+        src, dest, rem, next, curr = [], [], [], [], []
+
+        j_idx = id_map[j.id]
+        ops_proc1 = sum(op.operation.type == 1 for op in j.operation_states)
+        ops_proc2 = sum(op.operation.type == 2 for op in j.operation_states)
+
+        if ops_proc1:
+            src.append(j_idx); dest.append(0); rem.append(float(ops_proc1))
+        if ops_proc2:
+            src.append(j_idx); dest.append(1); rem.append(float(ops_proc2))
+
+        if src:
+            data["job", "operation_line", "proc"].edge_index = torch.tensor([src, dest])
+            data["job", "operation_line", "proc"].edge_attr  = torch.tensor(
+                rem, dtype=torch.float).unsqueeze(-1)
+
+        # (2) job ─possible_load→ station -------------------------------------------
+        for j in self.job_states:
+            j_idx = id_map[j.id]
+            for s_idx, st in enumerate(stations):
+                if j.is_big() and not st.accept_big:
+                    continue
+                src.append(j_idx); dest.append(s_idx)
+
+        if src:
+            data["job", "possible_load_line", "station"].edge_index = torch.tensor(
+                [src, dest], dtype=torch.long
+            )
+            zeros = torch.zeros((len(src), 2), dtype=torch.float)
+            data["job", "possible_load_line", "station"].edge_attr = zeros
+
+        # (3) robot ─hold→ job  ------------------------------------------------------
+        r = self.robot
+        hold_line = (
+            r.current_job is not None
+            and getattr(r.location, "position_type", None) == POS_PROCESS_1
+        )
+
+        if hold_line and r.current_job.id in id_map:
+            data["robot", "hold_line", "job"].edge_index = torch.tensor([[0], [id_map[r.current_job.id]]], dtype=torch.long)
+            # un seul attribut binaire « is_holding » fixé à 1.0
+            data["robot", "hold_line", "job"].edge_attr  = torch.tensor([[1.0]], dtype=torch.float)
+
+        return data
 
 @dataclass
 class RobotState:

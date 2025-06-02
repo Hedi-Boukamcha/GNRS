@@ -2,21 +2,17 @@ from models.instance import Instance
 from models.state import *
 from conf import * 
 
+import matplotlib.pyplot as plt
+import networkx as nx
+from torch_geometric.utils import to_networkx
+
 # ##################################
 # =*= STEP-BY-STEP GNN SIMULATOR =*=
 # ##################################
 __author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca"
 __version__ = "1.0.0" 
 __license__ = "MIT"
-
-def simulate_all(i: Instance, decisions: list[Decision]) -> list[State]:
-    states: list[State] = []
-    states.append(State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True))
-    for d in decisions:
-        states.append(simulate(states[-1], d=d))
-    states[-1].display_calendars()
-    return states
-
+ 
 def simulate(previous_state: State, d: Decision) -> State:
     state: State      = previous_state.clone()
     j: JobState       = state.get_job_by_id(d.job_id)
@@ -53,18 +49,24 @@ def simulate(previous_state: State, d: Decision) -> State:
     time = execute_operation(j, o, robot, process, parallel, time)
 
     # 8. If the operation is the last of the job, we remove the job from the system
+    max_time = time
     if o.is_last:
-        time = robot_move_job_to_station(state, robot, j, o, process, M, time)
-        unload(state, j, o, L, time)
+        time     = robot_move_job_to_station(state, robot, j, o, process, M, time)
+        max_time = unload(state, j, o, L, time)
+    else:
+        max_time = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
 
     # 9. If a parallel job was waiting (to be unloaded) on the positioner, unload it
     if job_on_pos_to_unload is not None:
         if not o.is_last:
             time = robot_move_job_to_station(state, robot, j, o, process, M, time)
         last_op: OperationState = job_on_pos_to_unload.operation_states[-1]
-        last_op.end = time
-        time = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.process1, M, time)
-        unload(state, job_on_pos_to_unload, last_op, L, time)
+        last_op.end    = time
+        time           = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.process1, M, time)
+        unloading_time = unload(state, job_on_pos_to_unload, last_op, L, time)
+        max_time       = max(max_time, unloading_time)
+
+    state.compute_reward_values(max_time)
     return state
 
 # (1/4) SEARCH START TIME AND LOAD A JOB ###################################################################
@@ -167,10 +169,21 @@ def previous_job_back_to_station(state: State, robot: RobotState, j: JobState, p
             time = robot_move_job_to_station(state, robot, previous_job, previous_op, process, M, time)
     return time
 
+def simulate_station_min_free_at(robot: RobotState, j: JobState, o: OperationState, M: int, L: int, time: int) -> int:
+    simulated_time = time + M + L
+    if robot.location != j.location:
+        simulated_time += M
+    j.current_station.free_at = simulated_time # min time at which the station could be free
+    simulated_time = simulated_time + M + j.operation_states[o.id + 1].operation.processing_time
+    j.end                     = simulated_time # min time at which the job could end
+    j.delay                   = max(0, j.end - j.job.due_date)
+    return simulated_time
+
 def robot_move_job_to_station(state: State, robot: RobotState, j: JobState, o: OperationState, process: Process, M: int, time: int):
     time            = robot_move_to_job(j, o, robot, M, time)
     robot.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=process, dest=state.all_stations, operation=o, station=j.current_station))
     j.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=process, dest=state.all_stations, operation=o, station=j.current_station))
+    process.free_at = time
     time           += M
     robot.location  = state.all_stations
     j.location      = state.all_stations

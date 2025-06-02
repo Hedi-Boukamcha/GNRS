@@ -9,6 +9,13 @@ import argparse
 import pandas as pd
 import time
 
+# #########################################
+# =*= EXACT CP SOLVER (Google OR-Tools) =*=
+# #########################################
+__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca"
+__version__ = "1.0.0"
+__license__ = "MIT"
+
 STATUS_MEANING = ["UNKNOWN", "MODEL_INVALID", "FEASIBLE", "INFEASIBLE", "OPTIMAL"]
 def init_vars(model: cp_model.CpModel, i: MathInstance):
     i.s.entry_station_date = [[model.NewIntVar(0, i.I, f'entry_station_date_{j}_{c}') for c in i.loop_stations()] for j in i.loop_jobs()]
