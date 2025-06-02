@@ -30,7 +30,7 @@ def search_possible_decisions(instance: Instance, state: State) -> list[Decision
     return decisions
 
 def solve_one(path: str, size: str, id: str):
-    i: Instance = Instance.load(path+size+"/instance_"+id+'.json')
+    i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
     states: list[State] = []
     last_job_in_pos: int = -1
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument("--id", help="id of the instance to solve", required=False)
     args = parser.parse_args()
     base_path: str = args.path
-    path: str      = base_path + "/data/instances/test/"
+    path: str      = base_path + "/data/instances/debug/" #"/data/instances/debug OR test"
     if args.mode == "train":
         interactive: bool = args.interactive.lower() in ['true', 't', 'yes', '1']
         train(path=base_path, interactive=interactive)

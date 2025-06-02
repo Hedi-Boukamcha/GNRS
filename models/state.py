@@ -192,7 +192,9 @@ class State:
         old_value = graph[node_type].x[:, feature_idx]
         graph[node_type].x[:, feature_idx] = 1.0 * (old_value - min) / (max - min)
     
-    def check_location(position: Position, location: str) -> float:
+    def check_location(self, position: Position, location: str) -> float:
+        if position is None:
+            return 0.0
         return float(position.position_type == location)
 
     def to_hyper_graph(self, last_job_in_pos: int, current_time: int) -> HeteroData:
@@ -224,13 +226,13 @@ class State:
                     poss_jobs_s1.append(j.id)
                     poss_jobs_s3.append(j.id)
                 cs1, cs2, cs3 = 0.0, 0.0, 0.0
-                if j.current_station.id == STATION_1:
+                if (j.current_station is not None) and (j.current_station.id == STATION_1):
                     cs1 = 1.0
                     job_station_1 = j.id
-                elif j.current_station.id == STATION_2:
+                elif (j.current_station is not None) and  j.current_station.id == STATION_2:
                     cs2 = 1.0
                     job_station_2 = j.id
-                elif j.current_station.id == STATION_3:
+                elif (j.current_station is not None) and  j.current_station.id == STATION_3:
                     cs3 = 1.0
                     job_station_3 = j.id
                 m1, m2, robot = 0.0, 0.0, 0.0
@@ -377,7 +379,7 @@ class State:
             graph["job", "hold_by", "robot"].edge_index = graph["robot", "hold", "job"].edge_index.flip(0)
 
         # VIII. Standardize time-related features
-        if max > min:
+        if max_time > min_time:
             self.std_column(graph=graph, node_type="job", feature_idx=1, min=min_time, max=max_time)
             self.std_column(graph=graph, node_type="job", feature_idx=2, min=min_time, max=max_time)
             self.std_column(graph=graph, node_type="job", feature_idx=4, min=min_time, max=max_time)

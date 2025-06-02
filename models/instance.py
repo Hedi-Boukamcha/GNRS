@@ -36,7 +36,7 @@ class Instance:
     def __str__(self):
         return f"{self.jobs}"
 
-    def load(path: str):
+    def load(path: str): 
         with open(path, 'r') as f:
             _data = json.load(f)
         jobs = []
