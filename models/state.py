@@ -191,6 +191,10 @@ class State:
     def std_column(self, graph: HeteroData, node_type: str, feature_idx: int, min: int, max: int):
         old_value = graph[node_type].x[:, feature_idx]
         graph[node_type].x[:, feature_idx] = 1.0 * (old_value - min) / (max - min)
+
+    def fix_column(self, graph: HeteroData, node_type: str, feature_idx: int):
+        old_value = graph[node_type].x[:, feature_idx]
+        graph[node_type].x[:, feature_idx] = (old_value > 0).float()
     
     def check_location(self, position: Position, location: str) -> float:
         if position is None:
@@ -387,6 +391,14 @@ class State:
             self.std_column(graph=graph, node_type="station", feature_idx=1, min=min_time, max=max_time)
             self.std_column(graph=graph, node_type="machine", feature_idx=2, min=min_time, max=max_time)
             self.std_column(graph=graph, node_type="robot", feature_idx=3, min=min_time, max=max_time)
+        else:
+            self.fix_column(graph=graph, node_type="job", feature_idx=1)
+            self.fix_column(graph=graph, node_type="job", feature_idx=2)
+            self.fix_column(graph=graph, node_type="job", feature_idx=4)
+            self.fix_column(graph=graph, node_type="job", feature_idx=5)
+            self.fix_column(graph=graph, node_type="station", feature_idx=1)
+            self.fix_column(graph=graph, node_type="machine", feature_idx=2)
+            self.fix_column(graph=graph, node_type="robot", feature_idx=3)
         return graph
 
 @dataclass
