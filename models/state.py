@@ -138,10 +138,7 @@ class State:
         self.cmax = max(self.cmax, end_time)
         self.total_delay = 0
         for j in self.job_states:
-            if j.is_done():
-                j.delay = max(0, j.end - j.job.due_date) # real delay
-            else:
-                j.delay = max(0, self.robot.free_at - j.job.due_date) # minimal expected delay
+            j.delay = max(0, j.end - j.job.due_date) # real delay or minimal expected delay
             self.total_delay += j.delay
 
     def display_calendars(self):
