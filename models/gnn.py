@@ -102,7 +102,7 @@ class QNet(nn.Module):
         nodes.update(updated_others)
         updated_job2    = self.job_up_2(nodes, edges)
         nodes['job']    = updated_job2['job']
-        updated_others2 = self.other_up_2({**x}edge_index_dict)
+        updated_others2 = self.other_up_2({**nodes}, edges)
         nodes.update(updated_others2)
 
         # 2. Graph-level embedding: mean of all jobs + 3 stations + 2 machines + 1 robot
