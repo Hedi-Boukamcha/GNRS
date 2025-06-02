@@ -192,9 +192,161 @@ class State:
         if max == min:
             return 0.0
         return 1.0 * (time - min) / (max - min)
+    
+    def check_location(position: Position, location: str) -> float:
+        return float(getattr(position, "position_type", None) == location)
 
     def to_hyper_graph(self, last_job_in_pos: int, current_time: int):
         data = HeteroData()
+
+        job_features: list = []
+        min_time: int       = -1
+        max_time: int       = -1
+        job_machine_1: int  = -1
+        job_machine_2: int  = -1
+        job_robot:     int  = -1
+        nb_first_op_m1: int = 0
+        nb_last_op_m1: int  = 0
+        nb_first_op_m2: int = 0
+        nb_last_op_m2: int  = 0
+        job_station_1: int  = -1
+        job_station_2: int  = -1
+        job_station_3: int  = -1
+        poss_jobs_s1: list  = []
+        poss_jobs_s2: list  = []
+        poss_jobs_s3: list  = []
+
+        # 1. Create job features
+        for j in self.job_states:
+            if not j.is_done() or j.id == last_job_in_pos:
+                poss_jobs_s2.append(j.id)
+                if not j.job.big:
+                    poss_jobs_s1.append(j.id)
+                    poss_jobs_s3.append(j.id)
+                cs1, cs2, cs3 = 0.0, 0.0, 0.0
+                if j.current_station.id == STATION_1:
+                    cs1 = 1.0
+                    job_station_1 = j.id
+                elif j.current_station.id == STATION_2:
+                    cs2 = 1.0
+                    job_station_2 = j.id
+                elif j.current_station.id == STATION_3:
+                    cs3 = 1.0
+                    job_station_3 = j.id
+                m1, m2, robot = 0.0, 0.0, 0.0
+                if self.check_location(j.location, POS_PROCESS_1):
+                    m1 = 1.0
+                    job_machine_1 = j.id
+                    if j.id != last_job_in_pos:
+                        robot = 1.0
+                        job_robot = j.id
+                elif self.check_location(j.location, POS_PROCESS_2):
+                    m2 = 1.0
+                    job_machine_2 = j.id
+                    robot = 1.0
+                    job_robot = j.id
+                machine_1_is_first: float = float(j.operation_states[0].operation.type == PROCEDE_1)
+                is_pos: float             = float(j.id == last_job_in_pos)
+                remaining_time_dd: int    = current_time - j.job.due_date
+                min_time                  = min(min_time, abs(remaining_time_dd)) if min_time >= 0 else abs(remaining_time_dd)
+                max_time                  = max(min_time, abs(remaining_time_dd)) if max_time >= 0 else abs(remaining_time_dd)
+                min_time                  = min(min_time, j.job.pos_time)
+                max_time                  = max(min_time, j.job.pos_time)
+                job_features.append([
+                        float(j.job.big),                             # 0. Is it a big job that can only use station 2?
+                                                                      # 1. remaining time in machine 1
+                                                                      # 2. remaining time in machine 2
+                        machine_1_is_first,                           # 3. machine 1 before machine 2?
+                        float(j.job.pos_time),                        # 4. Time to place the job on the poisitioner
+                        float(remaining_time_dd),                     # 5. Remaining time before due date (or current delay)
+                        cs1,                                          # 6. Is it loaded in station 1?
+                        cs2,                                          # 7. Is it loaded in station 2?
+                        cs3,                                          # 8. Is it loaded in station 3?
+                        m1,                                           # 9. Hold by robot at machine 1?
+                        m2,                                           # 10. Hold by robot at machine 2?
+                        self.check_location(j.location, POS_STATION), # 11. Is the job on the stations?
+                        is_pos])                                      # 12. Is the job on the positionner 
+                
+        # I. Create job features as an array
+            # Information of the job in general
+            # 0. Is it a big job? (0||1)
+            # 1. remaining time in machine 1 (0->1) [we maintain a min and max variable]
+            # 2. remaining time in machine 2 (0->1) [we use the same variable]
+            # 3. machine 1 before machine 2? (0||1)
+            # 4. poisition time (0->1) [we use the same variable as remaining time]
+            # 5. time before due date (or delay), dd - use current_time (0->1) [we use the same variable as remaining time]
+
+            # Information on the current state
+            # 6. Is it loaded in station 1? (0||1)
+            # 7. Is it loaded in station 2? (0||1)
+            # 8. Is it loaded in station 3? (0||1)
+            # 9. Is it hold by robot at machine 1? (0||1)
+            # 10. Is it hold by robot at machine 1? (0||1)
+            # 11. Is it on the positionner? (0||1)
+
+            # --> While creating, count numbers of first and last operations in the two machines (4 variables)
+            # --> While creating, get the id of the job in the robot
+            # --> While creating, get the id of the job in the machine 1 and machine 2
+
+        # II. create station features as an array
+            # 0. can process big? (0||1)
+            # 1. remaining time before free, max(0, free_at - current_time) [we use the same variable as remaining time]
+
+        # III. create links between stations and jobs
+            # 0. could be chosen link without feature
+            # 1. has been chosen link without feature
+        
+        # IV. create machine features as an array
+            # 0. remaining numbers of first operations (0->1) [std with the current number of operations]
+            # 1. remaining numbers of last operations (0->1) [std with the current number of operations]
+            # 2. remaining time before free, max(0, free_at - current_time) [we use the same variable as remaining time]
+
+        # V. create links between jobs and machines
+            # 0. job need machine without feature
+            # 1. job is in machine without feature
+ 
+        # VI. create robot features as an array
+            # 0. is machine 1? (0||1)
+            # 1. is machine 2? (0||1)
+            # 2. is stations? (0||1)
+            # 3. remaining time before free, max(0, free_at - current_time) [we use the same variable as remaining time]
+
+        # VII. create one job and the robot link without feautre
+
+        # VIII. STD job features 1, 2, 4, 5 with min and max + station feature 1 + machine feature 2 + robot feature 3
+        # IX. transform arrays as node tensors
+        data["job"].x = torch.tensor(job_features, dtype=torch.float)
+            
+
+
+
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         is_free_robot = float(self.robot.current_job is None)
         data["robot"].x = torch.tensor([[
             getattr(self.robot.location, "position_type", None) == POS_PROCESS_1,
