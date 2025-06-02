@@ -29,23 +29,9 @@ def generate_controledSize_instance(
     for _ in range(nombre_jobs):
         nb_operations = random.randint(1, max_operations_par_job)
         last_type = None 
-        total_processing_time = 0
-        for _ in range(nb_operations):
-            # Exclure le type précédent
-            available_types = [t for t in types_operations if t != last_type]
-            chosen_type = random.choice(available_types)
-            proc_time = random.randint(duree_min, duree_max)
-            op = {
-                "type": chosen_type,
-                "processing_time": proc_time
-            }
-            last_type = chosen_type
-            total_processing_time += proc_time
-
-            due_date_max = (2 * L + pos_time) * nombre_jobs + nb_operations * (2 * M + 60)
-            borne_inf = max(due_date_min, due_date_max // 3)
-            due_date = random.randint(borne_inf, due_date_max)
-
+        due_date_max = (2 * L + pos_time) * nombre_jobs + nb_operations * (2 * M + 60)
+        borne_inf = max(due_date_min, due_date_max // 3)
+        due_date = random.randint(borne_inf, due_date_max)
         job = {
             "big": random.randint(0, 1),
             "due_date": due_date,
@@ -54,7 +40,17 @@ def generate_controledSize_instance(
             "blocked": random.randint(0, 2),
             "operations": []
         }
-        job["operations"].append(op)
+
+        for _ in range(nb_operations):
+            available_types = [t for t in types_operations if t != last_type]
+            chosen_type = random.choice(available_types)
+            proc_time = random.randint(duree_min, duree_max)
+            op = {
+                "type": chosen_type,
+                "processing_time": proc_time
+            }
+            last_type = chosen_type
+            job["operations"].append(op)
         jobs.append(job)
     return {'a': random.randint(0, 10) * 10, 'jobs': jobs}
 
