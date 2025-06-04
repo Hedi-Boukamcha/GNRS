@@ -4,7 +4,7 @@ import json
 # #####################################
 # =*= INSTANCE DATA FOR MATH SOLVER =*=
 # #####################################
-__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca"
+__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
