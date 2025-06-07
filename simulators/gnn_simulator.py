@@ -67,6 +67,7 @@ def simulate(previous_state: State, d: Decision) -> State:
         max_time       = max(max_time, unloading_time)
 
     state.compute_reward_values(max_time)
+    state.decisions.append(d)
     return state
 
 # (1/4) SEARCH START TIME AND LOAD A JOB ###################################################################
