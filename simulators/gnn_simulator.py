@@ -13,8 +13,8 @@ __author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.n
 __version__ = "1.0.0" 
 __license__ = "MIT"
  
-def simulate(previous_state: State, d: Decision) -> State:
-    state: State      = previous_state.clone()
+def simulate(previous_state: State, d: Decision, clone: bool = False) -> State:
+    state: State      = previous_state.clone() if clone else previous_state
     j: JobState       = state.get_job_by_id(d.job_id)
     o: OperationState = j.operation_states[d.operation_id]
     M: int            = state.M
