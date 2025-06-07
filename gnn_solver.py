@@ -26,8 +26,8 @@ def search_possible_decisions(instance: Instance, state: State) -> list[Decision
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, operation_id=o.id, parallel=True))
-                decisions.append(Decision(job_id=j.id, operation_id=o.id, parallel=False))
+                decisions.append(Decision(job_id=j.id, operation_id=o.id, process=o.operation.type, parallel=True))
+                decisions.append(Decision(job_id=j.id, operation_id=o.id, process=o.operation.type, parallel=False))
                 break
     return decisions
 
