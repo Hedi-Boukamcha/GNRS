@@ -30,7 +30,7 @@ class JobEmbedding(nn.Module):
 
     def forward(self, nodes, edges):
         out_dict = self.conv(nodes, edges)
-        h = out_dict['job'] + self.res(nodes['job'])
+        h = out_dict['job'] + self.residual(nodes['job'])
         return {'job': self.norm(F.relu(h))}
 
 # Other nodes embedding with message passing: job -> (station, machine, robot)
@@ -77,7 +77,7 @@ class QNet(nn.Module):
         graph_vector_size: int = d_other*6 + d_job # shape = 3 stations + 2 machines + robot + mean-jobs = 64
         self.global_lin        = Linear(graph_vector_size, GRAPH_DIM)
         self.Q_mlp = nn.Sequential(
-            nn.Linear(d_job + GRAPH_DIM + 2, 64),   # +2 for [parallel, alpha]
+            nn.Linear(d_job + GRAPH_DIM + 3, 64),   # +3 for [parallel, alpha, process]
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(64, 32),
@@ -92,7 +92,7 @@ class QNet(nn.Module):
         x['robot']   = F.relu(self.lin_robot(data['robot'].x))
         return x
 
-    def forward(self, data: HeteroData, actions: Tensor, alpha: Tensor): # action shape = shape (A,2); alpha shape = (1,)
+    def forward(self, data: HeteroData, actions: Tensor, alpha: Tensor): # action shape = shape (A,3); alpha shape = (1,)
         # 1. Embedding stacks (stack size=2)
         nodes           = self._init_node_feats(data)
         edges           = data.edge_index_dict
@@ -115,7 +115,7 @@ class QNet(nn.Module):
         h_global        = F.relu(h_global).squeeze(0)
 
         # 3. Build per-action tensors and final Q values (all in parrallel)
-        job_ids   = actions[:,0]
+        job_ids   = actions[:,0].long()
         parallel  = actions[:,2].unsqueeze(1).float()
         process   = actions[:,1].unsqueeze(1).float()
         A         = actions.size(0)

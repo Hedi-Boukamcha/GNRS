@@ -71,6 +71,7 @@ class Agent:
         self.target_net = torch.compile(self.target_net)
         self.optimizer = Adam(list(self.policy_net.parameters()), lr=LR)
         self.loss: Loss = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
+        self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
 
     def select_next_decision(self, graph: HeteroData, alpha: Tensor, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool) -> int:
         if not train or random.random() > eps_threshold:
@@ -82,6 +83,7 @@ class Agent:
     def save(self):
         print(f"Saving policy_net and current loss...")
         torch.save(self.policy_net.state_dict(), f"{self.path}policy_net.pth")
+        self.diversity.save(f"{self.path}epsilon")
         self.loss.save(f"{self.path}loss")
 
     def load(self, device: str):

@@ -1,5 +1,6 @@
 import glob
 import os
+import math
 import pathlib
 import pickle
 import re
@@ -62,7 +63,7 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     start_time = time.time()
     last_job_in_pos: int = -1
     action_time: int = 0
-    alpha: Tensor = torch.tensor([i.a], dtype=torch.float32, device=device)
+    alpha: Tensor = torch.tensor([[i.a]], dtype=torch.float32, device=device)
     state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     possible_decisions, decisionT = search_possible_decisions(state=state, device=device)
     env: Environment = Environment(graph=state.to_hyper_graph(last_job_in_pos, action_time), possible_decisions=possible_decisions, decisionsT=decisionT)
@@ -111,8 +112,10 @@ def train(agent: Agent, path: str, device: str):
     for episode in range(1, NB_EPISODES+1):
         size: str        = random.choice(sizes[:complexity_limit])
         instance_id: int = random.randint(1, 150)
+        eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / (EPS_DECAY_RATE * episode))
         solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=0.0)
         computing_time = time.time() - start_time
+        agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
         if episode % OPTIMIZATION_RATE == 0:
