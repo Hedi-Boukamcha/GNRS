@@ -1,4 +1,6 @@
+import glob
 import os
+import pathlib
 import pickle
 import re
 import argparse
@@ -13,6 +15,7 @@ from conf import INSTANCES_SIZES
 from models.state import State
 from utils.common import to_bool
 from heuristic.local_search import ls as LS
+from models.agent import DQNAgent
 
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
@@ -20,6 +23,21 @@ from heuristic.local_search import ls as LS
 __author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
+
+
+# ---------- Hyper-paramètres ------------------
+ALPHA               = 0.5
+BATCH_SIZE          = 256
+CAPACITY            = 100_000
+NODE_EMBED_DIM      = 64
+TARGET_UPDATE       = 2_000
+GAMMA               = 0.99
+EPISODES            = 10_000
+EVAL_EVERY          = 200
+CHECKPOINT_EVERY    = 500
+LEARNING_RATE       = 1e-4
+# -------------------------------------------------------------------------
+
 
 def search_possible_decisions(instance: Instance, state: State) -> list[Decision]:
     decisions: list[Decision] = []
@@ -31,37 +49,54 @@ def search_possible_decisions(instance: Instance, state: State) -> list[Decision
                 break
     return decisions
 
-def solve_one(path: str, size: str, id: str, improve: bool):
-    i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
-    start_time = time.time()
-    states: list[State] = []
+def compute_reward(state, next_state, action, alpha: float) -> float:
+    R1         = next_state.cmax - (state.cmax + action.duration)
+    R2         = next_state.total_delay - state.total_delay
+    reward     = - (alpha * R1 + (1 - alpha) * R2)
+    return float(reward)
+
+def solve_one(path: str, size: str, id: str, improve: bool, agent: DQNAgent, alpha: float):
+    i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
+    start_time           = time.time()
+    states: list[State]  = []
     last_job_in_pos: int = -1
-    action_time: int = 0
+    action_time: int     = 0
+    transitions          = []
+
     states.append(State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True))
     possible_decisions: list[Decision] = search_possible_decisions(instance=i, state=states[-1])
-    while possible_decisions:
-        states[-1].to_hyper_graph(last_job_in_pos, action_time)
-        d: Decision   = random.choice(possible_decisions)
+    while possible_decisions:                                                               # Start of an episode
+        actions = search_possible_decisions(instance=i, state=states[-1])
+        s = states[-1].to_hyper_graph(last_job_in_pos, action_time)
+        d: Decision   = agent.select_action(s, actions, alpha)                         # random.choice(possible_decisions)
         if d.parallel:
             if states[-1].get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
                 last_job_in_pos = d.job_id
         else:
             last_job_in_pos = -1
         s_next: State = simulate(states[-1], d=d) 
-        action_time = s_next.min_action_time()
         states.append(s_next)
+        action_time        = s_next.min_action_time()
+        reward             = compute_reward(s, s_next, actions, alpha)
         possible_decisions = search_possible_decisions(instance=i, state=states[-1])
+        done               = len(search_possible_decisions(instance=i, state=s_next)) == 0 # End of an episode 
+        transitions.append((s,actions, reward, s_next, done))
+        s = s_next
+
     final: State = states[-1]
     if improve:
         final = LS(final) # improve with local search
     final.display_calendars()
     computing_time = time.time() - start_time
+
     with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
         pickle.dump(final, f)
     obj: int = (final.total_delay * (100 - i.a)) + (final.cmax * i.a)
     results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [final.total_delay], 'cmax': [final.cmax], 'computing_time': [computing_time]})
     extension: str = "improved_" if improve else ""
     results.to_csv(path+"exact_solution_"+extension+id+".csv", index=False)
+
+    return transitions
 
 def solve_all_test(path: str, improve: bool):
     for folder, _, _ in INSTANCES_SIZES:
@@ -73,7 +108,59 @@ def solve_all_test(path: str, improve: bool):
 
 def train(path: str, interactive: bool):
     # DQN final task
-    pass
+    json_paths = sorted(glob.glob(f"{path}/*/instance_*.json"))
+
+    # Init agent
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent  = DQNAgent(node_embed_dim=NODE_EMBED_DIM,
+                      gamma=GAMMA,
+                      lr=LEARNING_RATE,
+                      target_update=TARGET_UPDATE,
+                      capacity=CAPACITY,
+                      device=device)
+    
+    for ep in range(1, EPISODES + 1):
+        # --------- choix aléatoire d'une instance -----------------
+        file_path = random.choice(json_paths)
+        path         = pathlib.Path(file_path)
+        size      = path.parent.name           # ex. "S", "M", "L"
+        id_       = path.stem.split("_")[1]    # numéro après 'instance_'
+
+        transitions = solve_one(path, size, id_, agent, ALPHA)
+        
+        # Cumulative rewards ---------------------------------------
+        cum_reward = 0.0
+        for s, action, r, s_next, done in transitions:
+            agent.memory.push(s, action, r, s_next, done)
+            agent.optimize(BATCH_SIZE)
+            cum_reward += r
+
+        # --------- LOG console basique ----------------------------
+        if ep % 10 == 0:
+            print(f"[{time.strftime('%H:%M:%S')}] "
+                  f"Ep {ep:05d} | return {cum_reward:8.1f} | ε={agent.eps:.3f}")
+
+        # Epsilon greedy -------------------------------------------
+        if interactive and ep % EVAL_EVERY == 0:
+            print(f"\n=== Évaluation greedy sur {path.name} ===")
+            solve_one(path=path, size=size, id=id_,
+                      improve=True,
+                      agent=agent,
+                      alpha=ALPHA)
+
+        #  CHECKPOINT périodique -----------------------------------
+        if ep % CHECKPOINT_EVERY == 0:
+            ckpt = {
+                "policy_state":  agent.policy_net.state_dict(),
+                "target_state":  agent.target_net.state_dict(),
+                "optimizer":     agent.optimizer.state_dict(),
+                "epsilon":       agent.eps,
+                "episode":       ep
+            }
+            torch.save(ckpt, f"checkpoints/dqn_episode{ep}.pt")
+            print(f"Checkpoint enregistré (episode {ep})")
+    
+
 
 # TRAIN WITH: python gnn_solver.py --mode=train --interactive=false --path=./
 # TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true  --interactive=false --path=./
