@@ -44,6 +44,7 @@ COLOR = {
 }
 
 INSTANCES_SIZES: list[str] = [("s", 3, 5), ("m", 7, 10), ("l", 15, 20), ("xl", 30, 50)]
+NB_TRAIN: int              = 150
 
 # DL model configuration
 DROPOUT: float        = 0.1
@@ -62,6 +63,7 @@ ROBOT_FEATURES: int   = 4
 BATCH_SIZE          = 256
 CAPACITY            = 100_000
 OPTIMIZATION_RATE   = 5
+SAVING_RATE         = 500
 GAMMA               = 0.99  # discount factor
 TAU                 = 0.003 # update rate of the target network
 LR                  = 1e-4  # learning rate of AdamW 
@@ -69,3 +71,4 @@ EPS_START           = 0.99  # starting value of epsilon
 EPS_END             = 0.005 # final value of epsilon
 EPS_DECAY_RATE      = 0.33  # controls the rate of exponential decay of epsilon, higher means a slower decay (≈35%)
 NB_EPISODES         = 6000
+COMPLEXITY_RATE     = 1000
