@@ -9,7 +9,7 @@ from torch_geometric.data import Batch, HeteroData
 
 import matplotlib.pyplot as plt
 
-from gnn import QNet
+from models.gnn import QNet
 from memory import ReplayMemory, Transition
 from conf import *
 from models.state import Decision
