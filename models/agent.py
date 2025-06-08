@@ -3,7 +3,7 @@ from torch.optim import Adam
 
 from gnn import QNet
 from memory import ReplayMemory
-from gnn_solver_2 import search_possible_decisions
+from gnn_solver import search_possible_decisions
 
 
 # ##################
