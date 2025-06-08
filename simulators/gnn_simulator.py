@@ -9,12 +9,13 @@ from torch_geometric.utils import to_networkx
 # ##################################
 # =*= STEP-BY-STEP GNN SIMULATOR =*=
 # ##################################
-__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0" 
 __license__ = "MIT"
- 
-def simulate(previous_state: State, d: Decision) -> State:
-    state: State      = previous_state.clone()
+
+def simulate(previous_state: State, d: Decision, clone: bool = False) -> State:
+    state: State      = previous_state.clone() if clone else previous_state
     j: JobState       = state.get_job_by_id(d.job_id)
     o: OperationState = j.operation_states[d.operation_id]
     M: int            = state.M
@@ -67,6 +68,7 @@ def simulate(previous_state: State, d: Decision) -> State:
         max_time       = max(max_time, unloading_time)
 
     state.compute_reward_values(max_time)
+    state.decisions.append(d)
     return state
 
 # (1/4) SEARCH START TIME AND LOAD A JOB ###################################################################

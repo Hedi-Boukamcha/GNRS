@@ -9,7 +9,8 @@ import torch
 # ######################################################
 # =*= GNN STATE: INSTANCE DATA AND PARTIAL SOLUTION =*=
 # #####################################################
-__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
@@ -18,16 +19,17 @@ Position = Union['Process', 'Process1', 'Process2', 'Stations']
  
 @dataclass
 class Decision: 
-    def __init__(self, job_id: int, operation_id: int, parallel: bool = False):
+    def __init__(self, job_id: int, operation_id: int, process: int, parallel: bool = False):
         self.job_id: int       = job_id
+        self.process: int      = process
         self.operation_id: int = operation_id
         self.parallel: bool    = parallel
 
     def clone(self) -> 'Decision':
-        return Decision(self.job_id, self.operation_id, self.parallel)
+        return Decision(self.job_id, self.operation_id, self.process, self.parallel)
     
     def __str__(self) -> str:
-        return f"Decision(job_id={self.job_id}, operation_id={self.operation_id}, parallel={self.parallel})"
+        return f"Decision(job_id={self.job_id}, operation_id={self.operation_id}, process={self.process}, parallel={self.parallel})"
 
 @dataclass
 class Event:

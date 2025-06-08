@@ -20,7 +20,8 @@ from models.agent import DQNAgent
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
 # #################################
-__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
@@ -38,64 +39,47 @@ CHECKPOINT_EVERY    = 500
 LEARNING_RATE       = 1e-4
 # -------------------------------------------------------------------------
 
-
 def search_possible_decisions(instance: Instance, state: State) -> list[Decision]:
     decisions: list[Decision] = []
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, operation_id=o.id, parallel=True))
-                decisions.append(Decision(job_id=j.id, operation_id=o.id, parallel=False))
+                decisions.append(Decision(job_id=j.id, operation_id=o.id, process=o.operation.type, parallel=True))
+                decisions.append(Decision(job_id=j.id, operation_id=o.id, process=o.operation.type, parallel=False))
                 break
     return decisions
 
-def compute_reward(state, next_state, action, alpha: float) -> float:
-    R1         = next_state.cmax - (state.cmax + action.duration)
-    R2         = next_state.total_delay - state.total_delay
-    reward     = - (alpha * R1 + (1 - alpha) * R2)
-    return float(reward)
-
-def solve_one(path: str, size: str, id: str, improve: bool, agent: DQNAgent, alpha: float):
-    i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
-    start_time           = time.time()
-    states: list[State]  = []
+def solve_one(path: str, size: str, id: str, improve: bool):
+    i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
+    start_time = time.time()
+    states: list[State] = []
     last_job_in_pos: int = -1
-    action_time: int     = 0
-    transitions          = []
-
+    action_time: int = 0
     states.append(State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True))
     possible_decisions: list[Decision] = search_possible_decisions(instance=i, state=states[-1])
-    while possible_decisions:                                                               # Start of an episode
-        actions = search_possible_decisions(instance=i, state=states[-1])
-        s = states[-1].to_hyper_graph(last_job_in_pos, action_time)
-        d: Decision   = agent.select_action(s, actions, alpha)                         # random.choice(possible_decisions)
+    while possible_decisions:
+        states[-1].to_hyper_graph(last_job_in_pos, action_time)
+        d: Decision   = random.choice(possible_decisions)
         if d.parallel:
-            if states[-1].get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
+            if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
                 last_job_in_pos = d.job_id
         else:
             last_job_in_pos = -1
         s_next: State = simulate(states[-1], d=d) 
+        action_time = s_next.min_action_time()
         states.append(s_next)
-        action_time        = s_next.min_action_time()
-        reward             = compute_reward(s, s_next, actions, alpha)
         possible_decisions = search_possible_decisions(instance=i, state=states[-1])
-        done               = len(search_possible_decisions(instance=i, state=s_next)) == 0 # End of an episode 
-        transitions.append((s,actions, reward, s_next, done))
-        s = s_next
-
     final: State = states[-1]
     if improve:
-        final = LS(final) # improve with local search
-    final.display_calendars()
+        state = LS(i, state.decisions) # improve with local search
+    state.display_calendars()
     computing_time = time.time() - start_time
-
     with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
-        pickle.dump(final, f)
-    obj: int = (final.total_delay * (100 - i.a)) + (final.cmax * i.a)
-    results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [final.total_delay], 'cmax': [final.cmax], 'computing_time': [computing_time]})
+        pickle.dump(state, f)
+    obj: int = (state.total_delay * (100 - i.a)) + (state.cmax * i.a)
+    results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
     extension: str = "improved_" if improve else ""
     results.to_csv(path+"exact_solution_"+extension+id+".csv", index=False)
-
     return transitions
 
 def solve_all_test(path: str, improve: bool):
@@ -159,8 +143,6 @@ def train(path: str, interactive: bool):
             }
             torch.save(ckpt, f"checkpoints/dqn_episode{ep}.pt")
             print(f"Checkpoint enregistré (episode {ep})")
-    
-
 
 # TRAIN WITH: python gnn_solver.py --mode=train --interactive=false --path=./
 # TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true  --interactive=false --path=./
