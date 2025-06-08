@@ -2,13 +2,15 @@ import pickle
 import random
 import torch
 from torch import Tensor
+import torch.nn.functional as F
 from torch.optim import Adam
-from torch_geometric.data import HeteroData
+from torch.nn.utils        import clip_grad_norm_
+from torch_geometric.data import Batch, HeteroData
 
 import matplotlib.pyplot as plt
 
 from gnn import QNet
-from memory import ReplayMemory
+from memory import ReplayMemory, Transition
 from conf import *
 from models.state import Decision
 
@@ -98,5 +100,52 @@ class Agent:
         self.target_net.load_state_dict(_target_weights)
 
     def optimize_policy(self) -> float:
-        # TODO
-        pass
+        """
+            Optimize the polict network using the Huber loss between selected action and expected best action (based on approx Q-value)
+                y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target
+                x = predicted quality of (s, a) using the policy network
+                L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2
+        """
+        transitions            = self.memory.sample(BATCH_SIZE)
+        batch                  = Transition(*zip(*transitions))
+        batch_of_graphs        = Batch.from_data_list(list(batch.graph)).to(self.device)
+        possible_actions_list  = list(batch.possible_actions)
+        action_indices_local   = torch.as_tensor(batch.action_id, device=self.device, dtype=torch.long)
+        alphas_list            = [a.to(self.device) for a in batch.alpha] # each a is 1×1
+        rewards                = torch.as_tensor(batch.reward, device=self.device, dtype=torch.float32)
+        finals                 = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool)
+        lengths_cur            = torch.as_tensor([pa.size(0) for pa in possible_actions_list], device=self.device, dtype=torch.long)       # [B]
+        offsets_cur            = torch.cat((torch.zeros(1, device=self.device, dtype=torch.long), torch.cumsum(lengths_cur, dim=0)[:-1]))  # [B]
+        actions_cat_cur        = torch.cat(possible_actions_list, dim=0).to(self.device)                       # Σ|A_i| × feat_dim
+        alpha_vals_cur         = torch.cat(alphas_list, dim=0).view(-1)                                        # [B]
+        alphas_cat_cur         = torch.repeat_interleave(alpha_vals_cur, lengths_cur).unsqueeze(1)             # Σ|A_i| × 1
+        q_all_cur              = self.policy_net(batch_of_graphs, actions_cat_cur, alphas_cat_cur).squeeze(1)  # Σ|A_i|
+        global_action_indices  = offsets_cur + action_indices_local                                            # [B]
+        q_sa_cur               = q_all_cur[global_action_indices]                                              # [B]
+        non_final_mask         = ~finals                                                                       # [B]
+        if non_final_mask.any():
+            nf_graphs                = [batch.next_graph[i]            for i in range(BATCH_SIZE) if non_final_mask[i]]
+            nf_actions_list          = [batch.next_possible_actions[i] for i in range(BATCH_SIZE) if non_final_mask[i]]
+            nf_alphas_list           = [batch.alpha[i].to(self.device) for i in range(BATCH_SIZE) if non_final_mask[i]]
+            lengths_nxt              = torch.as_tensor([pa.size(0) for pa in nf_actions_list], device=self.device, dtype=torch.long)
+            actions_cat_nxt          = torch.cat(nf_actions_list, dim=0).to(self.device)
+            alpha_vals_nxt           = torch.cat(nf_alphas_list, dim=0).view(-1)
+            alphas_cat_nxt           = torch.repeat_interleave(alpha_vals_nxt, lengths_nxt).unsqueeze(1)
+            batched_graph_nxt        = Batch.from_data_list(nf_graphs).to(self.device)
+            with torch.no_grad():
+                q_all_nxt = self.target_net(batched_graph_nxt, actions_cat_nxt, alphas_cat_nxt).squeeze(1)    # Σ|A'_i|
+            q_splits     = torch.split(q_all_nxt, lengths_nxt.tolist())                                       # list of tensors
+            max_q_nxt    = torch.stack([q.max() for q in q_splits])                                           # [n_non_final]
+        else:
+            max_q_nxt = torch.zeros(0, device=self.device)
+        y = rewards.clone() # start with r_t                                                           
+        if non_final_mask.any():
+            y[non_final_mask] += GAMMA * max_q_nxt
+        loss = F.smooth_l1_loss(q_sa_cur, y)
+        self.optimizer.zero_grad()
+        loss.backward()
+        clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)
+        self.optimizer.step()
+        printed_loss = loss.detach().cpu().item()
+        self.loss.update(printed_loss)
+        return printed_loss

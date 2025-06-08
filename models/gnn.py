@@ -1,4 +1,3 @@
-# gnn_qnet.py
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -8,6 +7,14 @@ from torch_geometric.nn import GATConv, HeteroConv, Linear
 from torch_geometric.data import HeteroData
 
 from conf import *
+
+# #######################################################
+# =*= ARCHITECTURE OF THE DEEP-Q GRAPH NEURAL NETWORK =*=
+# #######################################################
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
+__version__ = "1.0.0"
+__license__ = "MIT"
 
 # Build a GNN-transformer (GAT) block
 def GAT(in_dim: int, out_dim: int, attention_heads: int=4, dropout: float=0.0):

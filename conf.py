@@ -72,3 +72,4 @@ EPS_END             = 0.005 # final value of epsilon
 EPS_DECAY_RATE      = 0.33  # controls the rate of exponential decay of epsilon, higher means a slower decay (≈35%)
 NB_EPISODES         = 6000
 COMPLEXITY_RATE     = 1000
+MAX_GRAD_NORM       = 10.0

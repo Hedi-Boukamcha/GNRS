@@ -79,9 +79,10 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time)
         next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device)
         if train:
+            final: bool   = len(next_possible_decisions) == 0
             duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-            _r: Tensor = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, i.a, device)
-            agent.memory.push(Transition(graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=decisionT, next_graph=next_graph, reward=_r))
+            _r: Tensor    = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, i.a, device)
+            agent.memory.push(Transition(graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=decisionT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(possible_decisions)))
         action_time = state.min_action_time()
         env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
     if not train:
@@ -118,12 +119,12 @@ def train(agent: Agent, path: str, device: str):
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
-        if episode % OPTIMIZATION_RATE == 0:
+        if episode % OPTIMIZATION_RATE == 0 and len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- loss: {loss:.2f}")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.2f} -- loss: {loss:.2f}")
         else:
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- No optimization yet...")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.2f} -- No optimization yet...")
         if episode % SAVING_RATE == 0 or episode == NB_EPISODES:
             agent.save()
     print("End!")
