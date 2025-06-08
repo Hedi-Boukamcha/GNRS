@@ -19,11 +19,11 @@ class JobEmbedding(nn.Module):
         super().__init__()
         dj, ds, dm, dr = dimensions
         self.conv      = HeteroConv({
-                                ('station', 'can_load',   'job'): GAT(ds, out_dim, heads, dropout),
-                                ('station', 'loaded',     'job'): GAT(ds, out_dim, heads, dropout),
+                                ('station', 'can_load',    'job'): GAT(ds, out_dim, heads, dropout),
+                                ('station', 'loaded',      'job'): GAT(ds, out_dim, heads, dropout),
                                 ('machine', 'will_execute','job'): GAT(dm, out_dim, heads, dropout),
-                                ('machine', 'execute',    'job'): GAT(dm, out_dim, heads, dropout),
-                                ('robot',   'hold',       'job'): GAT(dr, out_dim, heads, dropout),
+                                ('machine', 'execute',     'job'): GAT(dm, out_dim, heads, dropout),
+                                ('robot',   'hold',        'job'): GAT(dr, out_dim, heads, dropout),
                             }, aggr='sum')
         self.residual  = Linear(dj, out_dim, bias=False) if dj != out_dim else nn.Identity()
         self.norm      = nn.LayerNorm(out_dim)
@@ -66,7 +66,7 @@ class QNet(nn.Module):
         super().__init__()
         self.d_job             = d_job
         self.d_other           = d_other
-        self.lin_job           = Linear(job_in,   d_job)
+        self.lin_job           = Linear(job_in, d_job)
         self.lin_station       = Linear(station_in, d_other)
         self.lin_machine       = Linear(machine_in, d_other)
         self.lin_robot         = Linear(robot_in, d_other)
@@ -96,10 +96,12 @@ class QNet(nn.Module):
         # 1. Embedding stacks (stack size=2)
         nodes           = self._init_node_feats(data)
         edges           = data.edge_index_dict
+        
         updated_job     = self.job_up_1(nodes, edges)
         nodes['job']    = updated_job['job']
         updated_others  = self.other_up_1({**nodes}, edges)
         nodes.update(updated_others)
+
         updated_job2    = self.job_up_2(nodes, edges)
         nodes['job']    = updated_job2['job']
         updated_others2 = self.other_up_2({**nodes}, edges)
@@ -108,11 +110,11 @@ class QNet(nn.Module):
         # 2. Graph-level embedding: mean of all jobs + 3 stations + 2 machines + 1 robot
         h_job           = nodes['job']
         mean_jobs       = h_job.mean(dim=0, keepdim=True)
-        h_nodes         = torch.cat([nodes['station'][0:3].reshape(-1), nodes['machine'][0:2].reshape(-1), nodes['robot'][0].reshape(-1)], dim=0).unsqueeze(0)                                # (1,6*d_other)
+        h_nodes         = torch.cat([nodes['station'][0:3].reshape(-1), nodes['machine'][0:2].reshape(-1), nodes['robot'][0].reshape(-1)], dim=0).unsqueeze(0) # (1,6*d_other)
         h_global        = self.global_lin(torch.cat([h_nodes, mean_jobs], dim=1))
         h_global        = F.relu(h_global).squeeze(0)
 
-        # 3. Build per-action tensors and final Q values
+        # 3. Build per-action tensors and final Q values (all in parrallel)
         job_ids   = actions[:,0]
         parallel  = actions[:,1].unsqueeze(1).float()
         A         = actions.size(0)
