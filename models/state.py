@@ -9,7 +9,8 @@ import torch
 # ######################################################
 # =*= GNN STATE: INSTANCE DATA AND PARTIAL SOLUTION =*=
 # #####################################################
-__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 

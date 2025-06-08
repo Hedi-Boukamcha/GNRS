@@ -17,7 +17,8 @@ from heuristic.local_search import ls as LS
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
 # #################################
-__author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.neumann@polymtl.ca"
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
@@ -34,32 +35,29 @@ def search_possible_decisions(instance: Instance, state: State) -> list[Decision
 def solve_one(path: str, size: str, id: str, improve: bool):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
-    states: list[State] = []
     last_job_in_pos: int = -1
     action_time: int = 0
-    states.append(State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True))
-    possible_decisions: list[Decision] = search_possible_decisions(instance=i, state=states[-1])
+    state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+    possible_decisions: list[Decision] = search_possible_decisions(instance=i, state=state)
     while possible_decisions:
-        states[-1].to_hyper_graph(last_job_in_pos, action_time)
+        state.to_hyper_graph(last_job_in_pos, action_time)
         d: Decision   = random.choice(possible_decisions)
         if d.parallel:
-            if states[-1].get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
+            if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
                 last_job_in_pos = d.job_id
         else:
             last_job_in_pos = -1
-        s_next: State = simulate(states[-1], d=d) 
-        action_time = s_next.min_action_time()
-        states.append(s_next)
-        possible_decisions = search_possible_decisions(instance=i, state=states[-1])
-    final: State = states[-1]
+        state = simulate(state, d=d) 
+        action_time = state.min_action_time()
+        possible_decisions = search_possible_decisions(instance=i, state=state)
     if improve:
-        final = LS(final) # improve with local search
-    final.display_calendars()
+        state = LS(i, state.decisions) # improve with local search
+    state.display_calendars()
     computing_time = time.time() - start_time
     with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
-        pickle.dump(final, f)
-    obj: int = (final.total_delay * (100 - i.a)) + (final.cmax * i.a)
-    results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [final.total_delay], 'cmax': [final.cmax], 'computing_time': [computing_time]})
+        pickle.dump(state, f)
+    obj: int = (state.total_delay * (100 - i.a)) + (state.cmax * i.a)
+    results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
     extension: str = "improved_" if improve else ""
     results.to_csv(path+"exact_solution_"+extension+id+".csv", index=False)
 
