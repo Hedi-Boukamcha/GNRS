@@ -13,9 +13,7 @@ __author__ = "Hedi Boukamcha - hedi.boukamcha.1@ulaval.ca, Anas Neumann - anas.n
 __version__ = "1.0.0"
 __license__ = "MIT"
 
-
-
-class DQNAgent:
+class Agent:
     def __init__(self, node_embed_dim, 
                  gamma=0.99, lr=1e-4,
                  eps_start=1., eps_end=0.05, eps_decay=0.995,

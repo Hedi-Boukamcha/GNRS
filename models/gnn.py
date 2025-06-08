@@ -116,11 +116,12 @@ class QNet(nn.Module):
 
         # 3. Build per-action tensors and final Q values (all in parrallel)
         job_ids   = actions[:,0]
-        parallel  = actions[:,1].unsqueeze(1).float()
+        parallel  = actions[:,2].unsqueeze(1).float()
+        process   = actions[:,1].unsqueeze(1).float()
         A         = actions.size(0)
         emb_jobs  = h_job[job_ids]
         h_globalA = h_global.expand(A, -1)
         alphaA    = alpha.expand(A,1)
-        action_feat = torch.cat([emb_jobs, h_globalA, parallel, alphaA], dim=1)
+        action_feat = torch.cat([emb_jobs, h_globalA, process, parallel, alphaA], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values

@@ -57,3 +57,15 @@ JOB_FEATURES: int     = 13
 STATION_FEATURES: int = 2
 MACHINE_FEATURES: int = 3
 ROBOT_FEATURES: int   = 4
+
+# Training configuration
+BATCH_SIZE          = 256
+CAPACITY            = 100_000
+OPTIMIZATION_RATE   = 5
+GAMMA               = 0.99  # discount factor
+TAU                 = 0.003 # update rate of the target network
+LR                  = 1e-4  # learning rate of AdamW 
+EPS_START           = 0.99  # starting value of epsilon
+EPS_END             = 0.005 # final value of epsilon
+EPS_DECAY_RATE      = 0.33  # controls the rate of exponential decay of epsilon, higher means a slower decay (≈35%)
+NB_EPISODES         = 6000
