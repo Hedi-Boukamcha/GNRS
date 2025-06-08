@@ -2,6 +2,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_scatter import scatter_mean
 
 from torch_geometric.nn import GATConv, HeteroConv, Linear
 from torch_geometric.data import HeteroData
@@ -115,20 +116,26 @@ class QNet(nn.Module):
         nodes.update(updated_others2)
 
         # 2. Graph-level embedding: mean of all jobs + 3 stations + 2 machines + 1 robot
-        h_job           = nodes['job']
-        mean_jobs       = h_job.mean(dim=0, keepdim=True)
-        h_nodes         = torch.cat([nodes['station'][0:3].reshape(-1), nodes['machine'][0:2].reshape(-1), nodes['robot'][0].reshape(-1)], dim=0).unsqueeze(0) # (1,6*d_other)
-        h_global        = self.global_lin(torch.cat([h_nodes, mean_jobs], dim=1))
-        h_global        = F.relu(h_global).squeeze(0)
+        B              = data.num_graphs
+        h_station_flat = nodes['station'].reshape(B, 3 * self.d_other)
+        h_machine_flat = nodes['machine'].reshape(B, 2 * self.d_other)
+        h_robot_flat   = nodes['robot'].reshape(B, 1 * self.d_other)
+        h_nodes        = torch.cat([h_station_flat, h_machine_flat, h_robot_flat], dim=1)
+        batch_job      = data['job'].batch
+        mean_jobs      = scatter_mean(nodes['job'], batch_job, dim=0)
+        graph_vec      = torch.cat([h_nodes, mean_jobs], dim=1)
+        h_global       = F.relu(self.global_lin(graph_vec))
 
         # 3. Build per-action tensors and final Q values (all in parrallel)
         job_ids   = actions[:,0].long()
         parallel  = actions[:,2].unsqueeze(1).float()
         process   = actions[:,1].unsqueeze(1).float()
-        A         = actions.size(0)
-        emb_jobs  = h_job[job_ids]
-        h_globalA = h_global.expand(A, -1)
-        alphaA    = alpha.expand(A,1)
+        emb_jobs  = nodes['job'][job_ids]
+        graph_ids = batch_job[job_ids]   
+        h_globalA = h_global[graph_ids]
+        alphaA    = alpha
+        if alphaA.dim() == 0 or alphaA.size(0) == 1: # used for solving stage (not optimization)
+            alphaA = alphaA.expand(actions.size(0), 1) 
         action_feat = torch.cat([emb_jobs, h_globalA, process, parallel, alphaA], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values
