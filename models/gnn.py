@@ -2,9 +2,8 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_mean
 
-from torch_geometric.nn import GATConv, HeteroConv, Linear
+from torch_geometric.nn import GATConv, HeteroConv, Linear, AttentionalAggregation
 from torch_geometric.data import HeteroData
 
 from conf import *
@@ -18,8 +17,8 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 # Build a GNN-transformer (GAT) block
-def GAT(in_dim: int, out_dim: int, attention_heads: int=4, dropout: float=0.0):
-    return GATConv(in_dim, out_dim // attention_heads, heads=attention_heads, dropout=dropout, concat=True)
+def GAT(src_dim: int, dst_dim: int, out_dim: int, attention_heads: int=4, dropout: float=0.0):
+    return GATConv((src_dim, dst_dim), out_dim // attention_heads, heads=attention_heads, dropout=dropout, concat=True, add_self_loops=False )
 
 # Job embedding with message passing: (station, machine, robot) -> job
 class JobEmbedding(nn.Module):
@@ -27,11 +26,11 @@ class JobEmbedding(nn.Module):
         super().__init__()
         dj, ds, dm, dr = dimensions
         self.conv      = HeteroConv({
-                                ('station', 'can_load',    'job'): GAT(ds, out_dim, heads, dropout),
-                                ('station', 'loaded',      'job'): GAT(ds, out_dim, heads, dropout),
-                                ('machine', 'will_execute','job'): GAT(dm, out_dim, heads, dropout),
-                                ('machine', 'execute',     'job'): GAT(dm, out_dim, heads, dropout),
-                                ('robot',   'hold',        'job'): GAT(dr, out_dim, heads, dropout),
+                                ('station', 'can_load',    'job'): GAT(src_dim=ds, dst_dim=dj, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                                ('station', 'loaded',      'job'): GAT(src_dim=ds, dst_dim=dj, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                                ('machine', 'will_execute','job'): GAT(src_dim=dm, dst_dim=dj, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                                ('machine', 'execute',     'job'): GAT(src_dim=dm, dst_dim=dj, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                                ('robot',   'hold',        'job'): GAT(src_dim=dr, dst_dim=dj, out_dim=out_dim, attention_heads=heads, dropout=dropout),
                             }, aggr='sum')
         self.residual  = Linear(dj, out_dim, bias=False) if dj != out_dim else nn.Identity()
         self.norm      = nn.LayerNorm(out_dim)
@@ -47,11 +46,11 @@ class OtherEmbedding(nn.Module):
         super().__init__()
         dj, ds, dm, dr = dimensions
         self.conv = HeteroConv({
-                        ('job', 'could_be_loaded', 'station'): GAT(dj, out_dim, heads, dropout),
-                        ('job', 'loaded_in',       'station'): GAT(dj, out_dim, heads, dropout),
-                        ('job', 'needs',           'machine'): GAT(dj, out_dim, heads, dropout),
-                        ('job', 'executed_by',     'machine'): GAT(dj, out_dim, heads, dropout),
-                        ('job', 'hold_by',         'robot'):   GAT(dj, out_dim, heads, dropout),
+                        ('job', 'could_be_loaded', 'station'): GAT(src_dim=dj, dst_dim=ds, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                        ('job', 'loaded_in',       'station'): GAT(src_dim=dj, dst_dim=ds, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                        ('job', 'needs',           'machine'): GAT(src_dim=dj, dst_dim=dm, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                        ('job', 'executed_by',     'machine'): GAT(src_dim=dj, dst_dim=dm, out_dim=out_dim, attention_heads=heads, dropout=dropout),
+                        ('job', 'hold_by',         'robot'):   GAT(src_dim=dj, dst_dim=dr, out_dim=out_dim, attention_heads=heads, dropout=dropout),
                     }, aggr='sum')
         self.res_station  = Linear(ds, out_dim, bias=False) if ds!=out_dim else nn.Identity()
         self.res_machine  = Linear(dm, out_dim, bias=False) if dm!=out_dim else nn.Identity()
@@ -62,9 +61,12 @@ class OtherEmbedding(nn.Module):
 
     def forward(self, x_dict, edge_index_dict):
         out_dict = self.conv(x_dict, edge_index_dict)
-        h_s = self.norm_station(F.relu(out_dict['station'] + self.res_station(x_dict['station'])))
-        h_m = self.norm_machine(F.relu(out_dict['machine'] + self.res_machine(x_dict['machine'])))
-        h_r = self.norm_robot(  F.relu(out_dict['robot']   + self.res_robot(  x_dict['robot']  )))
+        h_s_msg = out_dict.get('station', torch.zeros_like(x_dict['station']))
+        h_m_msg = out_dict.get('machine', torch.zeros_like(x_dict['machine']))
+        h_r_msg = out_dict.get('robot', torch.zeros_like(x_dict['robot']))
+        h_s = self.norm_station(F.relu(h_s_msg + self.res_station(x_dict['station'])))
+        h_m = self.norm_machine(F.relu(h_m_msg + self.res_machine(x_dict['machine'])))
+        h_r = self.norm_robot(F.relu(h_r_msg + self.res_robot(x_dict['robot'])))
         return {'station': h_s, 'machine': h_m, 'robot': h_r}
 
 # Main Deep-Q Network: embedding stack + final MLP to output Q value
@@ -80,10 +82,11 @@ class QNet(nn.Module):
         self.lin_robot         = Linear(robot_in, d_other)
         self.job_up_1          = JobEmbedding(dimensions=(d_job, d_other, d_other, d_other), out_dim=d_job, heads=heads, dropout=dropout)
         self.other_up_1        = OtherEmbedding(dimensions=(d_job, d_other, d_other, d_other), out_dim=d_other, heads=heads, dropout=dropout)
-        self.job_up_2          = JobEmbedding((d_job,d_other,d_other,d_other), out_dim=d_job, heads=heads, dropout=dropout)
-        self.other_up_2        = OtherEmbedding((d_job,d_other,d_other,d_other), out_dim=d_other, heads=heads, dropout=dropout)
+        self.job_up_2          = JobEmbedding(dimensions=(d_job,d_other,d_other,d_other), out_dim=d_job, heads=heads, dropout=dropout)
+        self.other_up_2        = OtherEmbedding(dimensions=(d_job,d_other,d_other,d_other), out_dim=d_other, heads=heads, dropout=dropout)
         graph_vector_size: int = d_other*6 + d_job # shape = 3 stations + 2 machines + robot + mean-jobs = 64
         self.global_lin        = Linear(graph_vector_size, GRAPH_DIM)
+        self.job_pooling       = AttentionalAggregation(gate_nn=Linear(d_job, 1), nn = None)
         self.Q_mlp = nn.Sequential(
             nn.Linear(d_job + GRAPH_DIM + 3, 64),   # +3 for [parallel, alpha, process]
             nn.ReLU(),
@@ -122,7 +125,7 @@ class QNet(nn.Module):
         h_robot_flat   = nodes['robot'].reshape(B, 1 * self.d_other)
         h_nodes        = torch.cat([h_station_flat, h_machine_flat, h_robot_flat], dim=1)
         batch_job      = data['job'].batch
-        mean_jobs      = scatter_mean(nodes['job'], batch_job, dim=0)
+        mean_jobs      = self.job_pooling(nodes['job'], batch_job)
         graph_vec      = torch.cat([h_nodes, mean_jobs], dim=1)
         h_global       = F.relu(self.global_lin(graph_vec))
 

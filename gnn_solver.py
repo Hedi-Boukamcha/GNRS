@@ -10,6 +10,12 @@ import pandas as pd
 import time
 from torch import Tensor
 from torch_geometric.data import HeteroData
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module=r"torch_geometric\.nn\.conv\.hetero_conv",
+)
 
 from models.instance import Instance
 from simulators.gnn_simulator import *
@@ -65,24 +71,24 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     action_time: int = 0
     alpha: Tensor = torch.tensor([[i.a]], dtype=torch.float32, device=device)
     state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
-    possible_decisions, decisionT = search_possible_decisions(state=state, device=device)
-    env: Environment = Environment(graph=state.to_hyper_graph(last_job_in_pos, action_time), possible_decisions=possible_decisions, decisionsT=decisionT)
+    poss_dess, dessT = search_possible_decisions(state=state, device=device)
+    env: Environment = Environment(graph=state.to_hyper_graph(last_job_in_pos, action_time, device), possible_decisions=poss_dess, decisionsT=dessT)
     while env.possible_decisions:
-        action_id: int = agent.select_next_decision(agent, env.graph, env.possible_decisions, env.decisionsT, alpha, eps_threshold, train)
-        d: Decision = possible_decisions[action_id]
+        action_id: int = agent.select_next_decision(graph=env.graph, alpha=alpha, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
+        d: Decision = env.possible_decisions[action_id]
         if d.parallel:
             if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
                 last_job_in_pos = d.job_id
         else:
             last_job_in_pos = -1
-        state = simulate(state, d=d)
-        next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time)
+        state = simulate(state, d=d, clone=False)
+        next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=action_time, device=device)
         next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device)
         if train:
             final: bool   = len(next_possible_decisions) == 0
             duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
             _r: Tensor    = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, i.a, device)
-            agent.memory.push(Transition(graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=decisionT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(possible_decisions)))
+            agent.memory.push(Transition(graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
         action_time = state.min_action_time()
         env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
     if not train:
@@ -148,6 +154,7 @@ if __name__ == "__main__":
     load_weights: bool = to_bool(args.load)
     interactive: bool  = to_bool(args.interactive)
     device: str        = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Current computing device is: {device}...")
     agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/')
     if args.mode == "train":
         train(agent=agent, path=path, device=device)

@@ -10,7 +10,7 @@ from torch_geometric.data import Batch, HeteroData
 import matplotlib.pyplot as plt
 
 from models.gnn import QNet
-from memory import ReplayMemory, Transition
+from models.memory import ReplayMemory, Transition
 from conf import *
 from models.state import Decision
 
@@ -62,6 +62,7 @@ class Agent:
         self.target_net: QNet     = QNet()
         self.memory: ReplayMemory = ReplayMemory()
         self.path: str            = path
+        self.device: str          = device
         if load:
             self.load(path=path, device=device)
         self.policy_net.to(device=device)
@@ -69,15 +70,15 @@ class Agent:
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.policy_net.train()
         self.target_net.eval()
-        self.policy_net = torch.compile(self.policy_net)
-        self.target_net = torch.compile(self.target_net)
+        # self.policy_net = torch.compile(self.policy_net)
+        # self.target_net = torch.compile(self.target_net)
         self.optimizer = Adam(list(self.policy_net.parameters()), lr=LR)
         self.loss: Loss = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
         self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
 
     def select_next_decision(self, graph: HeteroData, alpha: Tensor, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool) -> int:
         if not train or random.random() > eps_threshold:
-            Q_values: Tensor = self.policy_net(graph, decisionsT, alpha)
+            Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT, alpha)
             return torch.argmax(Q_values.view(-1)).item()
         else:
             return random.randint(0, len(possible_decisions)-1)

@@ -191,19 +191,21 @@ class State:
         return None
     
     def std_column(self, graph: HeteroData, node_type: str, feature_idx: int, min: int, max: int):
-        old_value = graph[node_type].x[:, feature_idx]
-        graph[node_type].x[:, feature_idx] = 1.0 * (old_value - min) / (max - min)
+        if graph[node_type].x.numel() > 0: 
+            old_value = graph[node_type].x[:, feature_idx]
+            graph[node_type].x[:, feature_idx] = 1.0 * (old_value - min) / (max - min)
 
     def fix_column(self, graph: HeteroData, node_type: str, feature_idx: int):
-        old_value = graph[node_type].x[:, feature_idx]
-        graph[node_type].x[:, feature_idx] = (old_value > 0).float()
+        if graph[node_type].x.numel() > 0: 
+            old_value = graph[node_type].x[:, feature_idx]
+            graph[node_type].x[:, feature_idx] = (old_value > 0).float()
     
     def check_location(self, position: Position, location: str) -> float:
         if position is None:
             return 0.0
         return float(position.position_type == location)
 
-    def to_hyper_graph(self, last_job_in_pos: int, current_time: int) -> HeteroData:
+    def to_hyper_graph(self, last_job_in_pos: int, current_time: int, device: str) -> HeteroData:
         graph = HeteroData()
         min_time: int       = -1
         max_time: int       = -1
@@ -401,7 +403,7 @@ class State:
             self.fix_column(graph=graph, node_type="station", feature_idx=1)
             self.fix_column(graph=graph, node_type="machine", feature_idx=2)
             self.fix_column(graph=graph, node_type="robot", feature_idx=3)
-        return graph
+        return graph.to(device)
 
 @dataclass
 class RobotState:
