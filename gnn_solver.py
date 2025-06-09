@@ -118,9 +118,9 @@ def train(agent: Agent, path: str, device: str):
     complexity_limit: int = 1
     for episode in range(1, NB_EPISODES+1):
         size: str        = random.choice(sizes[:complexity_limit])
-        instance_id: int = random.randint(1, 150)
-        eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / (EPS_DECAY_RATE * episode))
-        solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=0.0)
+        instance_id: str = str(random.randint(1, 150))
+        eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
+        solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
