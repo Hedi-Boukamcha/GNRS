@@ -98,23 +98,22 @@ class Agent:
         for target_p, policy_p in zip(self.target_net.parameters(), self.policy_net.parameters()):
             target_p.data.mul_(1.0 - TAU).add_(policy_p.data, alpha=TAU)
 
-    def _shift_actions(self, action_tensors: list[Tensor], state_ids: list[int], graphs_batch: Batch) -> Tensor:
+    def _shift_actions(self, action_tensors: list[Tensor], graphs_batch:    Batch) -> Tensor: # action_tensors is a list[(nᵢ,4)]
         """
-            Convert job-local ids -> global row ids for a mini-batch.
+            Convert job-local ids -> global row ids, list order == graph order.
             Returns (Σ|Aᵢ|, 3) tensor [job_global , process , parallel].
         """
-        uid2pos = {int(uid): idx for idx, uid in enumerate(state_ids)} # uid ➜ batch index - Transform the state_id on a state_id in the batch between 0 and |B| 
-        actions = torch.cat(action_tensors, dim=0).to(self.device)     # Build a big tensor with all possible actions in the batch (not only those of one graph)
-        batch_pos = torch.tensor(
-            [uid2pos[int(uid)] for uid in actions[:, 3].tolist()],
-            device=self.device, dtype=torch.long)                      # (A,) uid was the state_id saved in the decision used to know how much to shift!   
-        ptr        = graphs_batch['job'].ptr                           # Get the number of jobs in each state/graph [B+1]
-        row_offset = ptr[batch_pos]                                    # (A,) Compute how with many jobs to offset a row (a job_id)
-        slice_len  = ptr[batch_pos + 1] - row_offset                   # (A,) Know were to slice, were the actions of one graph stops and the actions of the next graph start
-        local_id   = actions[:, 0].long()                              # The local job_ids
-        need_shift = local_id < slice_len                              # (A,) Check if a job needs to be shifted? Meaning for each action, if the id is really local and needs to go global...
-        global_id  = local_id + row_offset * need_shift                # When needed, change the "job_id" (idx 0 in the tensor) from local ➜ to global with the shift (shifted by the right number of jobs)
-        out = torch.stack([global_id.float(), actions[:, 1], actions[:, 2]], dim=1) # build new "Decision" (Σ|Aᵢ|, 3) with batch-level job ids, process 1 or 2, and parallel or not (no more state_id needed)
+        ptr     = graphs_batch['job'].ptr                # [B+1] Get the number of jobs in each state
+        decisions_with_batch_ids = []                    # List to save the results                                
+        for batch_idx, pa in enumerate(action_tensors):  # keep list order
+            offset     = ptr[batch_idx]                  # scalar, get the offset in indices provoked by the previous graphs (and their jobs)
+            local_id   = pa[:, 0].long()                 # Get the local id before offset
+            global_id  = local_id + offset               # Build the global (batch-level) ids for every row needs shift
+            pa_adj     = torch.stack([global_id.to(pa.dtype), # the final tensor would have the global id,
+                                    pa[:, 1],                 # the process,
+                                    pa[:, 2]], dim=1)         # and the parallel option!
+            decisions_with_batch_ids.append(pa_adj)      # Add the new "possible decision"
+        out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3) 
         return out
 
     def optimize_policy(self) -> float:
@@ -126,14 +125,13 @@ class Agent:
         batch         = Transition(*zip(*transitions))                                     # Regroup by attributes (rewards together, graph together, etc.)
         graphs_cur    = Batch.from_data_list(list(batch.graph)).to(self.device)            # Build one big graph for the whole batch of current state (nodes idx, like jobs, changed!!)
         pa_cur_list   = list(batch.possible_actions)                                       # All possible actions in the batch (hard at this point to distinguish by graph!!)
-        state_ids_cur = list(batch.state_id)                                               # One unique ID per graph (hence, per state regardless of the instance)
         act_idx_local = torch.as_tensor(batch.action_id, device=self.device)               # Local ID of the action (one big tensor for the whole batch -> for now with a problem of wrong indices!!)
         alpha_cur     = torch.cat([a.to(self.device) for a in batch.alpha]).view(-1)       # alpha of each current state (one big tensor for the whole batch)
         rewards       = torch.as_tensor(batch.reward, device=self.device)                  # reward of each currentstate (one big tensor for the whole batch)
         finals        = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool) # boolean check if the graph is final (one big tensor for the whole batch)
 
         # ---------- 1. build current action tensor (with batch-level indices) ------------------------------
-        actions_cur   = self._shift_actions(pa_cur_list, state_ids_cur, graphs_cur)        # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
+        actions_cur   = self._shift_actions(pa_cur_list, graphs_cur)                       # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
         lengths_cur   = torch.as_tensor([pa.size(0) for pa in pa_cur_list],    
                                         device=self.device, dtype=torch.long)              # Get the number of possible actions for each current state (to build alpha bellow)
         alpha_cat_cur = torch.repeat_interleave(alpha_cur, lengths_cur).unsqueeze(1)       # Repeat alpha not once by current state, but for each possible action to test!
@@ -149,10 +147,9 @@ class Agent:
         if non_final.any():                                                                             # If some transitions are not final
             nf_graphs   = [batch.next_graph[i]            for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of non-final graph 
             nf_pa_list  = [batch.next_possible_actions[i] for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of non-final graph' possible actions (with wrong indices: local only for the graph!!)
-            nf_uid      = [batch.next_state_id[i]         for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of id of each state (also wrong at this time: local only!!)
             nf_alpha    = torch.cat([batch.alpha[i].to(self.device) for i in range(BATCH_SIZE) if non_final[i]]).view(-1)
             graphs_nxt  = Batch.from_data_list(nf_graphs).to(self.device)                               # Like before, build one big graph for the whole batch of next state (nodes idx, like jobs, changed!!)
-            actions_nxt = self._shift_actions(nf_pa_list, nf_uid, graphs_nxt)                           # Replace the list of next possible actions nf_pa_list) with correct batch-level indices!
+            actions_nxt = self._shift_actions(nf_pa_list, graphs_nxt)                                   # Replace the list of next possible actions nf_pa_list) with correct batch-level indices!
             len_nxt     = torch.as_tensor([p.size(0) for p in nf_pa_list],                   
                                         device=self.device, dtype=torch.long)                           # Get the number of possible actions for each next state (to build alpha bellow)
             alpha_cat_n = torch.repeat_interleave(nf_alpha, len_nxt).unsqueeze(1)                       # Repeat alpha not once by next state, but for each possible action to test!

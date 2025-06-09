@@ -1,6 +1,9 @@
-import glob
+
 import os
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["PYTORCH_MPS_ENABLE_INCOMPLETE_DYNAMIC_SHAPES"] = "1"
 import math
+import glob
 import pathlib
 import pickle
 import re
@@ -50,30 +53,29 @@ class Environment:
         self.delay              = delay
         self.possible_decisions = possible_decisions
 
-def search_possible_decisions(state: State, device: str, state_id: int) -> list[Decision]:
+def search_possible_decisions(state: State, device: str) -> list[Decision]:
     decisions: list[Decision] = []
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=True, state_id=state_id))
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=False, state_id=state_id))
+                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=True))
+                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=False))
                 break
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel), d.state_id] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
 def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, alpha: float, device: str) -> Tensor:
     return torch.tensor([-1.0 * (alpha * (cmax_new - cmax_old - duration) + (1-alpha) * (delay_new - delay_old))], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0, start_state_id_at: int=0) -> int:
+def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
     last_job_in_pos: int = -1
     action_time: int = 0
-    state_id: int = start_state_id_at
     alpha: Tensor = torch.tensor([[i.a]], dtype=torch.float32, device=device)
     state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
-    poss_dess, dessT = search_possible_decisions(state=state, device=device, state_id=state_id)
+    poss_dess, dessT = search_possible_decisions(state=state, device=device)
     env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
     while env.possible_decisions:
         action_id: int = agent.select_next_decision(graph=env.graph, alpha=alpha, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
@@ -85,15 +87,14 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
             last_job_in_pos = -1
         state = simulate(state, d=d, clone=False)
         next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=action_time, device=device)
-        next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device, state_id=(state_id+1))
+        next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device)
         if train:
             final: bool   = len(next_possible_decisions) == 0
             duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
             _r: Tensor    = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, i.a, device)
-            agent.memory.push(Transition(state_id=state_id, next_state_id=(state_id+1), graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
+            agent.memory.push(Transition(graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
         action_time = state.min_action_time()
         env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
-        state_id += 1
     if not train:
         if improve:
             state = LS(i, state.decisions) # improve with local search
@@ -105,7 +106,6 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+"gnn_solution_"+extension+id+".csv", index=False)
-    return state_id+1
 
 def solve_all_test(agent: Agent, path: str, improve: bool, device: str):
     for folder, _, _ in INSTANCES_SIZES:
@@ -120,12 +120,11 @@ def train(agent: Agent, path: str, device: str):
     print("Loading dataset....")
     sizes: list[str]      = ["s", "m", "l", "xl"]
     complexity_limit: int = 1
-    start_state_id_at: int = 0
     for episode in range(1, NB_EPISODES+1):
         size: str        = random.choice(sizes[:complexity_limit])
         instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        start_state_id_at = solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold, start_state_id_at=start_state_id_at)
+        solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
@@ -158,7 +157,8 @@ if __name__ == "__main__":
     path: str          = base_path + "/data/instances/" + instance_type
     load_weights: bool = to_bool(args.load)
     interactive: bool  = to_bool(args.interactive)
-    device: str        = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    # device: str      = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    device: str        = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Current computing device is: {device}...")
     agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/', train=(args.mode == "train"))
     if args.mode == "train":
