@@ -231,32 +231,32 @@ class State:
         graph_id: int = 0
         for j in self.job_states:
             if not j.is_done() or j.id == last_job_in_pos:
-                poss_jobs_s2.append(j.id)
+                j.graph_id = int(graph_id)
+                graph_id += 1
+                poss_jobs_s2.append(j.graph_id)
                 if not j.job.big:
-                    poss_jobs_s1.append(j.id)
-                    poss_jobs_s3.append(j.id)
+                    poss_jobs_s1.append(j.graph_id)
+                    poss_jobs_s3.append(j.graph_id)
                 cs1, cs2, cs3 = 0.0, 0.0, 0.0
                 if (j.current_station is not None) and (j.current_station.id == STATION_1):
                     cs1 = 1.0
-                    job_station_1 = j.id
+                    job_station_1 = j.graph_id
                 elif (j.current_station is not None) and  j.current_station.id == STATION_2:
                     cs2 = 1.0
-                    job_station_2 = j.id
+                    job_station_2 = j.graph_id
                 elif (j.current_station is not None) and  j.current_station.id == STATION_3:
                     cs3 = 1.0
-                    job_station_3 = j.id
-                m1, m2, robot = 0.0, 0.0, 0.0
+                    job_station_3 = j.graph_id
+                m1, m2 = 0.0, 0.0
                 if self.check_location(j.location, POS_PROCESS_1):
                     m1 = 1.0
-                    job_machine_1 = j.id
+                    job_machine_1 = j.graph_id
                     if j.id != last_job_in_pos:
-                        robot = 1.0
-                        job_robot = j.id
+                        job_robot = j.graph_id
                 elif self.check_location(j.location, POS_PROCESS_2):
                     m2 = 1.0
-                    job_machine_2 = j.id
-                    robot = 1.0
-                    job_robot = j.id
+                    job_machine_2 = j.graph_id
+                    job_robot = j.graph_id
                 machine_1_is_first: float = float(j.operation_states[0].operation.type == PROCEDE_1)
                 is_pos: float             = float(j.id == last_job_in_pos)
                 remaining_time_dd: int    = float(current_time - j.job.due_date)
@@ -269,7 +269,7 @@ class State:
                 for idx, o in enumerate(j.operation_states):
                     if o.operation.type == PROCEDE_1:
                         if o.remaining_time > 0:
-                            poss_jobs_m1.append(j.id)
+                            poss_jobs_m1.append(j.job_robot)
                         remaining_time_m1 = o.remaining_time
                         min_time          = min(min_time, remaining_time_m1)
                         max_time          = max(max_time, remaining_time_m1)
@@ -279,7 +279,7 @@ class State:
                             nb_last_op_m1  += 1
                     else:
                         if o.remaining_time > 0:
-                            poss_jobs_m2.append(j.id)
+                            poss_jobs_m2.append(j.job_robot)
                         remaining_time_m2 = o.remaining_time
                         min_time          = min(min_time, remaining_time_m2)
                         max_time          = max(max_time, remaining_time_m2)
@@ -287,8 +287,6 @@ class State:
                             nb_first_op_m2 += 1
                         if idx == len(j.operation_states) -1:
                             nb_last_op_m2  += 1
-                j.graph_id = int(graph_id)
-                graph_id += 1
                 job_features.append([
                         float(j.job.big),                             # 0. Is it a big job that can only use station 2?
                         remaining_time_m1,                            # 1. remaining time in machine 1
