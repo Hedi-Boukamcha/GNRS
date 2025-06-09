@@ -269,7 +269,7 @@ class State:
                 for idx, o in enumerate(j.operation_states):
                     if o.operation.type == PROCEDE_1:
                         if o.remaining_time > 0:
-                            poss_jobs_m1.append(j.job_robot)
+                            poss_jobs_m1.append(j.graph_id)
                         remaining_time_m1 = o.remaining_time
                         min_time          = min(min_time, remaining_time_m1)
                         max_time          = max(max_time, remaining_time_m1)
@@ -279,7 +279,7 @@ class State:
                             nb_last_op_m1  += 1
                     else:
                         if o.remaining_time > 0:
-                            poss_jobs_m2.append(j.job_robot)
+                            poss_jobs_m2.append(j.graph_id)
                         remaining_time_m2 = o.remaining_time
                         min_time          = min(min_time, remaining_time_m2)
                         max_time          = max(max_time, remaining_time_m2)
