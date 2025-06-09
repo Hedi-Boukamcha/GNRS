@@ -55,10 +55,10 @@ def search_possible_decisions(state: State, device: str) -> list[Decision]:
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, operation_id=o.id, process=o.operation.type, parallel=True))
-                decisions.append(Decision(job_id=j.id, operation_id=o.id, process=o.operation.type, parallel=False))
+                decisions.append(Decision(job_id=j.id, graph_id=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=True))
+                decisions.append(Decision(job_id=j.id, graph_id=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=False))
                 break
-    decisionsT: Tensor = torch.tensor([[d.job_id, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.graph_id, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
 def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, alpha: float, device: str) -> Tensor:
@@ -71,8 +71,9 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     action_time: int = 0
     alpha: Tensor = torch.tensor([[i.a]], dtype=torch.float32, device=device)
     state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+    graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
     poss_dess, dessT = search_possible_decisions(state=state, device=device)
-    env: Environment = Environment(graph=state.to_hyper_graph(last_job_in_pos, action_time, device), possible_decisions=poss_dess, decisionsT=dessT)
+    env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
     while env.possible_decisions:
         action_id: int = agent.select_next_decision(graph=env.graph, alpha=alpha, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
         d: Decision = env.possible_decisions[action_id]

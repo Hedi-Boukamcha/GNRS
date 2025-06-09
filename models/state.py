@@ -19,17 +19,18 @@ Position = Union['Process', 'Process1', 'Process2', 'Stations']
  
 @dataclass
 class Decision: 
-    def __init__(self, job_id: int, operation_id: int, process: int, parallel: bool = False):
+    def __init__(self, job_id: int, graph_id: int, operation_id: int, process: int, parallel: bool = False):
         self.job_id: int       = job_id
         self.process: int      = process
+        self.graph_id: int     = graph_id
         self.operation_id: int = operation_id
         self.parallel: bool    = parallel
 
     def clone(self) -> 'Decision':
-        return Decision(self.job_id, self.operation_id, self.process, self.parallel)
+        return Decision(self.job_id, self.graph_id, self.operation_id, self.process, self.parallel)
     
     def __str__(self) -> str:
-        return f"Decision(job_id={self.job_id}, operation_id={self.operation_id}, process={self.process}, parallel={self.parallel})"
+        return f"Decision(job_id={self.job_id}, graph_id={self.graph_id}, operation_id={self.operation_id}, process={self.process}, parallel={self.parallel})"
 
 @dataclass
 class Event:
@@ -130,7 +131,7 @@ class State:
             self.processess    = [self.process1, self.process2]
             self.all_stations  = Stations(nb_stations=nb_stations, station_large=station_large)
             self.robot         = RobotState(init_position=self.all_stations)
-            self.job_states     = [JobState(state=self, id=id, stations=self.all_stations.stations, robot=self.robot, job=job) for id, job in enumerate(i.jobs)]
+            self.job_states     = [JobState(id=id, job=job) for id, job in enumerate(i.jobs)]
     
     def min_action_time(self) -> int:
         time: int = min(self.process1.free_at, self.process2.free_at, self.robot.free_at, min([s.free_at for s in self.all_stations.stations]))
@@ -161,7 +162,7 @@ class State:
         c.processess   = [c.process1, c.process2]
         c.reward       = self.reward.clone() if self.reward is not None else None
         c.robot        = self.robot.clone()
-        c.job_states    = [j.clone(c) for j in self.job_states]
+        c.job_states    = [j.clone() for j in self.job_states]
         c.all_stations = self.all_stations.clone()
 
         # State 2: clone all OOP links
@@ -227,6 +228,7 @@ class State:
 
         # 1. Create job features
         job_features: list = []
+        graph_id: int = 0
         for j in self.job_states:
             if not j.is_done() or j.id == last_job_in_pos:
                 poss_jobs_s2.append(j.id)
@@ -285,6 +287,8 @@ class State:
                             nb_first_op_m2 += 1
                         if idx == len(j.operation_states) -1:
                             nb_last_op_m2  += 1
+                j.graph_id = int(graph_id)
+                graph_id += 1
                 job_features.append([
                         float(j.job.big),                             # 0. Is it a big job that can only use station 2?
                         remaining_time_m1,                            # 1. remaining time in machine 1
@@ -510,8 +514,9 @@ class Process2(Process):
 
 @dataclass
 class JobState:
-    def __init__(self, state: State, id: int, stations: list['StationState']=None, robot: RobotState=None, job: Job=None, build_operations: bool=True):
+    def __init__(self, job: Job=None, build_operations: bool=True):
         self.id: int                       = id
+        self.graph_id: int                 = 0
         self.job: Job                      = job
         self.status: int                   = NOT_YET
         self.location: Position            = None
@@ -532,9 +537,10 @@ class JobState:
     def is_big(self) -> bool:
         return self.job.big == 1
 
-    def clone(self, state: State) -> 'JobState':
-        j: JobState        = JobState(state=state, id=self.id, job=self.job, build_operations=False)
+    def clone(self) -> 'JobState':
+        j: JobState        = JobState(id=self.id, job=self.job, build_operations=False)
         j.status           = self.status
+        j.graph_id         = self.graph_id
         j.end              = self.end
         j.delay            = self.delay
         j.operation_states = [op.clone(j) for op in self.operation_states]

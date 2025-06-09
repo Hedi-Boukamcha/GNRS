@@ -130,15 +130,15 @@ class QNet(nn.Module):
         h_global       = F.relu(self.global_lin(graph_vec))
 
         # 3. Build per-action tensors and final Q values (all in parrallel)
-        job_ids   = actions[:,0].long()
-        parallel  = actions[:,2].unsqueeze(1).float()
-        process   = actions[:,1].unsqueeze(1).float()
-        emb_jobs  = nodes['job'][job_ids]
-        graph_ids = batch_job[job_ids]   
-        h_globalA = h_global[graph_ids]
-        alphaA    = alpha
-        if alphaA.dim() == 0 or alphaA.size(0) == 1: # used for solving stage (not optimization)
-            alphaA = alphaA.expand(actions.size(0), 1) 
+        job_ids        = actions[:,0].long()
+        parallel       = actions[:,2].unsqueeze(1).float()
+        process        = actions[:,1].unsqueeze(1).float()
+        job_ptr        = data['job'].ptr[:-1]
+        graph_ids      = batch_job[job_ids]
+        global_job_ids = job_ids + job_ptr[graph_ids]
+        emb_jobs       = nodes['job'][global_job_ids]
+        h_globalA      = h_global[graph_ids]      
+        alphaA         = alpha.view(1, 1).expand(actions.size(0), 1)
         action_feat = torch.cat([emb_jobs, h_globalA, process, parallel, alphaA], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values

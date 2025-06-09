@@ -36,9 +36,9 @@ IN_EXECUTION: int = 2
 DONE: int = 3
 
 COLOR = {
-    "job":   "tab:blue",
-    "proc_1":    "tab:orange",
-    "proc_2":    "tab:orange",
+    "job":     "tab:blue",
+    "proc_1":  "tab:orange",
+    "proc_2":  "tab:orange",
     "station": "tab:green",
     "robot":   "tab:red",
 }
