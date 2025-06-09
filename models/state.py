@@ -305,6 +305,7 @@ class State:
 
         # II. create station features
         station_features: list = []
+        self.all_stations.stations.sort(key=lambda s: s.id)
         for s in self.all_stations.stations:
                time_before_free: float = max(0.0, s.free_at - current_time)
                min_time                = min(min_time, time_before_free)
