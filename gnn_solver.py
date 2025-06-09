@@ -156,7 +156,7 @@ if __name__ == "__main__":
     interactive: bool  = to_bool(args.interactive)
     device: str        = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     print(f"Current computing device is: {device}...")
-    agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/')
+    agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/', train=(args.mode == "train"))
     if args.mode == "train":
         train(agent=agent, path=path, device=device)
     elif args.mode == "test_all":

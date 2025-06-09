@@ -57,24 +57,25 @@ class Loss():
             pickle.dump(self.y_data, f)
 
 class Agent:
-    def __init__(self, device: str, interactive: bool, path: str, load: bool=False):
+    def __init__(self, device: str, interactive: bool, path: str, load: bool=False, train: bool=False):
         self.policy_net: QNet     = QNet()
-        self.target_net: QNet     = QNet()
         self.memory: ReplayMemory = ReplayMemory()
         self.path: str            = path
         self.device: str          = device
         if load:
             self.load(path=path, device=device)
         self.policy_net.to(device=device)
-        self.target_net.to(device=device)
-        self.target_net.load_state_dict(self.policy_net.state_dict())
-        self.policy_net.train()
-        self.target_net.eval()
-        # self.policy_net = torch.compile(self.policy_net)
-        # self.target_net = torch.compile(self.target_net)
-        self.optimizer = Adam(list(self.policy_net.parameters()), lr=LR)
-        self.loss: Loss = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
-        self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
+        if train:
+            self.target_net: QNet     = QNet()
+            self.target_net.to(device=device)
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+            self.policy_net.train()
+            self.target_net.eval()
+            self.optimizer       = Adam(list(self.policy_net.parameters()), lr=LR)
+            self.loss: Loss      = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
+            self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
+        else:
+            self.policy_net.eval()
 
     def select_next_decision(self, graph: HeteroData, alpha: Tensor, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool) -> int:
         if not train or random.random() > eps_threshold:
@@ -94,11 +95,8 @@ class Agent:
         self.policy_net.load_state_dict(torch.load(f"{self.path}policy_net.pth", map_location=torch.device(device), weights_only=True))
 
     def optimize_target(self):
-        _target_weights = self.target_net.state_dict()
-        _policy_weights = self.policy_net.state_dict()
-        for param in _policy_weights:
-            _target_weights[param] = _policy_weights[param] * TAU + _target_weights[param] * (1 - TAU)
-        self.target_net.load_state_dict(_target_weights)
+        for target_p, policy_p in zip(self.target_net.parameters(), self.policy_net.parameters()):
+            target_p.data.mul_(1.0 - TAU).add_(policy_p.data, alpha=TAU)
 
     def optimize_policy(self) -> float:
         """
