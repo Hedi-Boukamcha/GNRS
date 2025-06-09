@@ -10,7 +10,7 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
-Transition = namedtuple('Transition', ('graph', 'action_id',  'alpha', 'possible_actions', 'next_graph', 'next_possible_actions', 'reward', 'final', 'nb_actions'))
+Transition = namedtuple('Transition', ('state_id', 'next_state_id', 'graph', 'action_id',  'alpha', 'possible_actions', 'next_graph', 'next_possible_actions', 'reward', 'final', 'nb_actions'))
 
 class ReplayMemory:
     def __init__(self, capacity: int=CAPACITY):

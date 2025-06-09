@@ -98,53 +98,79 @@ class Agent:
         for target_p, policy_p in zip(self.target_net.parameters(), self.policy_net.parameters()):
             target_p.data.mul_(1.0 - TAU).add_(policy_p.data, alpha=TAU)
 
+    def _shift_actions(self, action_tensors: list[Tensor], state_ids: list[int], graphs_batch: Batch) -> Tensor:
+        """
+            Convert job-local ids -> global row ids for a mini-batch.
+            Returns (Σ|Aᵢ|, 3) tensor [job_global , process , parallel].
+        """
+        uid2pos = {int(uid): idx for idx, uid in enumerate(state_ids)} # uid ➜ batch index - Transform the state_id on a state_id in the batch between 0 and |B| 
+        actions = torch.cat(action_tensors, dim=0).to(self.device)     # Build a big tensor with all possible actions in the batch (not only those of one graph)
+        batch_pos = torch.tensor(
+            [uid2pos[int(uid)] for uid in actions[:, 3].tolist()],
+            device=self.device, dtype=torch.long)                      # (A,) uid was the state_id saved in the decision used to know how much to shift!   
+        ptr        = graphs_batch['job'].ptr                           # Get the number of jobs in each state/graph [B+1]
+        row_offset = ptr[batch_pos]                                    # (A,) Compute how with many jobs to offset a row (a job_id)
+        slice_len  = ptr[batch_pos + 1] - row_offset                   # (A,) Know were to slice, were the actions of one graph stops and the actions of the next graph start
+        local_id   = actions[:, 0].long()                              # The local job_ids
+        need_shift = local_id < slice_len                              # (A,) Check if a job needs to be shifted? Meaning for each action, if the id is really local and needs to go global...
+        global_id  = local_id + row_offset * need_shift                # When needed, change the "job_id" (idx 0 in the tensor) from local ➜ to global with the shift (shifted by the right number of jobs)
+        out = torch.stack([global_id.float(), actions[:, 1], actions[:, 2]], dim=1) # build new "Decision" (Σ|Aᵢ|, 3) with batch-level job ids, process 1 or 2, and parallel or not (no more state_id needed)
+        return out
+
     def optimize_policy(self) -> float:
         """
-            Optimize the polict network using the Huber loss between selected action and expected best action (based on approx Q-value)
-                y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target
-                x = predicted quality of (s, a) using the policy network
-                L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2
+            Update the policy network with a mini-batch from replay memory.
         """
-        transitions            = self.memory.sample(BATCH_SIZE)
-        batch                  = Transition(*zip(*transitions))
-        batch_of_graphs        = Batch.from_data_list(list(batch.graph)).to(self.device)
-        possible_actions_list  = list(batch.possible_actions)
-        action_indices_local   = torch.as_tensor(batch.action_id, device=self.device, dtype=torch.long)
-        alphas_list            = [a.to(self.device) for a in batch.alpha] # each a is 1×1
-        rewards                = torch.as_tensor(batch.reward, device=self.device, dtype=torch.float32)
-        finals                 = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool)
-        lengths_cur            = torch.as_tensor([pa.size(0) for pa in possible_actions_list], device=self.device, dtype=torch.long)       # [B]
-        offsets_cur            = torch.cat((torch.zeros(1, device=self.device, dtype=torch.long), torch.cumsum(lengths_cur, dim=0)[:-1]))  # [B]
-        actions_cat_cur        = torch.cat(possible_actions_list, dim=0).to(self.device)                       # Σ|A_i| × feat_dim
-        alpha_vals_cur         = torch.cat(alphas_list, dim=0).view(-1)                                        # [B]
-        alphas_cat_cur         = torch.repeat_interleave(alpha_vals_cur, lengths_cur).unsqueeze(1)             # Σ|A_i| × 1
-        q_all_cur              = self.policy_net(batch_of_graphs, actions_cat_cur, alphas_cat_cur).squeeze(1)  # Σ|A_i|
-        global_action_indices  = offsets_cur + action_indices_local                                            # [B]
-        q_sa_cur               = q_all_cur[global_action_indices]                                              # [B]
-        non_final_mask         = ~finals                                                                       # [B]
-        if non_final_mask.any():
-            nf_graphs                = [batch.next_graph[i]            for i in range(BATCH_SIZE) if non_final_mask[i]]
-            nf_actions_list          = [batch.next_possible_actions[i] for i in range(BATCH_SIZE) if non_final_mask[i]]
-            nf_alphas_list           = [batch.alpha[i].to(self.device) for i in range(BATCH_SIZE) if non_final_mask[i]]
-            lengths_nxt              = torch.as_tensor([pa.size(0) for pa in nf_actions_list], device=self.device, dtype=torch.long)
-            actions_cat_nxt          = torch.cat(nf_actions_list, dim=0).to(self.device)
-            alpha_vals_nxt           = torch.cat(nf_alphas_list, dim=0).view(-1)
-            alphas_cat_nxt           = torch.repeat_interleave(alpha_vals_nxt, lengths_nxt).unsqueeze(1)
-            batched_graph_nxt        = Batch.from_data_list(nf_graphs).to(self.device)
+        # ---------- 0. sample & unpack ----------------------------------------------------------------------
+        transitions   = self.memory.sample(BATCH_SIZE)                                     # Sample transitions
+        batch         = Transition(*zip(*transitions))                                     # Regroup by attributes (rewards together, graph together, etc.)
+        graphs_cur    = Batch.from_data_list(list(batch.graph)).to(self.device)            # Build one big graph for the whole batch of current state (nodes idx, like jobs, changed!!)
+        pa_cur_list   = list(batch.possible_actions)                                       # All possible actions in the batch (hard at this point to distinguish by graph!!)
+        state_ids_cur = list(batch.state_id)                                               # One unique ID per graph (hence, per state regardless of the instance)
+        act_idx_local = torch.as_tensor(batch.action_id, device=self.device)               # Local ID of the action (one big tensor for the whole batch -> for now with a problem of wrong indices!!)
+        alpha_cur     = torch.cat([a.to(self.device) for a in batch.alpha]).view(-1)       # alpha of each current state (one big tensor for the whole batch)
+        rewards       = torch.as_tensor(batch.reward, device=self.device)                  # reward of each currentstate (one big tensor for the whole batch)
+        finals        = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool) # boolean check if the graph is final (one big tensor for the whole batch)
+
+        # ---------- 1. build current action tensor (with batch-level indices) ------------------------------
+        actions_cur   = self._shift_actions(pa_cur_list, state_ids_cur, graphs_cur)        # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
+        lengths_cur   = torch.as_tensor([pa.size(0) for pa in pa_cur_list],    
+                                        device=self.device, dtype=torch.long)              # Get the number of possible actions for each current state (to build alpha bellow)
+        alpha_cat_cur = torch.repeat_interleave(alpha_cur, lengths_cur).unsqueeze(1)       # Repeat alpha not once by current state, but for each possible action to test!
+        offsets_cur   = torch.cat((torch.zeros(1, device=self.device, dtype=torch.long), 
+                                        torch.cumsum(lengths_cur, dim=0)[:-1]))            # The the offset of possible actions by graph (increase with the number of possible actions from the previous graph)
+        
+        # ---------- 2. Q(s,·) ------------------------------------------------------------------------------
+        q_all_cur = self.policy_net(graphs_cur, actions_cur, alpha_cat_cur)                # Use the policy_net to get the Q-value of all possible actions of all state [used once for the whole batch and all possible actions]
+        q_sa_cur  = q_all_cur[offsets_cur + act_idx_local]                                 # Get the Q-value of the action that was taken: use the local (act_idx_local) + the offsets_cur to retrieve its batch-level index
+
+        # ---------- 3. next-state branch -------------------------------------------------------------------
+        non_final = ~finals
+        if non_final.any():                                                                             # If some transitions are not final
+            nf_graphs   = [batch.next_graph[i]            for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of non-final graph 
+            nf_pa_list  = [batch.next_possible_actions[i] for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of non-final graph' possible actions (with wrong indices: local only for the graph!!)
+            nf_uid      = [batch.next_state_id[i]         for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of id of each state (also wrong at this time: local only!!)
+            nf_alpha    = torch.cat([batch.alpha[i].to(self.device) for i in range(BATCH_SIZE) if non_final[i]]).view(-1)
+            graphs_nxt  = Batch.from_data_list(nf_graphs).to(self.device)                               # Like before, build one big graph for the whole batch of next state (nodes idx, like jobs, changed!!)
+            actions_nxt = self._shift_actions(nf_pa_list, nf_uid, graphs_nxt)                           # Replace the list of next possible actions nf_pa_list) with correct batch-level indices!
+            len_nxt     = torch.as_tensor([p.size(0) for p in nf_pa_list],                   
+                                        device=self.device, dtype=torch.long)                           # Get the number of possible actions for each next state (to build alpha bellow)
+            alpha_cat_n = torch.repeat_interleave(nf_alpha, len_nxt).unsqueeze(1)                       # Repeat alpha not once by next state, but for each possible action to test!
             with torch.no_grad():
-                q_all_nxt = self.target_net(batched_graph_nxt, actions_cat_nxt, alphas_cat_nxt).squeeze(1)    # Σ|A'_i|
-            q_splits     = torch.split(q_all_nxt, lengths_nxt.tolist())                                       # list of tensors
-            max_q_nxt    = torch.stack([q.max() for q in q_splits])                                           # [n_non_final]
+                q_all_nxt = self.target_net(graphs_nxt, actions_nxt, alpha_cat_n)                       # Use the target_net to get the Q-value of all possible actions of all next state [used once for the whole batch and all possible actions]
+            q_split  = torch.split(q_all_nxt, len_nxt.tolist())                                         # Split the Q-value by next state (instead of batch) so we can compute the MAX
+            max_q_n  = torch.stack([q.max() for q in q_split])                                          # Get the max Q-value of the next state
         else:
-            max_q_nxt = torch.zeros(0, device=self.device)
-        y = rewards.clone() # start with r_t                                                           
-        if non_final_mask.any():
-            y[non_final_mask] += GAMMA * max_q_nxt
-        loss = F.smooth_l1_loss(q_sa_cur, y)
-        self.optimizer.zero_grad()
-        loss.backward()
-        clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)
-        self.optimizer.step()
-        printed_loss = loss.detach().cpu().item()
-        self.loss.update(printed_loss)
-        return printed_loss
+            max_q_n = torch.zeros(0, device=self.device)                                                # In case of final state, the y would be only the reward (+0)
+
+        # ---------- 4. compute (and display) the huber loss & optimize ------------------------------------------
+        y = rewards.clone()                                            # y = reward r (start with that)
+        y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]
+        loss = F.smooth_l1_loss(q_sa_cur, y)                           # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
+        self.optimizer.zero_grad()                                     # reset gradients ∇ℓ = 0
+        loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
+        clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients
+        self.optimizer.step()                                          # Do a gradient step and update parameters -> θi+1 = θi - α∑∇ℓ(f(θi, x), y)
+        self.loss.update(loss.item())                                  # Display the loss in the chart!
+        return loss.item()
+                       

@@ -19,18 +19,19 @@ Position = Union['Process', 'Process1', 'Process2', 'Stations']
  
 @dataclass
 class Decision: 
-    def __init__(self, job_id: int, graph_id: int, operation_id: int, process: int, parallel: bool = False):
-        self.job_id: int       = job_id
-        self.process: int      = process
-        self.graph_id: int     = graph_id
-        self.operation_id: int = operation_id
-        self.parallel: bool    = parallel
+    def __init__(self, job_id: int, job_id_in_graph: int, state_id: int, operation_id: int, process: int, parallel: bool = False):
+        self.job_id: int          = job_id    # global id of the job in the instance
+        self.process: int         = process
+        self.job_id_in_graph: int = job_id_in_graph  # local id of the job in the graph/state (not all jobs appear in each graph)
+        self.state_id: int        = state_id  # the id of the current state (unique)
+        self.operation_id: int    = operation_id
+        self.parallel: bool       = parallel
 
     def clone(self) -> 'Decision':
-        return Decision(self.job_id, self.graph_id, self.operation_id, self.process, self.parallel)
+        return Decision(self.job_id, self.job_id_in_graph, self.state_id, self.operation_id, self.process, self.parallel)
     
     def __str__(self) -> str:
-        return f"Decision(job_id={self.job_id}, graph_id={self.graph_id}, operation_id={self.operation_id}, process={self.process}, parallel={self.parallel})"
+        return f"Decision(job_id={self.job_id}, job_id_in_graph={self.job_id_in_graph}, state_id={self.state_id}, operation_id={self.operation_id}, process={self.process}, parallel={self.parallel})"
 
 @dataclass
 class Event:

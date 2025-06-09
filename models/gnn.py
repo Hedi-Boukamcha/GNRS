@@ -124,20 +124,18 @@ class QNet(nn.Module):
         h_machine_flat = nodes['machine'].reshape(B, 2 * self.d_other)
         h_robot_flat   = nodes['robot'].reshape(B, 1 * self.d_other)
         h_nodes        = torch.cat([h_station_flat, h_machine_flat, h_robot_flat], dim=1)
-        batch_job      = data['job'].batch
-        mean_jobs      = self.job_pooling(nodes['job'], batch_job)
-        graph_vec      = torch.cat([h_nodes, mean_jobs], dim=1)
-        h_global       = F.relu(self.global_lin(graph_vec))
+        batch_job      = data['job'].batch                           # shape [total_jobs]
+        mean_jobs      = self.job_pooling(nodes['job'], batch_job)   # shape [B, d_job]
+        graph_vec      = torch.cat([h_nodes, mean_jobs], dim=1)      # [B, 6·d_other + d_job]
+        h_global       = F.relu(self.global_lin(graph_vec))          # [B, GRAPH_DIM]
 
         # 3. Build per-action tensors and final Q values (all in parrallel)
-        job_ids        = actions[:,0].long()
-        parallel       = actions[:,2].unsqueeze(1).float()
-        process        = actions[:,1].unsqueeze(1).float()
-        job_ptr        = data['job'].ptr[:-1]
-        graph_ids      = batch_job[job_ids]
-        global_job_ids = job_ids + job_ptr[graph_ids]
-        emb_jobs       = nodes['job'][global_job_ids]
-        h_globalA      = h_global[graph_ids]
+        job_ids        = actions[:,0].long()                        # GLOBAL job index inside its graph (for all actions in batch not only in graph)
+        parallel       = actions[:,2].unsqueeze(1).float()          # (A,1) execute in parallel or not? (for all actions in batch not only in graph)
+        process        = actions[:,1].unsqueeze(1).float()          # (A,1) process 1 or 2? (for all actions in batch not only in graph)
+        emb_jobs       = nodes["job"][job_ids]                      # (A, d_job)
+        graph_ids      = batch_job[job_ids]                         # map to graph 0…B-1
+        h_globalA      = h_global[graph_ids] 
         alphaA         = alpha.clone()
         if alphaA.dim() == 0 or alphaA.size(0) == 1: # used for solving stage (not optimization)
             alphaA = alphaA.expand(actions.size(0), 1) 
