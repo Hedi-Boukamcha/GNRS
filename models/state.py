@@ -513,7 +513,7 @@ class Process2(Process):
 
 @dataclass
 class JobState:
-    def __init__(self, job: Job=None, build_operations: bool=True):
+    def __init__(self, id: int, job: Job=None, build_operations: bool=True):
         self.id: int                       = id
         self.graph_id: int                 = 0
         self.job: Job                      = job

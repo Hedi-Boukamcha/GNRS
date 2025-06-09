@@ -137,8 +137,10 @@ class QNet(nn.Module):
         graph_ids      = batch_job[job_ids]
         global_job_ids = job_ids + job_ptr[graph_ids]
         emb_jobs       = nodes['job'][global_job_ids]
-        h_globalA      = h_global[graph_ids]      
-        alphaA         = alpha.view(1, 1).expand(actions.size(0), 1)
+        h_globalA      = h_global[graph_ids]
+        alphaA         = alpha.clone()
+        if alphaA.dim() == 0 or alphaA.size(0) == 1: # used for solving stage (not optimization)
+            alphaA = alphaA.expand(actions.size(0), 1) 
         action_feat = torch.cat([emb_jobs, h_globalA, process, parallel, alphaA], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values

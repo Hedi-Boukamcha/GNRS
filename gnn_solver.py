@@ -102,7 +102,7 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         obj: int = (state.total_delay * (100 - i.a)) + (state.cmax * i.a)
         results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
-        results.to_csv(path+"exact_solution_"+extension+id+".csv", index=False)
+        results.to_csv(path+"gnn_solution_"+extension+id+".csv", index=False)
 
 def solve_all_test(agent: Agent, path: str, improve: bool, device: str):
     for folder, _, _ in INSTANCES_SIZES:
@@ -136,7 +136,7 @@ def train(agent: Agent, path: str, device: str):
             agent.save()
     print("End!")
 
-# TRAIN WITH: python gnn_solver.py --mode=train --interactive=false --load=False --path=./
+# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=False --path=./
 # TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=False --path=./
 # SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=False --path=./
 if __name__ == "__main__":
