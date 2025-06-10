@@ -191,16 +191,6 @@ class State:
             return self.all_stations.get(station.id)
         return None
     
-    def std_column(self, graph: HeteroData, node_type: str, feature_idx: int, min: int, max: int):
-        if graph[node_type].x.numel() > 0: 
-            old_value = graph[node_type].x[:, feature_idx]
-            graph[node_type].x[:, feature_idx] = 1.0 * (old_value - min) / (max - min)
-
-    def fix_column(self, graph: HeteroData, node_type: str, feature_idx: int):
-        if graph[node_type].x.numel() > 0: 
-            old_value = graph[node_type].x[:, feature_idx]
-            graph[node_type].x[:, feature_idx] = (old_value > 0).float()
-    
     def check_location(self, position: Position, location: str) -> float:
         if position is None:
             return 0.0
@@ -208,8 +198,6 @@ class State:
 
     def to_hyper_graph(self, last_job_in_pos: int, current_time: int, device: str) -> HeteroData:
         graph = HeteroData()
-        min_time: int       = -1
-        max_time: int       = -1
         job_machine_1: int  = -1
         job_machine_2: int  = -1
         job_robot:     int  = -1
@@ -257,22 +245,16 @@ class State:
                     m2 = 1.0
                     job_machine_2 = j.graph_id
                     job_robot = j.graph_id
-                machine_1_is_first: float = float(j.operation_states[0].operation.type == PROCEDE_1)
+                machine_1_is_first: float = float(j.operation_states[0].operation.type == MACHINE_1)
                 is_pos: float             = float(j.id == last_job_in_pos)
                 remaining_time_dd: int    = float(current_time - j.job.due_date)
-                min_time                  = min(min_time, abs(remaining_time_dd)) if min_time >= 0 else abs(remaining_time_dd)
-                max_time                  = max(max_time, abs(remaining_time_dd)) if max_time >= 0 else abs(remaining_time_dd)
-                min_time                  = min(min_time, j.job.pos_time)
-                max_time                  = max(max_time, j.job.pos_time)
                 remaining_time_m1: float  = 0.0
                 remaining_time_m2: float  = 0.0
                 for idx, o in enumerate(j.operation_states):
-                    if o.operation.type == PROCEDE_1:
+                    if o.operation.type == MACHINE_1:
                         if o.remaining_time > 0:
                             poss_jobs_m1.append(j.graph_id)
                         remaining_time_m1 = o.remaining_time
-                        min_time          = min(min_time, remaining_time_m1)
-                        max_time          = max(max_time, remaining_time_m1)
                         if idx == 0:
                             nb_first_op_m1 += 1
                         if idx == len(j.operation_states) -1:
@@ -281,8 +263,6 @@ class State:
                         if o.remaining_time > 0:
                             poss_jobs_m2.append(j.graph_id)
                         remaining_time_m2 = o.remaining_time
-                        min_time          = min(min_time, remaining_time_m2)
-                        max_time          = max(max_time, remaining_time_m2)
                         if idx == 0:
                             nb_first_op_m2 += 1
                         if idx == len(j.operation_states) -1:
@@ -308,8 +288,6 @@ class State:
         self.all_stations.stations.sort(key=lambda s: s.id)
         for s in self.all_stations.stations:
                time_before_free: float = max(0.0, s.free_at - current_time)
-               min_time                = min(min_time, time_before_free)
-               max_time                = max(max_time, time_before_free)
                station_features.append([float(s.accept_big),         # 0. Can this station process big jobs?
                                         time_before_free])           # 1. Estimated (or real) remaining time before free
         graph["station"].x = torch.tensor(station_features, dtype=torch.float)
@@ -337,14 +315,10 @@ class State:
         # IV. create machine features
         machine_features: list = []
         time_before_free_m1: float = max(0.0, self.process1.free_at - current_time)
-        min_time                   = min(min_time, time_before_free_m1)
-        max_time                   = max(max_time, time_before_free_m1)
         machine_features.append([nb_first_op_m1,                    # 0. remaining numbers of first operations
                                  nb_last_op_m1,                     # 1. remaining numbers of last operations
                                  time_before_free_m1])              # 2. Estimated (or real) remaining time before free
         time_before_free_m2: float = max(0.0, self.process2.free_at - current_time)
-        min_time                   = min(min_time, time_before_free_m2)
-        max_time                   = max(max_time, time_before_free_m2)
         machine_features.append([nb_first_op_m2,                    # 0. remaining numbers of first operations
                                  nb_last_op_m2,                     # 1. remaining numbers of last operations
                                  time_before_free_m2])              # 2. Estimated (or real) remaining time before free
@@ -354,20 +328,20 @@ class State:
         mnj_src: list = []
         mnj_dest: list = []
         for j in poss_jobs_m1:
-            mnj_src.append(PROCEDE_1)
+            mnj_src.append(MACHINE_1)
             mnj_dest.append(j)
         for j in poss_jobs_m2:
-            mnj_src.append(PROCEDE_2)
+            mnj_src.append(MACHINE_2)
             mnj_dest.append(j)
         graph["machine", "will_execute", "job"].edge_index = torch.tensor([mnj_src, mnj_dest], dtype=torch.long)
         graph["job", "needs", "machine"].edge_index        = graph["machine", "will_execute", "job"].edge_index.flip(0)
         mej_src: list = []
         mej_dest: list = []
         if job_machine_1 >= 0:
-            mej_src.append(PROCEDE_1)
+            mej_src.append(MACHINE_1)
             mej_dest.append(job_machine_1)
         if job_machine_2 >= 0:
-            mej_src.append(PROCEDE_2)
+            mej_src.append(MACHINE_2)
             mej_dest.append(job_machine_2)
         if mej_src:
             graph["machine", "execute", "job"].edge_index     = torch.tensor([mej_src, mej_dest], dtype=torch.long)
@@ -376,8 +350,6 @@ class State:
         # VI. create robot features
         robot_features: list = []
         time_before_free: float = max(0.0, self.robot.free_at - current_time)
-        min_time                = min(min_time, time_before_free)
-        max_time                = max(max_time, time_before_free)
         robot_features.append([self.check_location(self.robot.location, POS_STATION),   # 0. Is the robot on the stations?
                                self.check_location(self.robot.location, POS_PROCESS_1), # 1. Is the robot on machine 1
                                self.check_location(self.robot.location, POS_PROCESS_2), # 2. Is the robot on machine 2
@@ -388,24 +360,6 @@ class State:
         if job_robot >= 0:
             graph["robot", "hold", "job"].edge_index = torch.tensor([[0], [job_robot]], dtype=torch.long)
             graph["job", "hold_by", "robot"].edge_index = graph["robot", "hold", "job"].edge_index.flip(0)
-
-        # VIII. Standardize time-related features
-        if max_time > min_time:
-            self.std_column(graph=graph, node_type="job", feature_idx=1, min=min_time, max=max_time)
-            self.std_column(graph=graph, node_type="job", feature_idx=2, min=min_time, max=max_time)
-            self.std_column(graph=graph, node_type="job", feature_idx=4, min=min_time, max=max_time)
-            self.std_column(graph=graph, node_type="job", feature_idx=5, min=min_time, max=max_time)
-            self.std_column(graph=graph, node_type="station", feature_idx=1, min=min_time, max=max_time)
-            self.std_column(graph=graph, node_type="machine", feature_idx=2, min=min_time, max=max_time)
-            self.std_column(graph=graph, node_type="robot", feature_idx=3, min=min_time, max=max_time)
-        else:
-            self.fix_column(graph=graph, node_type="job", feature_idx=1)
-            self.fix_column(graph=graph, node_type="job", feature_idx=2)
-            self.fix_column(graph=graph, node_type="job", feature_idx=4)
-            self.fix_column(graph=graph, node_type="job", feature_idx=5)
-            self.fix_column(graph=graph, node_type="station", feature_idx=1)
-            self.fix_column(graph=graph, node_type="machine", feature_idx=2)
-            self.fix_column(graph=graph, node_type="robot", feature_idx=3)
         return graph.to(device)
 
 @dataclass

@@ -1,6 +1,6 @@
 import csv
 import os
-from models.instance import Instance, MathInstance, FIRST_OP, PROCEDE_1_SEQ_MODE_A, PROCEDE_1_PARALLEL_MODE_B, PROCEDE_2_MODE_C, STATION_1, STATION_2, STATION_3, PROCEDE_1, PROCEDE_2
+from models.instance import Instance, MathInstance, FIRST_OP, MACHINE_1_SEQ_MODE_A, MACHINE_1_PARALLEL_MODE_B, MACHINE_2_MODE_C, STATION_1, STATION_2, STATION_3, MACHINE_1, MACHINE_2
 from ortools.sat.python import cp_model
 from simulators.cp_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
 import random
@@ -54,22 +54,22 @@ def prec(i: MathInstance, j: int, j_prime: int, c: int): #c = station
 # Check the real end date of operation o of job j considering the mandatory robot travel and position time (if mode B)
 def end(i: MathInstance, j: int, o: int):
     if (o == 0):
-        return i.s.exe_start[j][o] + i.welding_time[j][o] + ((i.pos_j[j] * i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B]) * (1 - i.job_modeB[j]))
+        return i.s.exe_start[j][o] + i.welding_time[j][o] + ((i.pos_j[j] * i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B]) * (1 - i.job_modeB[j]))
     else:
-        return i.s.exe_start[j][o] + i.welding_time[j][o] + (i.pos_j[j] * i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B])
+        return i.s.exe_start[j][o] + i.welding_time[j][o] + (i.pos_j[j] * i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B])
 
 # Check the time at which the robot could be free to move job j after its operation o considering anther operation o' of job j' that could occupy the robot arm
 def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
     if (i.nb_jobs == 2):
-        return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C])
+        return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][MACHINE_2_MODE_C])
     else:
         terms = []
         for q in i.loop_jobs():
             if (q != j) and (q != j_prime):
                 for x in range(i.operations_by_job[q]):
                     term = (i.s.exe_before[j][q][o][x] + i.s.exe_before[q][j_prime][x][o_prime]) - i.s.exe_before[j][j_prime][o][o_prime]
-                    terms.append(i.needed_proc[q][x][PROCEDE_1] * term)
-        return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][PROCEDE_2_MODE_C] 
+                    terms.append(i.needed_proc[q][x][MACHINE_1] * term)
+        return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][MACHINE_2_MODE_C] 
                                      - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
 
 # Cmax computation (case 1: no parallelism)
@@ -130,7 +130,7 @@ def c4(model: cp_model.CpModel, i: MathInstance):
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I*(1 + i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] - i.s.exe_before[j_prime][j][o_prime][o]) >= 2*i.M)
+                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I*(1 + i.s.exe_mode[j_prime][o_prime][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_before[j_prime][j][o_prime][o]) >= 2*i.M)
     return model, i.s
 
 # An operation o starts after the end of the previous one o_prime according to decided priority
@@ -141,7 +141,7 @@ def c5(model: cp_model.CpModel, i: MathInstance):
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I*(1 + i.s.exe_mode[j][o][PROCEDE_2_MODE_C] - i.s.exe_before[j_prime][j][o_prime][o]) >= 2*i.M)
+                        model.Add(i.s.exe_start[j][o] - end(i, j_prime, o_prime) + i.I*(1 + i.s.exe_mode[j][o][MACHINE_2_MODE_C] - i.s.exe_before[j_prime][j][o_prime][o]) >= 2*i.M)
     return model, i.s
 
 # A non-parallel operation o starts after the end of the previous one o_prime according to decided priority
@@ -162,14 +162,14 @@ def c7(model: cp_model.CpModel, i: MathInstance):
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
-                        model.Add(i.s.exe_start[j][o] - i.s.exe_start[j_prime][o_prime] - (i.pos_j[j_prime] + i.M) * i.s.exe_mode[j_prime][o_prime][PROCEDE_1_PARALLEL_MODE_B] * (1-i.job_modeB[j_prime]) + i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]) >= i.M * (1 - i.job_robot[j]))
+                        model.Add(i.s.exe_start[j][o] - i.s.exe_start[j_prime][o_prime] - (i.pos_j[j_prime] + i.M) * i.s.exe_mode[j_prime][o_prime][MACHINE_1_PARALLEL_MODE_B] * (1-i.job_modeB[j_prime]) + i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]) >= i.M * (1 - i.job_robot[j]))
     return model, i.s
 
 # Only operation needing Process 2 can be executed in parallel (meaning: there is another job in the positioner for Process 1)
 def c8(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
-            model.Add(i.s.exe_parallel[j][o] <= i.needed_proc[j][o][PROCEDE_2])
+            model.Add(i.s.exe_parallel[j][o] <= i.needed_proc[j][o][MACHINE_2])
     return model, i.s
 
 # The first operation of a job (that is not removed form a station & has no history) starts its first operation after being loaded + one robot move
@@ -195,7 +195,7 @@ def c10(model: cp_model.CpModel, i: MathInstance):
 def c11(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
-            model.Add(i.s.exe_mode[j][o][PROCEDE_2_MODE_C] == i.needed_proc[j][o][PROCEDE_2])
+            model.Add(i.s.exe_mode[j][o][MACHINE_2_MODE_C] == i.needed_proc[j][o][MACHINE_2])
     return model, i.s
 
 # Each must enter one and exactly one loading station!

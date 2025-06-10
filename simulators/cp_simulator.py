@@ -1,11 +1,11 @@
 import random
-from models.instance import Instance, MathInstance, PROCEDE_1, PROCEDE_2
+from models.instance import Instance, MathInstance, MACHINE_1, MACHINE_2
 import matplotlib.pyplot as plt
 
 def plot_gantt_chart(tasks, instance_file: str):
     fig, ax = plt.subplots(figsize=(10, 3))
     for task in tasks:
-        level = 0 if task["proc_type"] == PROCEDE_1 else 1
+        level = 0 if task["proc_type"] == MACHINE_1 else 1
         ax.barh(level, task["duration"], left=task["start"], color=task["color"], edgecolor='black')
         ax.text(task["start"] + 0.2, level, f'{task["label"]}', va='bottom', fontsize=8, color='black')
         time_points = sorted(set([task["start"] for task in tasks] + [task["end"] for task in tasks]))
@@ -24,9 +24,9 @@ def plot_gantt_chart(tasks, instance_file: str):
 
 def get_station_from_operation(op):
     # Hypothèse : mapping du type de procédé à une station
-    if op.type == PROCEDE_1:
+    if op.type == MACHINE_1:
         return 0  # STATION_1
-    elif op.type == PROCEDE_2:
+    elif op.type == MACHINE_2:
         return 1  # STATION_2
     else:
         return 2  # STATION_3 par défaut

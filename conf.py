@@ -4,12 +4,12 @@ L: int = 2
 NB_STATIONS: int = 3
 BIG_STATION: int = 1
 
-PROCEDE_1: int = 0
-PROCEDE_2: int = 1
+MACHINE_1: int = 0
+MACHINE_2: int = 1
 
-PROCEDE_1_SEQ_MODE_A: int = 0
-PROCEDE_1_PARALLEL_MODE_B: int = 1
-PROCEDE_2_MODE_C: int = 2
+MACHINE_1_SEQ_MODE_A: int = 0
+MACHINE_1_PARALLEL_MODE_B: int = 1
+MACHINE_2_MODE_C: int = 2
 
 STATION_1: int = 0
 STATION_2: int = 1
@@ -62,14 +62,14 @@ ROBOT_FEATURES: int   = 4
 # Training configuration
 BATCH_SIZE          = 256
 CAPACITY            = 100_000
-OPTIMIZATION_RATE   = 5
+OPTIMIZATION_RATE   = 2
 SAVING_RATE         = 500
 GAMMA               = 0.99  # discount factor
 TAU                 = 0.003 # update rate of the target network
-LR                  = 1e-4  # learning rate of AdamW 
-EPS_START           = 0.99  # starting value of epsilon
+LR                  = 1e-3  # learning rate of AdamW 
+EPS_START           = 0.9   # starting value of epsilon
 EPS_END             = 0.005 # final value of epsilon
-EPS_DECAY_RATE      = 1300  # controls the rate of exponential decay of epsilon, higher means a slower decay (≈35%)
+EPS_DECAY_RATE      = 1500  # controls the rate of exponential decay of epsilon, higher means a slower decay (≈35%)
 NB_EPISODES         = 6000
 COMPLEXITY_RATE     = 1000
 MAX_GRAD_NORM       = 10.0

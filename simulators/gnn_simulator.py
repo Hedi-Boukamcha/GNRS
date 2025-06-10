@@ -26,7 +26,7 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     # 1. Search for a possible parralel job that needs to stay on "positioner" (cancel previous unloading actions)
     job_on_pos_to_unload: JobState = None
     forbidden_station: StationState = None
-    if d.parallel and o.operation.type == PROCEDE_2:
+    if d.parallel and o.operation.type == MACHINE_2:
         job_on_pos_to_unload, forbidden_station = cancel_unloading_last_parallel_if_exist(state, j.is_big())
 
     # 2. Search the possible start time (either load the job or wait for its previous op to finish)
@@ -42,11 +42,11 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     time = robot_move_to_process(j, o, robot, process, M, time)
 
     # 6. Job needs to be placed on the positioner
-    if d.parallel and o.operation.type == PROCEDE_1:
+    if d.parallel and o.operation.type == MACHINE_1:
         time = position_job(j, o, robot, process, time)
 
     # 7. Execute the operation
-    parallel=(d.parallel and o.operation.type == PROCEDE_1)
+    parallel=(d.parallel and o.operation.type == MACHINE_1)
     time = execute_operation(j, o, robot, process, parallel, time)
 
     # 8. If the operation is the last of the job, we remove the job from the system

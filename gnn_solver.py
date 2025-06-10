@@ -81,7 +81,7 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         action_id: int = agent.select_next_decision(graph=env.graph, alpha=alpha, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
         d: Decision = env.possible_decisions[action_id]
         if d.parallel:
-            if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == PROCEDE_1:
+            if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
                 last_job_in_pos = d.job_id
         else:
             last_job_in_pos = -1

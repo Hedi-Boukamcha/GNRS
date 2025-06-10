@@ -20,7 +20,7 @@ def ls(instance: Instance, decisions: list[Decision]):
         if d.parallel == True: # case 1: maybe the parallel decision was a mistake?
             d.parallel = False
             idx += 1
-            while idx < len(decisions) and to_test[idx].process == PROCEDE_2 and to_test[idx].parallel == True:
+            while idx < len(decisions) and to_test[idx].process == MACHINE_2 and to_test[idx].parallel == True:
                 d_next: Decision = to_test[idx].clone()
                 d_next.parallel = False
                 to_test[idx] = d_next
@@ -35,7 +35,7 @@ def ls(instance: Instance, decisions: list[Decision]):
             d.parallel = True
             idx += 1
             idz: int = idx
-            while idz < len(decisions) and to_test[idz].process == PROCEDE_2 and to_test[idz].parallel == False:
+            while idz < len(decisions) and to_test[idz].process == MACHINE_2 and to_test[idz].parallel == False:
                 d_next: Decision = to_test[idz].clone()
                 d_next.parallel = True
                 to_test[idz] = d_next

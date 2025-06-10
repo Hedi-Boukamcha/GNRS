@@ -98,7 +98,7 @@ class Agent:
         for target_p, policy_p in zip(self.target_net.parameters(), self.policy_net.parameters()):
             target_p.data.mul_(1.0 - TAU).add_(policy_p.data, alpha=TAU)
 
-    def _shift_actions(self, action_tensors: list[Tensor], graphs_batch:    Batch) -> Tensor: # action_tensors is a list[(nᵢ,4)]
+    def _shift_actions(self, action_tensors: list[Tensor], graphs_batch: Batch) -> Tensor: # action_tensors is a list[(nᵢ,3)]
         """
             Convert job-local ids -> global row ids, list order == graph order.
             Returns (Σ|Aᵢ|, 3) tensor [job_global , process , parallel].
