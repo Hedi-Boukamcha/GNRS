@@ -2,6 +2,7 @@ from models.state import State, Decision
 from models.instance import Instance
 from conf import *
 from simulators.gnn_simulator import simulate
+from typing import Tuple
 
 # ##################################
 # =*= LOCAL IMPROVEMENT OPERATOR =*=
@@ -51,7 +52,7 @@ def ls(instance: Instance, decisions: list[Decision]):
             idx += 1
     return state
 
-def _simulate_one(instance: Instance, decisions: list[Decision]) -> tuple[State, int]:
+def _simulate_one(instance: Instance, decisions: list[Decision]) -> Tuple[State, int]:
     state: State = State(instance, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     for d in decisions:
         state = simulate(state, d=d, clone=False) 

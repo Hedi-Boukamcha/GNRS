@@ -19,6 +19,7 @@ warnings.filterwarnings(
     category=UserWarning,
     module=r"torch_geometric\.nn\.conv\.hetero_conv",
 )
+from typing import Tuple, List
 
 from models.instance import Instance
 from simulators.gnn_simulator import *
@@ -64,8 +65,23 @@ def search_possible_decisions(state: State, device: str) -> list[Decision]:
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
-def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, device: str) -> Tensor:
-    return torch.tensor([-1.0 * ((cmax_new - cmax_old - duration) + (delay_new - delay_old))], dtype=torch.float32, device=device)
+def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
+    jobs: List["Job"] = i.jobs
+    nb_jobs: int      = len(jobs)
+    per_j_term        = sum(j.pos_time for j in jobs)
+    per_op_term       = sum((2*M) + op.processing_time for j in jobs for op in j.operations)
+    ub_cmax           = 2 * L * nb_jobs + per_op_term + per_j_term
+    sorted_jobs       = sorted(jobs, key=lambda j: j.due_date)
+    delays: int       = 0
+    for idx, job in enumerate(sorted_jobs):
+        rank    = (idx * 0.8)/ nb_jobs if nb_jobs else 0.0
+        delay   = max(0, ub_cmax * (1 - rank) - job.due_date)
+        delays += delay
+    ub_delay    = max(1, delays)
+    return ub_cmax, ub_delay
+
+def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:
+    return torch.tensor([-1.0 * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
@@ -75,6 +91,10 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
     poss_dess, dessT = search_possible_decisions(state=state, device=device)
+    ub_cmax: int = 0
+    ub_delay: int = 0
+    if train:
+        ub_cmax, ub_delay = compute_upper_bounds(i)
     env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
     while env.possible_decisions:
         action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
@@ -90,7 +110,7 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         if train:
             final: bool   = len(next_possible_decisions) == 0
             duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-            _r: Tensor    = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, device)
+            _r: Tensor    = reward(duration=duration, cmax_old=env.cmax, cmax_new=state.cmax, delay_old=env.delay, delay_new=state.total_delay, ub_cmax=ub_cmax, ub_delay=ub_delay, device=device)
             agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
         action_time = state.min_action_time()
         env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
@@ -120,14 +140,14 @@ def train(agent: Agent, path: str, device: str):
     sizes: list[str]      = ["s", "m", "l", "xl"]
     complexity_limit: int = 1
     size: str             = "s"
-    instance_id: int      = 1
+    instance_id: str      = "1"
     lr_decay_factor       = 0.5
     for episode in range(1, NB_EPISODES+1):
         if episode % SWITCH_RATE == 0:
-            size        = random.choice(sizes[:complexity_limit])
+            size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
-        solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
+        solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
