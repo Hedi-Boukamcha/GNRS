@@ -88,12 +88,12 @@ class QNet(nn.Module):
         self.global_lin        = Linear(graph_vector_size, GRAPH_DIM)
         self.job_pooling       = AttentionalAggregation(gate_nn=Linear(d_job, 1), nn = None)
         self.Q_mlp = nn.Sequential(
-            nn.Linear(d_job + GRAPH_DIM + 3, 64),   # +3 for [parallel, alpha, process]
+            nn.Linear(d_job + GRAPH_DIM + 2, 32),   # +2 for [parallel, process]
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(64, 32),
+            nn.Linear(32, 16),
             nn.ReLU(),
-            nn.Linear(32, 1))
+            nn.Linear(16, 1))
 
     def _init_node_feats(self, data: HeteroData):
         x = {}
@@ -103,7 +103,7 @@ class QNet(nn.Module):
         x['robot']   = F.relu(self.lin_robot(data['robot'].x))
         return x
 
-    def forward(self, data: HeteroData, actions: Tensor, alpha: Tensor): # action shape = shape (A,3); alpha shape = (1,)
+    def forward(self, data: HeteroData, actions: Tensor): # action shape = shape (A,3)
         # 1. Embedding stacks (stack size=2)
         nodes           = self._init_node_feats(data)
         edges           = data.edge_index_dict
@@ -135,10 +135,7 @@ class QNet(nn.Module):
         process        = actions[:,1].unsqueeze(1).float()          # (A,1) process 1 or 2? (for all actions in batch not only in graph)
         emb_jobs       = nodes["job"][job_ids]                      # (A, d_job)
         graph_ids      = batch_job[job_ids]                         # map to graph 0…B-1
-        h_globalA      = h_global[graph_ids] 
-        alphaA         = alpha.clone()
-        if alphaA.dim() == 0 or alphaA.size(0) == 1: # used for solving stage (not optimization)
-            alphaA = alphaA.expand(actions.size(0), 1) 
-        action_feat = torch.cat([emb_jobs, h_globalA, process, parallel, alphaA], dim=1)
+        h_globalA      = h_global[graph_ids]
+        action_feat = torch.cat([emb_jobs, h_globalA, process, parallel], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values

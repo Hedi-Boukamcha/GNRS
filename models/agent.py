@@ -77,9 +77,9 @@ class Agent:
         else:
             self.policy_net.eval()
 
-    def select_next_decision(self, graph: HeteroData, alpha: Tensor, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool) -> int:
+    def select_next_decision(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool) -> int:
         if not train or random.random() > eps_threshold:
-            Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT, alpha)
+            Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
             return torch.argmax(Q_values.view(-1)).item()
         else:
             return random.randint(0, len(possible_decisions)-1)
@@ -126,20 +126,18 @@ class Agent:
         graphs_cur    = Batch.from_data_list(list(batch.graph)).to(self.device)            # Build one big graph for the whole batch of current state (nodes idx, like jobs, changed!!)
         pa_cur_list   = list(batch.possible_actions)                                       # All possible actions in the batch (hard at this point to distinguish by graph!!)
         act_idx_local = torch.as_tensor(batch.action_id, device=self.device)               # Local ID of the action (one big tensor for the whole batch -> for now with a problem of wrong indices!!)
-        alpha_cur     = torch.cat([a.to(self.device) for a in batch.alpha]).view(-1)       # alpha of each current state (one big tensor for the whole batch)
         rewards       = torch.as_tensor(batch.reward, device=self.device)                  # reward of each currentstate (one big tensor for the whole batch)
         finals        = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool) # boolean check if the graph is final (one big tensor for the whole batch)
 
         # ---------- 1. build current action tensor (with batch-level indices) ------------------------------
         actions_cur   = self._shift_actions(pa_cur_list, graphs_cur)                       # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
         lengths_cur   = torch.as_tensor([pa.size(0) for pa in pa_cur_list],    
-                                        device=self.device, dtype=torch.long)              # Get the number of possible actions for each current state (to build alpha bellow)
-        alpha_cat_cur = torch.repeat_interleave(alpha_cur, lengths_cur).unsqueeze(1)       # Repeat alpha not once by current state, but for each possible action to test!
+                                        device=self.device, dtype=torch.long)              # Get the number of possible actions for each current state
         offsets_cur   = torch.cat((torch.zeros(1, device=self.device, dtype=torch.long), 
                                         torch.cumsum(lengths_cur, dim=0)[:-1]))            # The the offset of possible actions by graph (increase with the number of possible actions from the previous graph)
         
         # ---------- 2. Q(s,·) ------------------------------------------------------------------------------
-        q_all_cur = self.policy_net(graphs_cur, actions_cur, alpha_cat_cur)                # Use the policy_net to get the Q-value of all possible actions of all state [used once for the whole batch and all possible actions]
+        q_all_cur = self.policy_net(graphs_cur, actions_cur)                               # Use the policy_net to get the Q-value of all possible actions of all state [used once for the whole batch and all possible actions]
         q_sa_cur  = q_all_cur[offsets_cur + act_idx_local]                                 # Get the Q-value of the action that was taken: use the local (act_idx_local) + the offsets_cur to retrieve its batch-level index
 
         # ---------- 3. next-state branch -------------------------------------------------------------------
@@ -147,14 +145,12 @@ class Agent:
         if non_final.any():                                                                             # If some transitions are not final
             nf_graphs   = [batch.next_graph[i]            for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of non-final graph 
             nf_pa_list  = [batch.next_possible_actions[i] for i in range(BATCH_SIZE) if non_final[i]]   # Get the list of non-final graph' possible actions (with wrong indices: local only for the graph!!)
-            nf_alpha    = torch.cat([batch.alpha[i].to(self.device) for i in range(BATCH_SIZE) if non_final[i]]).view(-1)
             graphs_nxt  = Batch.from_data_list(nf_graphs).to(self.device)                               # Like before, build one big graph for the whole batch of next state (nodes idx, like jobs, changed!!)
             actions_nxt = self._shift_actions(nf_pa_list, graphs_nxt)                                   # Replace the list of next possible actions nf_pa_list) with correct batch-level indices!
             len_nxt     = torch.as_tensor([p.size(0) for p in nf_pa_list],                   
-                                        device=self.device, dtype=torch.long)                           # Get the number of possible actions for each next state (to build alpha bellow)
-            alpha_cat_n = torch.repeat_interleave(nf_alpha, len_nxt).unsqueeze(1)                       # Repeat alpha not once by next state, but for each possible action to test!
+                                        device=self.device, dtype=torch.long)                           # Get the number of possible actions for each next state
             with torch.no_grad():
-                q_all_nxt = self.target_net(graphs_nxt, actions_nxt, alpha_cat_n)                       # Use the target_net to get the Q-value of all possible actions of all next state [used once for the whole batch and all possible actions]
+                q_all_nxt = self.target_net(graphs_nxt, actions_nxt)                                    # Use the target_net to get the Q-value of all possible actions of all next state [used once for the whole batch and all possible actions]
             q_split  = torch.split(q_all_nxt, len_nxt.tolist())                                         # Split the Q-value by next state (instead of batch) so we can compute the MAX
             max_q_n  = torch.stack([q.max() for q in q_split])                                          # Get the max Q-value of the next state
         else:

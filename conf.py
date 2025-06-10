@@ -71,5 +71,5 @@ EPS_START           = 0.9    # starting value of epsilon
 EPS_END             = 0.005  # final value of epsilon
 EPS_DECAY_RATE      = 6000   # controls the rate of exponential decay of epsilon
 NB_EPISODES         = 20_000 # 33 episodes per instances on average
-COMPLEXITY_RATE     = 1000
+COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 10.0

@@ -64,21 +64,20 @@ def search_possible_decisions(state: State, device: str) -> list[Decision]:
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
-def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, alpha: float, device: str) -> Tensor:
-    return torch.tensor([-1.0 * (alpha * (cmax_new - cmax_old - duration) + (1-alpha) * (delay_new - delay_old))], dtype=torch.float32, device=device)
+def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, device: str) -> Tensor:
+    return torch.tensor([-1.0 * ((cmax_new - cmax_old - duration) + (delay_new - delay_old))], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
     last_job_in_pos: int = -1
     action_time: int = 0
-    alpha: Tensor = torch.tensor([[i.a]], dtype=torch.float32, device=device)
     state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
     poss_dess, dessT = search_possible_decisions(state=state, device=device)
     env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
     while env.possible_decisions:
-        action_id: int = agent.select_next_decision(graph=env.graph, alpha=alpha, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
+        action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
         d: Decision = env.possible_decisions[action_id]
         if d.parallel:
             if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
@@ -91,8 +90,8 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         if train:
             final: bool   = len(next_possible_decisions) == 0
             duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-            _r: Tensor    = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, i.a, device)
-            agent.memory.push(Transition(graph=env.graph, action_id=action_id,  alpha=alpha, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
+            _r: Tensor    = reward(duration, env.cmax, state.cmax, env.delay, state.total_delay, device)
+            agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
         action_time = state.min_action_time()
         env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
     if not train:
@@ -102,8 +101,8 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
         computing_time = time.time() - start_time
         with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
             pickle.dump(state, f)
-        obj: int = (state.total_delay * (100 - i.a)) + (state.cmax * i.a)
-        results = pd.DataFrame({'id': [id], 'obj': [obj], 'a': [i.a],'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
+        obj: int = state.total_delay + state.cmax
+        results = pd.DataFrame({'id': [id], 'obj': [obj], 'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+"gnn_solution_"+extension+id+".csv", index=False)
 
@@ -122,6 +121,7 @@ def train(agent: Agent, path: str, device: str):
     complexity_limit: int = 1
     size: str             = "s"
     instance_id: int      = 1
+    lr_decay_factor       = 0.5
     for episode in range(1, NB_EPISODES+1):
         if episode % SWITCH_RATE == 0:
             size        = random.choice(sizes[:complexity_limit])
@@ -132,6 +132,8 @@ def train(agent: Agent, path: str, device: str):
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
+            for g in agent.optimizer.param_groups:
+                g['lr'] *= lr_decay_factor
         if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()

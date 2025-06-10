@@ -30,9 +30,8 @@ class Job:
         return f"{{'big':{self.big}, 'due_date':{self.due_date}, 'pos_time':{self.pos_time}, 'status':{self.status}, 'blocked':{self.blocked}, 'operations':{[o.__str__() for o in self.operations]}}}"
 
 class Instance:
-    def __init__(self, jobs: list[Job] = [], a:int = 0):
+    def __init__(self, jobs: list[Job] = []):
         self.jobs: list[Job] = jobs
-        self.a: int = a
 
     def __str__(self):
         return f"{self.jobs}"
@@ -45,7 +44,7 @@ class Instance:
             operations = [Operation(type=op["type"], processing_time=op["processing_time"]) for op in job_data["operations"]]
             job = Job(big=job_data["big"], due_date=job_data["due_date"], pos_time=job_data["pos_time"], operations=operations, status=job_data["status"], blocked=job_data["blocked"])
             jobs.append(job)
-        return Instance(jobs=jobs, a=_data['a'])
+        return Instance(jobs=jobs)
     
     def display(self):
         for j in self.jobs:
@@ -68,10 +67,9 @@ class MathSolution:
         self.exe_before = [], [], [], []
 
 class MathInstance:
-    def __init__(self, jobs: list[Job], a: int):
+    def __init__(self, jobs: list[Job]):
         self.s = MathSolution()
         self.nb_jobs: int = len(jobs)
-        self.a: int = a
         self.nb_types: int = 2
         self.nb_stations: int = NB_STATIONS
         self.nb_modes: int = 3

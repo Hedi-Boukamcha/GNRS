@@ -55,5 +55,5 @@ def _simulate_one(instance: Instance, decisions: list[Decision]) -> tuple[State,
     state: State = State(instance, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     for d in decisions:
         state = simulate(state, d=d, clone=False) 
-    obj: int = (state.total_delay * (100 - instance.a)) + (state.cmax * instance.a)
+    obj: int = state.total_delay + state.cmax
     return state, obj

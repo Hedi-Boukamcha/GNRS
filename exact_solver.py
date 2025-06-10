@@ -40,10 +40,9 @@ def is_same(j: int, j_prime: int, o: int, o_prime):
 
 def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms = []
-    terms.append(i.a * i.s.C_max)
-    b = 100 - i.a
+    terms.append(i.s.C_max)
     for j in i.loop_jobs():        
-        terms.append(b * i.s.delay[j])
+        terms.append(i.s.delay[j])
     model.Minimize(sum(terms))
     return model, i.s
 
@@ -304,7 +303,7 @@ def solver_per_file(path, id, debug: bool=True):
     start_time = time.time()
     instance_file = path+"instances_"+id+".json"
     instance: Instance = Instance.load(instance_file)
-    i: MathInstance    = MathInstance(instance.jobs, instance.a)
+    i: MathInstance    = MathInstance(instance.jobs)
     model              = cp_model.CpModel()
     solver             = cp_model.CpSolver()
     init_vars(model, i)
@@ -315,14 +314,9 @@ def solver_per_file(path, id, debug: bool=True):
         solver.parameters.max_time_in_seconds = 60.0 * 60.0
         solver.parameters.relative_gap_limit = 0.0
         solver.parameters.absolute_gap_limit = 0.0
-        # solver.parameters.use_implied_bounds = True
-        # solver.parameters.use_probing_search = True
-        # solver.parameters.cp_model_presolve = True
-        # solver.parameters.optimize_with_core = True
         solver.parameters.log_search_progress = True
         solver.parameters.enumerate_all_solutions = False
         solver.parameters.log_search_progress = True
-        # solver.parameters.cp_model_probing_level = 0
     status = solver.Solve(model)
     computing_time = time.time() - start_time
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
@@ -331,13 +325,13 @@ def solver_per_file(path, id, debug: bool=True):
         obj          = solver.ObjectiveValue()
         s            = 'optimal' if status == cp_model.OPTIMAL else 'feasible'
         gap          = abs(obj - solver.BestObjectiveBound()) / (solver.BestObjectiveBound() + 1e-8)
-        results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'a': [instance.a],'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
+        results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
         results.to_csv(path+"exact_solution_"+id+".csv", index=False)
         if debug:
             gantt_cp_solution(instance, i, solver, instance_file)
             instance.display()
     else:
-        no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'a': [instance.a],'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
+        no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
         no_results.to_csv(path+"exact_solution_"+id+".csv", index=False)
 
 # TEST WITH: python exact_solver.py --type=train --size=s --id=1 path=./
