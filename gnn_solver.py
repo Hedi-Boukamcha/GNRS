@@ -120,16 +120,19 @@ def train(agent: Agent, path: str, device: str):
     print("Loading dataset....")
     sizes: list[str]      = ["s", "m", "l", "xl"]
     complexity_limit: int = 1
+    size: str             = "s"
+    instance_id: int      = 1
     for episode in range(1, NB_EPISODES+1):
-        size: str        = random.choice(sizes[:complexity_limit])
-        instance_id: str = str(random.randint(1, 150))
-        eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
+        if episode % SWITCH_RATE == 0:
+            size        = random.choice(sizes[:complexity_limit])
+            instance_id: str = str(random.randint(1, 150))
         solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
+        eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
-        if episode % OPTIMIZATION_RATE == 0 and len(agent.memory) > BATCH_SIZE:
+        if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
             print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.2f} -- loss: {loss:.2f}")
