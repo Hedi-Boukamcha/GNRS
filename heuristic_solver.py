@@ -5,10 +5,10 @@ import re
 import pickle
 import time
 import pandas as pd
-from typing import Any, List
+from typing import  List
 
 from conf import *
-from models.instance import Instance, Job, Operation
+from models.instance import Instance, Job
 from heuristic.local_search import ls as LS
 from models.state import State, Decision
 
