@@ -70,11 +70,11 @@ def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
     nb_jobs: int      = len(jobs)
     per_j_term        = sum(j.pos_time for j in jobs)
     per_op_term       = sum((2*M) + op.processing_time for j in jobs for op in j.operations)
-    ub_cmax           = 2 * L * nb_jobs + per_op_term + per_j_term
+    ub_cmax           = 2 * L * nb_jobs + per_op_term + (per_j_term/2)
     sorted_jobs       = sorted(jobs, key=lambda j: j.due_date)
     delays: int       = 0
     for idx, job in enumerate(sorted_jobs):
-        rank    = (idx * 0.8)/ nb_jobs if nb_jobs else 0.0
+        rank    = (idx * 0.9)/ nb_jobs if nb_jobs else 0.0
         delay   = max(0, ub_cmax * (1 - rank) - job.due_date)
         delays += delay
     ub_delay    = max(1, delays)
