@@ -1,10 +1,6 @@
-import csv
-import os
 from models.instance import Instance, MathInstance, FIRST_OP, MACHINE_1_SEQ_MODE_A, MACHINE_1_PARALLEL_MODE_B, MACHINE_2_MODE_C, STATION_1, STATION_2, STATION_3, MACHINE_1, MACHINE_2
 from ortools.sat.python import cp_model
 from simulators.cp_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
-import random
-import json
 import argparse
 import pandas as pd
 import time
@@ -310,13 +306,26 @@ def solver_per_file(path, id, debug: bool=True):
     init_objective_function(model, i)
     for constraint in [c_end_and_free,c1_s,c1_p,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
         model, i.s = constraint(model, i)
+    solver.parameters.relative_gap_limit = 0.0
+    solver.parameters.absolute_gap_limit = 0.0
+    solver.parameters.maximize           = False
     if debug:
-        solver.parameters.max_time_in_seconds = 60.0 * 60.0
-        solver.parameters.relative_gap_limit = 0.0
-        solver.parameters.absolute_gap_limit = 0.0
-        solver.parameters.log_search_progress = True
+        solver.parameters.max_time_in_seconds     = 60.0 * 60.0   # 1 hour
+        solver.parameters.max_memory_in_mb        = 12_000        # 12 giga RAM
         solver.parameters.enumerate_all_solutions = False
-        solver.parameters.log_search_progress = True
+        solver.parameters.log_search_progress     = True
+    else:
+        
+        solver.parameters.max_time_in_seconds = 10 * 60.0 * 60.0 # 10 hours
+        solver.parameters.max_memory_in_mb    = 150_000          # 150 giga RAM
+        solver.parameters.num_search_workers  = 32               # 32 CPUs
+        solver.parameters.random_seed         = 1
+        solver.parameters.cp_model_presolve                         = True
+        solver.parameters.max_presolve_iterations                   = 3
+        solver.parameters.presolve_probing_deterministic_time_limit = 5
+        solver.parameters.use_timestamps_in_interleave_operator     = True
+        solver.parameters.search_branching                          = (cp_model.PORTFOLIO_WITH_QUICK_RESTART_SEARCH)
+        solver.parameters.linearization_level                       = 1
     status = solver.Solve(model)
     computing_time = time.time() - start_time
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
@@ -334,7 +343,7 @@ def solver_per_file(path, id, debug: bool=True):
         no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
         no_results.to_csv(path+"exact_solution_"+id+".csv", index=False)
 
-# TEST WITH: python exact_solver.py --type=train --size=s --id=1 path=./
+# TEST WITH: python cp_solver.py --type=train --size=s --id=1 path=./
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
