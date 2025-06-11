@@ -308,14 +308,13 @@ def solver_per_file(path, id, debug: bool=True):
         model, i.s = constraint(model, i)
     solver.parameters.relative_gap_limit = 0.0
     solver.parameters.absolute_gap_limit = 0.0
-    solver.parameters.maximize           = False
+    # solver.parameters.maximize           = False
     if debug:
         solver.parameters.max_time_in_seconds     = 60.0 * 60.0   # 1 hour
         solver.parameters.max_memory_in_mb        = 12_000        # 12 giga RAM
         solver.parameters.enumerate_all_solutions = False
         solver.parameters.log_search_progress     = True
     else:
-        
         solver.parameters.max_time_in_seconds = 10 * 60.0 * 60.0 # 10 hours
         solver.parameters.max_memory_in_mb    = 150_000          # 150 giga RAM
         solver.parameters.num_search_workers  = 32               # 32 CPUs
@@ -323,7 +322,7 @@ def solver_per_file(path, id, debug: bool=True):
         solver.parameters.cp_model_presolve                         = True
         solver.parameters.max_presolve_iterations                   = 3
         solver.parameters.presolve_probing_deterministic_time_limit = 5
-        solver.parameters.use_timestamps_in_interleave_operator     = True
+        # solver.parameters.use_timestamps_in_interleave_operator     = True
         solver.parameters.search_branching                          = (cp_model.PORTFOLIO_WITH_QUICK_RESTART_SEARCH)
         solver.parameters.linearization_level                       = 1
     status = solver.Solve(model)
