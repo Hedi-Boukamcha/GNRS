@@ -157,9 +157,9 @@ def train(agent: Agent, path: str, device: str):
         if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.2f} -- loss: {loss:.2f}")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f}")
         else:
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.2f} -- No optimization yet...")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
         if episode % SAVING_RATE == 0 or episode == NB_EPISODES:
             agent.save()
     print("End!")
