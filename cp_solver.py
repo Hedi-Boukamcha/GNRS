@@ -1,6 +1,6 @@
 from models.instance import Instance, MathInstance, FIRST_OP, MACHINE_1_SEQ_MODE_A, MACHINE_1_PARALLEL_MODE_B, MACHINE_2_MODE_C, STATION_1, STATION_2, STATION_3, MACHINE_1, MACHINE_2
 from ortools.sat.python import cp_model
-from simulators.cp_simulator import gantt_cp_solution, simulate_schedule, simulate_instance
+from simulators.cp_simulator import gantt_cp_solution
 import argparse
 import pandas as pd
 import time
@@ -297,7 +297,7 @@ def c21(model: cp_model.CpModel, i: MathInstance):
 
 def solver_per_file(path, id, debug: bool=True):
     start_time = time.time()
-    instance_file = path+"instances_"+id+".json"
+    instance_file = path+"/instance_"+id+".json"
     instance: Instance = Instance.load(instance_file)
     i: MathInstance    = MathInstance(instance.jobs)
     model              = cp_model.CpModel()
@@ -334,15 +334,15 @@ def solver_per_file(path, id, debug: bool=True):
         s            = 'optimal' if status == cp_model.OPTIMAL else 'feasible'
         gap          = abs(obj - solver.BestObjectiveBound()) / (solver.BestObjectiveBound() + 1e-8)
         results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
-        results.to_csv(path+"exact_solution_"+id+".csv", index=False)
+        results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
         if debug:
             gantt_cp_solution(instance, i, solver, instance_file)
             instance.display()
     else:
         no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
-        no_results.to_csv(path+"exact_solution_"+id+".csv", index=False)
+        no_results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
 
-# TEST WITH: python cp_solver.py --type=train --size=s --id=1 path=./
+# TEST WITH: python cp_solver.py --type=train --size=s --id=1 --path=./
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
