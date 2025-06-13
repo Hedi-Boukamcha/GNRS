@@ -15,7 +15,7 @@ STATION_1: int = 0
 STATION_2: int = 1
 STATION_3: int = 2
 
-FIRST_OP: int = 0
+FIRST_OP: int = 0 
 
 POS_STATION: int   = 0
 POS_PROCESS_1: int = 1

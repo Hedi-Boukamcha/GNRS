@@ -1,6 +1,7 @@
-import random
-from models.instance import Instance, MathInstance, MACHINE_1, MACHINE_2
+from models.instance import Instance, MathInstance
 import matplotlib.pyplot as plt
+
+from conf import *
 
 def plot_gantt_chart(tasks, instance_file: str):
     fig, ax = plt.subplots(figsize=(10, 3))
@@ -16,20 +17,11 @@ def plot_gantt_chart(tasks, instance_file: str):
     ax.set_xlim(0, max(time_points) + 1)
     ax.set_xlabel("Temps")
     ax.set_yticks([0, 1]) 
-    ax.set_yticklabels(["Procédé 1", "Procédé 2"])
+    ax.set_yticklabels(["Machine 1", "Machine 2"])
     ax.set_title(f"Diagramme de Gantt - {instance_file}")
     plt.tight_layout()
     plt.grid(True, axis='x', linestyle='--', alpha=0.3)
     plt.show()
-
-def get_station_from_operation(op):
-    # Hypothèse : mapping du type de procédé à une station
-    if op.type == MACHINE_1:
-        return 0  # STATION_1
-    elif op.type == MACHINE_2:
-        return 1  # STATION_2
-    else:
-        return 2  # STATION_3 par défaut
 
 def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file: str):
     print("\n--- Simulation Gantt à partir du modèle mathématique ---")
@@ -38,12 +30,12 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
     
     for j, job in enumerate(instance.jobs):
         assigned_station = None
-        for c in [0, 1, 2]:
+        for c in [STATION_1, STATION_2, STATION_3]:
             if solver.BooleanValue(i.s.job_loaded[j][c]):
                 assigned_station = c
                 break
         if assigned_station is None:
-            assigned_station = 0
+            assigned_station = STATION_1
 
         for o, op in enumerate(job.operations):
             is_removed: bool = False
@@ -55,11 +47,11 @@ def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file
             duration = i.welding_time[j][o] + (i.pos_j[j] if has_pos_j else 0)
             end = start + duration
             station = f"n°{assigned_station + 1}"
-            if op.type == 2:
+            if op.type == MACHINE_2:
                 mode_str = "Mode C"
             else:
                 mode_str = "Mode B" if modeB else "Mode A"
-            proc_type = 1 if op.type == 2 else 0
+            proc_type = op.type
             tasks.append({
                 "label": f"J{j+1} O{o+1} S{station} ({mode_str})",
                 "start": start,

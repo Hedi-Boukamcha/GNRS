@@ -93,9 +93,9 @@ class MathInstance:
             self.job_robot[j] = 1 if (job.status == 2) else 0
             if job.status > 0:
                 self.has_history = True
-                self.job_station[j][job.blocked-1] = 1
+                self.job_station[j][job.blocked] = 1
             for o, operation in enumerate(job.operations):
-                self.needed_proc[j][o][operation.type-1] = 1  
+                self.needed_proc[j][o][operation.type] = 1  
                 self.welding_time[j][o] = operation.processing_time
                 self.I += operation.processing_time + self.pos_j[j] + 3*self.M + 2*self.L
 

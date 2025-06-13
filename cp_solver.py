@@ -39,7 +39,7 @@ def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms.append(i.s.C_max)
     for j in i.loop_jobs():        
         terms.append(i.s.delay[j])
-    model.Minimize(sum(terms))
+    model.Minimize(sum(terms)) 
     return model, i.s
 
 # Check if job j is loaded on station c and if its loaded before j'

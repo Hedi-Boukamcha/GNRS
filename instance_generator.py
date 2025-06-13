@@ -33,12 +33,13 @@ def generate_controledSize_instance(
         due_date_max = (2 * L + pos_time) * nombre_jobs + nb_operations * (2 * M + 60)
         borne_inf = max(due_date_min, due_date_max // 3)
         due_date = random.randint(borne_inf, due_date_max)
+
         job = {
             "big": random.randint(0, 1),
             "due_date": due_date,
             "pos_time": pos_time,
-            "status": random.randint(0, 3),
-            "blocked": random.randint(0, 2),
+            "status": 0,
+            "blocked": 0,
             "operations": []
         }
 
