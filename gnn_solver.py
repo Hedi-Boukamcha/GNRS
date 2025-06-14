@@ -30,6 +30,7 @@ from utils.common import to_bool
 from heuristic.local_search import ls as LS
 from models.agent import Agent
 from models.memory import Transition
+from gantt.gnn_gantt import gnn_gantt
 
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
@@ -117,6 +118,7 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     if not train:
         if improve:
             state = LS(i, state.decisions) # improve with local search
+            gnn_gantt(state, f"instance_{id}")
         state.display_calendars()
         computing_time = time.time() - start_time
         with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:

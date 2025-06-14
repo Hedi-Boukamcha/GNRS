@@ -23,7 +23,7 @@ def plot_gantt_chart(tasks, instance_file: str):
     plt.grid(True, axis='x', linestyle='--', alpha=0.3)
     plt.show()
 
-def gantt_cp_solution(instance: Instance, i: MathInstance, solver, instance_file: str):
+def cp_gantt(instance: Instance, i: MathInstance, solver, instance_file: str):
     print("\n--- Simulation Gantt à partir du modèle mathématique ---")
     tasks = []
     job_colors = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5']

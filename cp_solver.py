@@ -1,6 +1,6 @@
 from models.instance import Instance, MathInstance, FIRST_OP, MACHINE_1_SEQ_MODE_A, MACHINE_1_PARALLEL_MODE_B, MACHINE_2_MODE_C, STATION_1, STATION_2, STATION_3, MACHINE_1, MACHINE_2
 from ortools.sat.python import cp_model
-from gantt.cp_gantt import gantt_cp_solution
+from gantt.cp_gantt import  cp_gantt
 import argparse
 import pandas as pd
 import time
@@ -336,7 +336,7 @@ def solver_per_file(path, id, debug: bool=True):
         results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
         results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
         if debug:
-            gantt_cp_solution(instance, i, solver, instance_file)
+            cp_gantt(instance, i, solver, instance_file)
             instance.display()
     else:
         no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
