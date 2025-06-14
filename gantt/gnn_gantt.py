@@ -1,26 +1,17 @@
 import matplotlib.pyplot as plt
 from conf import *
-from models.state import State
+from models.state import *
 
 
-
-def extract_station_label(event):
-    candidates = [event.source, event.dest]
-    for val in candidates:
-        if isinstance(val, str) and val.startswith("S"):
-            return val  # ex: "S1", "S2"
-    return "?"
 
 def gnn_gantt(state: State, instance: str):
     tasks = []
     job_colors = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5']
-
     for job in state.job_states:
         color = job_colors[job.id % len(job_colors)]
         for event in job.calendar.events:
             if event.event_type == EXECUTE:
-                station_label = extract_station_label(event)
-                label = f"P{job.id+1} op{event.operation.id+1} - {event.operation.operation.type} - station {station_label}"
+                label = f"P{job.id+1} op{event.operation.id+1} - {event.operation.operation.type} - station {event.station.id+1}"
                 tasks.append({
                     "label": label,
                     "start": event.start,
