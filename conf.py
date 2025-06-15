@@ -66,3 +66,19 @@ EPS_DECAY_RATE      = 4000   # controls the rate of exponential decay of epsilon
 NB_EPISODES         = 15_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
+
+
+# Gantt CONFIG
+JOB_COLORS = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9']
+LEVELS = ["Station 1", "Station 2", "Station 3", "Robot", "Machine 1", "Machine 2", "Positioner"]
+STATIONS = {"Station 1", "Station 2", "Station 3"}
+EVENT_COLORS = {
+    EXECUTE: "#8dd3c7",
+    LOAD:    "#80b1d3",
+    UNLOAD:  "#fb8072",
+    MOVE:    "#fdb462",
+    HOLD:    "#b3de69",
+    POS:     "#fccde5",
+}
+MIN_REAL_DURATION = 1e-6
+BOLD_EVENTS = {EXECUTE, HOLD, LOAD, UNLOAD, MOVE, POS}
