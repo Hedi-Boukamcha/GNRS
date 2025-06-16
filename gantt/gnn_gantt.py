@@ -21,10 +21,10 @@ def resource_calendars(state: State):
         "Station 1":  state.all_stations.get(STATION_1).calendar.events,
         "Station 2":  state.all_stations.get(STATION_2).calendar.events,
         "Station 3":  state.all_stations.get(STATION_3).calendar.events,
-        "Machine 1":  state.process1.calendar.events,
-        "Machine 2":  state.process2.calendar.events,
+        "Machine 1":  state.machine1.calendar.events,
+        "Machine 2":  state.machine2.calendar.events,
         "Robot":      state.robot.calendar.events,
-        "Positioner": [e for e in state.process1.calendar.events
+        "Positioner": [e for e in state.machine1.calendar.events
                        if e.event_type == POS],
     }
 

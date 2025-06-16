@@ -88,7 +88,7 @@ class QNet(nn.Module):
         self.global_lin        = Linear(graph_vector_size, GRAPH_DIM)
         self.job_pooling       = AttentionalAggregation(gate_nn=Linear(d_job, 1), nn = None)
         self.Q_mlp = nn.Sequential(
-            nn.Linear(d_job + GRAPH_DIM + 2, 32),   # +2 for [parallel, process]
+            nn.Linear(d_job + GRAPH_DIM + 2, 32),   # +2 for [parallel, machine]
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(32, 16),
@@ -132,10 +132,10 @@ class QNet(nn.Module):
         # 3. Build per-action tensors and final Q values (all in parrallel)
         job_ids        = actions[:,0].long()                        # GLOBAL job index inside its graph (for all actions in batch not only in graph)
         parallel       = actions[:,2].unsqueeze(1).float()          # (A,1) execute in parallel or not? (for all actions in batch not only in graph)
-        process        = actions[:,1].unsqueeze(1).float()          # (A,1) process 1 or 2? (for all actions in batch not only in graph)
+        machine        = actions[:,1].unsqueeze(1).float()          # (A,1) machine 1 or 2? (for all actions in batch not only in graph)
         emb_jobs       = nodes["job"][job_ids]                      # (A, d_job)
         graph_ids      = batch_job[job_ids]                         # map to graph 0…B-1
         h_globalA      = h_global[graph_ids]
-        action_feat = torch.cat([emb_jobs, h_globalA, process, parallel], dim=1)
+        action_feat = torch.cat([emb_jobs, h_globalA, machine, parallel], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values

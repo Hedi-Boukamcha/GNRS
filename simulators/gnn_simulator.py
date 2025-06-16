@@ -22,7 +22,7 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     M: int            = state.M
     L: int            = state.L
     robot             = state.robot
-    process: Process  = o.get_target_process(state)
+    machine: Machine = o.get_target_machine(state)
 
     # 1. Search for a possible parralel job that needs to stay on "positioner" (cancel previous unloading actions)
     job_on_pos_to_unload: JobState = None
@@ -33,27 +33,27 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     # 2. Search the possible start time (either load the job or wait for its previous op to finish)
     time: int = search_start_time(state, j, d, forbidden_station)
     
-    # 3. Unload previous job if the target process ain't free
-    time = previous_job_back_to_station(state, robot, j, process, M, time)
+    # 3. Unload previous job if the target machine ain't free
+    time = previous_job_back_to_station(state, robot, j, machine, M, time)
 
     # 4. Move the robot if its not at already at job location
     time = robot_move_to_job(j, o, robot, M, max(time, robot.free_at))
 
-    # 5. Robot moves job to target process
-    time = robot_move_to_process(j, o, robot, process, M, time)
+    # 5. Robot moves job to target machine
+    time = robot_move_to_machine(j, o, robot, machine, M, time)
 
     # 6. Job needs to be placed on the positioner
     if d.parallel and o.operation.type == MACHINE_1:
-        time = position_job(j, o, robot, process, time)
+        time = position_job(j, o, robot, machine, time)
 
     # 7. Execute the operation
     parallel=(d.parallel and o.operation.type == MACHINE_1)
-    time = execute_operation(j, o, robot, process, parallel, time)
+    time = execute_operation(j, o, robot, machine, parallel, time)
 
     # 8. If the operation is the last of the job, we remove the job from the system
     max_time = time
     if o.is_last:
-        time     = robot_move_job_to_station(state, robot, j, o, process, M, time)
+        time     = robot_move_job_to_station(state, robot, j, o, machine, M, time)
         max_time = unload(state, j, o, L, time)
     else:
         max_time = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
@@ -61,10 +61,10 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     # 9. If a parallel job was waiting (to be unloaded) on the positioner, unload it
     if job_on_pos_to_unload is not None:
         if not o.is_last:
-            time = robot_move_job_to_station(state, robot, j, o, process, M, time)
+            time = robot_move_job_to_station(state, robot, j, o, machine, M, time)
         last_op: OperationState = job_on_pos_to_unload.operation_states[-1]
         last_op.end    = time
-        time           = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.process1, M, time)
+        time           = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.machine1, M, time)
         unloading_time = unload(state, job_on_pos_to_unload, last_op, L, time)
         max_time       = max(max_time, unloading_time)
 
@@ -113,9 +113,9 @@ def get_loading_time_and_force_unloading_previous(state: State, station: Station
         last_op: OperationState = current_job.get_last_executed_operation()
         time: int               = last_op.end if last_op else 0
         if current_job.location.position_type == POS_MACHINE_1:
-            time = robot_move_job_to_station(state, state.robot, current_job, last_op, state.process1, state.M, time)
+            time = robot_move_job_to_station(state, state.robot, current_job, last_op, state.machine1, state.M, time)
         elif current_job.location.position_type == POS_MACHINE_2:
-            time = robot_move_job_to_station(state, state.robot, current_job, last_op, state.process2, state.M, time)
+            time = robot_move_job_to_station(state, state.robot, current_job, last_op, state.machine2, state.M, time)
         time = unload(state, current_job, last_op, L, time)
         return time
 
@@ -134,8 +134,8 @@ def test_loading_time(state: State, station: StationState) -> int:
 # (2/4) CANCEL THE UNLOADING OF LAST PARALLEL MODE B #######################################################
 
 def cancel_unloading_last_parallel_if_exist(state: State, needs_station_2: bool):
-    if state.process1.calendar.len() >= 2:
-        previous_last_event: Event = state.process1.calendar.get(-2)
+    if state.machine1.calendar.len() >= 2:
+        previous_last_event: Event = state.machine1.calendar.get(-2)
         operation: OperationState = previous_last_event.operation
         j: JobState = previous_last_event.job
         if previous_last_event.event_type == POS and operation.is_last and (not needs_station_2 or j.current_station.id != STATION_2):
@@ -143,7 +143,7 @@ def cancel_unloading_last_parallel_if_exist(state: State, needs_station_2: bool)
             j.calendar.events.pop()
             j.calendar.events.pop()
             j.status                      = IN_SYSTEM
-            j.location                    = state.process1
+            j.location                    = state.machine1
             j.operation_states[-1].status = IN_EXECUTION
 
             # Rollback the station
@@ -163,13 +163,13 @@ def cancel_unloading_last_parallel_if_exist(state: State, needs_station_2: bool)
 
 # (3/4) FREE THE TARGET MACHINE IF STILL BUSY ##############################################################
 
-def previous_job_back_to_station(state: State, robot: RobotState, j: JobState, process: Process, M: int, time: int) -> int:
-    time = max(time, process.free_at)
-    if process.calendar.has_events(): 
-        previous_job: JobState = process.calendar.get(-1).job
-        previous_op: OperationState = process.calendar.get(-1).operation
-        if previous_job.id != j.id and previous_job.location.position_type == process.position_type:
-            time = robot_move_job_to_station(state, robot, previous_job, previous_op, process, M, time)
+def previous_job_back_to_station(state: State, robot: RobotState, j: JobState, machine: Machine, M: int, time: int) -> int:
+    time = max(time, machine.free_at)
+    if machine.calendar.has_events(): 
+        previous_job: JobState = machine.calendar.get(-1).job
+        previous_op: OperationState = machine.calendar.get(-1).operation
+        if previous_job.id != j.id and previous_job.location.position_type == machine.position_type:
+            time = robot_move_job_to_station(state, robot, previous_job, previous_op, machine, M, time)
     return time
 
 def simulate_station_min_free_at(robot: RobotState, j: JobState, o: OperationState, M: int, L: int, time: int) -> int:
@@ -182,11 +182,11 @@ def simulate_station_min_free_at(robot: RobotState, j: JobState, o: OperationSta
     j.delay                   = max(0, j.end - j.job.due_date)
     return simulated_time
 
-def robot_move_job_to_station(state: State, robot: RobotState, j: JobState, o: OperationState, process: Process, M: int, time: int):
+def robot_move_job_to_station(state: State, robot: RobotState, j: JobState, o: OperationState, machine: Machine, M: int, time: int):
     time            = robot_move_to_job(j, o, robot, M, time)
-    robot.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=process, dest=state.all_stations, operation=o, station=j.current_station))
-    j.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=process, dest=state.all_stations, operation=o, station=j.current_station))
-    process.free_at = time
+    robot.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=machine, dest=state.all_stations, operation=o, station=j.current_station))
+    j.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=machine, dest=state.all_stations, operation=o, station=j.current_station))
+    machine.free_at = time
     time           += M
     robot.location  = state.all_stations
     j.location      = state.all_stations
@@ -207,16 +207,16 @@ def unload(state: State, j: JobState, o: OperationState, L: int, time: int) ->in
 
 # (4/4) EXECUTE ONE OPERATION ##############################################################################
 
-def execute_operation(j: JobState, o: OperationState, robot: RobotState, process: Process, parallel: bool, time: int) -> int:
+def execute_operation(j: JobState, o: OperationState, robot: RobotState, machine: Machine, parallel: bool, time: int) -> int:
     execution_time: int = o.operation.processing_time
     o.start             = time
     if not parallel:
         robot.free_at   = time
-        robot.calendar.add(Event(start=time, end=(time + execution_time), event_type=HOLD, job=j, source=process, dest=process, operation=o, station=None))
-    j.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=process, dest=process, operation=o, station=None))
-    process.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=process, dest=process, operation=o, station=None))
+        robot.calendar.add(Event(start=time, end=(time + execution_time), event_type=HOLD, job=j, source=machine, dest=machine, operation=o, station=None))
+    j.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=machine, dest=machine, operation=o, station=None))
+    machine.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=machine, dest=machine, operation=o, station=None))
     time               += execution_time
-    process.free_at     = time
+    machine.free_at     = time
     o.end               = time
     o.status            = DONE
     o.remaining_time    = 0
@@ -230,20 +230,20 @@ def robot_move_to_job(j: JobState, o: OperationState, robot: RobotState, M: int,
         time           += M
     return time
 
-def robot_move_to_process(j: JobState, o: OperationState, robot: RobotState, process: Process, M: int, time: int) -> int:
+def robot_move_to_machine(j: JobState, o: OperationState, robot: RobotState, machine: Machine, M: int, time: int) -> int:
     s: StationState = j.current_station if j.location.position_type == POS_STATION else None
-    robot.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=robot.location, dest=process, operation=o, station=s))
-    j.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=robot.location, dest=process, operation=o, station=s))
-    robot.location  = process
-    j.location      = process
+    robot.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=robot.location, dest=machine, operation=o, station=s))
+    j.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=robot.location, dest=machine, operation=o, station=s))
+    robot.location  = machine
+    j.location      = machine
     time           += M
     robot.free_at   = time
     return time
 
-def position_job(j: JobState, o: OperationState, robot: RobotState, process: Process, time: int) -> int:
-    j.calendar.add(Event(start=time, end=(time + j.job.pos_time), event_type=POS, job=j, source=process, dest=process, operation=o, station=None))
-    process.calendar.add(Event(start=time, end=(time + j.job.pos_time), event_type=POS, job=j, source=process, dest=process, operation=o, station=None))
-    robot.calendar.add(Event(start=time, end=(time + j.job.pos_time), event_type=POS, job=j, source=process, dest=process, operation=o, station=None))
+def position_job(j: JobState, o: OperationState, robot: RobotState, machine: Machine, time: int) -> int:
+    j.calendar.add(Event(start=time, end=(time + j.job.pos_time), event_type=POS, job=j, source=machine, dest=machine, operation=o, station=None))
+    machine.calendar.add(Event(start=time, end=(time + j.job.pos_time), event_type=POS, job=j, source=machine, dest=machine, operation=o, station=None))
+    robot.calendar.add(Event(start=time, end=(time + j.job.pos_time), event_type=POS, job=j, source=machine, dest=machine, operation=o, station=None))
     time           += j.job.pos_time
     robot.free_at   = time
     return time

@@ -60,8 +60,8 @@ def search_possible_decisions(state: State, device: str) -> list[Decision]:
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=True))
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=False))
+                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
+                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
