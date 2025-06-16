@@ -1,11 +1,5 @@
-from models.instance import Instance, MathInstance
 from models.state import *
 from conf import * 
-
-import matplotlib.pyplot as plt
-import networkx as nx
-from torch_geometric.utils import to_networkx
-
 
 # ##################################
 # =*= STEP-BY-STEP GNN SIMULATOR =*=
