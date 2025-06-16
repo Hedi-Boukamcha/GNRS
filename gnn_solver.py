@@ -63,7 +63,7 @@ def search_possible_decisions(state: State, device: str) -> list[Decision]:
                 decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
                 decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
 def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
