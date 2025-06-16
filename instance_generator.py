@@ -12,10 +12,6 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
-# TODO
-# 1. station, procede etc. commencent a 0
-# 2. genere les due dates logiques avec le nb jobs (certains jobs on des dues dates loin ... nb ops + procesing times)
-
 def generate_controledSize_instance(
         nombre_jobs: int = 5,
         max_operations_par_job: int = 2,

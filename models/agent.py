@@ -63,7 +63,7 @@ class Agent:
         self.path: str            = path
         self.device: str          = device
         if load:
-            self.load(path=path, device=device)
+            self.load(device=device)
         self.policy_net.to(device=device)
         if train:
             self.target_net: QNet     = QNet()
