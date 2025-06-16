@@ -1,6 +1,6 @@
 from models.instance import Instance, MathInstance, FIRST_OP, MACHINE_1_SEQ_MODE_A, MACHINE_1_PARALLEL_MODE_B, MACHINE_2_MODE_C, STATION_1, STATION_2, STATION_3, MACHINE_1, MACHINE_2
 from ortools.sat.python import cp_model
-from simulators.cp_simulator import gantt_cp_solution
+from gantt.cp_gantt import  cp_gantt
 import argparse
 import pandas as pd
 import time
@@ -160,7 +160,7 @@ def c7(model: cp_model.CpModel, i: MathInstance):
                         model.Add(i.s.exe_start[j][o] - i.s.exe_start[j_prime][o_prime] - (i.pos_j[j_prime] + i.M) * i.s.exe_mode[j_prime][o_prime][MACHINE_1_PARALLEL_MODE_B] * (1-i.job_modeB[j_prime]) + i.I * (1-i.s.exe_before[j_prime][j][o_prime][o]) >= i.M * (1 - i.job_robot[j]))
     return model, i.s
 
-# Only operation needing Process 2 can be executed in parallel (meaning: there is another job in the positioner for Process 1)
+# Only operation needing Machine2 can be executed in parallel (meaning: there is another job in the positioner for Machine1)
 def c8(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
@@ -186,7 +186,7 @@ def c10(model: cp_model.CpModel, i: MathInstance):
             model.Add(1 == sum(terms))
     return model, i.s
 
-# Operation requirering Process 2 are executed in Mode C (neither A or B - reserved for Process 1)
+# Operation requirering Machine2 are executed in Mode C (neither A or B - reserved for Machine1)
 def c11(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
@@ -336,7 +336,7 @@ def solver_per_file(path, id, debug: bool=True):
         results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
         results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
         if debug:
-            gantt_cp_solution(instance, i, solver, instance_file)
+            cp_gantt(instance, i, solver, instance_file)
             instance.display()
     else:
         no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})

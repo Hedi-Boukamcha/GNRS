@@ -10,9 +10,9 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 class Operation:
-    def __init__(self, type: int = 0, processing_time: int = 0):
+    def __init__(self, type: int = 0, machineing_time: int = 0):
         self.type = type
-        self.processing_time = processing_time
+        self.processing_time = machineing_time
     
     def __str__(self):
         return f"{{'type':{self.type}, 'processing_time':{self.processing_time}}}"
@@ -41,7 +41,7 @@ class Instance:
             _data = json.load(f)
         jobs = []
         for job_data in _data["jobs"]:
-            operations = [Operation(type=op["type"], processing_time=op["processing_time"]) for op in job_data["operations"]]
+            operations = [Operation(type=op["type"], machineing_time=op["processing_time"]) for op in job_data["operations"]]
             job = Job(big=job_data["big"], due_date=job_data["due_date"], pos_time=job_data["pos_time"], operations=operations, status=job_data["status"], blocked=job_data["blocked"])
             jobs.append(job)
         return Instance(jobs=jobs)

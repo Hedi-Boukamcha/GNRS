@@ -36,7 +36,7 @@ def solve_one(path: str, size: str, id: str):
     for index in sorted_jobs:
         j: Job = index.job
         for o_id, o in enumerate(j.operations):
-            decisions.append(Decision(job_id=index.idx, operation_id=o_id, job_id_in_graph=0, process=o.type, parallel=False))
+            decisions.append(Decision(job_id=index.idx, operation_id=o_id, job_id_in_graph=0, machine=o.type, parallel=False))
 
     # Stage 2. Improve the solution using our local search!
     state: State = LS(i, decisions)

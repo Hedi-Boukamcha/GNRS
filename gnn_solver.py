@@ -30,6 +30,7 @@ from utils.common import to_bool
 from heuristic.local_search import ls as LS
 from models.agent import Agent
 from models.memory import Transition
+from gantt.gnn_gantt import gnn_gantt
 
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
@@ -59,10 +60,10 @@ def search_possible_decisions(state: State, device: str) -> list[Decision]:
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=True))
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, process=o.operation.type, parallel=False))
+                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
+                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.process, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
 def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
@@ -117,6 +118,7 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     if not train:
         if improve:
             state = LS(i, state.decisions) # improve with local search
+            gnn_gantt(state, f"instance_{id}")
         state.display_calendars()
         computing_time = time.time() - start_time
         with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
@@ -164,9 +166,9 @@ def train(agent: Agent, path: str, device: str):
             agent.save()
     print("End!")
 
-# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=False --path=./
-# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=False --path=./
-# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=False --path=./
+# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=./
+# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=false --path=./
+# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=false --path=./
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)

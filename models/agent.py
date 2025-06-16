@@ -63,7 +63,7 @@ class Agent:
         self.path: str            = path
         self.device: str          = device
         if load:
-            self.load(path=path, device=device)
+            self.load(device=device)
         self.policy_net.to(device=device)
         if train:
             self.target_net: QNet     = QNet()
@@ -101,7 +101,7 @@ class Agent:
     def _shift_actions(self, action_tensors: list[Tensor], graphs_batch: Batch) -> Tensor: # action_tensors is a list[(nᵢ,3)]
         """
             Convert job-local ids -> global row ids, list order == graph order.
-            Returns (Σ|Aᵢ|, 3) tensor [job_global , process , parallel].
+            Returns (Σ|Aᵢ|, 3) tensor [job_global , machine , parallel].
         """
         ptr     = graphs_batch['job'].ptr                # [B+1] Get the number of jobs in each state
         decisions_with_batch_ids = []                    # List to save the results                                
@@ -110,7 +110,7 @@ class Agent:
             local_id   = pa[:, 0].long()                 # Get the local id before offset
             global_id  = local_id + offset               # Build the global (batch-level) ids for every row needs shift
             pa_adj     = torch.stack([global_id.to(pa.dtype), # the final tensor would have the global id,
-                                    pa[:, 1],                 # the process,
+                                    pa[:, 1],                 # the machine,
                                     pa[:, 2]], dim=1)         # and the parallel option!
             decisions_with_batch_ids.append(pa_adj)      # Add the new "possible decision"
         out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3) 
