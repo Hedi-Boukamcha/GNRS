@@ -1,79 +1,125 @@
-from matplotlib.transforms import Bbox
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
+from matplotlib.patches import Rectangle
+
 from conf import *
-from models.state import *
+from models.state import State
 
 
-def gnn_gantt(state: State, instance: str):
-    job_colors = ['#bbe5dd', "#c6def0", "#f7cbc5",
-                  '#fed2a1', '#d1eba5', '#fde1ef']
-    machine_colors = {MACHINE_1: "#00FFF2", MACHINE_2: "#FF0000"}
+# #########################
+# =*= DISPLAY GNN GANTT =*=
+# #########################
+__author__  = "Hedi Boukamcha"
+__email__   = "hedi.boukamcha.1@ulaval.ca"
+__version__ = "1.0.0" 
+__license__ = "MIT"
 
-    # ─── construire tasks ────────────────────────────────────────────
-    tasks = []
-    for job in state.job_states:
-        for e in job.calendar.events:
-            if e.event_type == EXECUTE:
-                tasks.append({
-                    "label"    : f"Job {job.id+1} → Op {e.operation.id+1}",
-                    "start"    : e.start,
-                    "duration" : e.end - e.start,
-                    "end"      : e.end,
-                    "station"  : e.station.id+1,     # 0–2
-                    "job_id"   : job.id,
-                    "proc_type": e.operation.operation.type
-                })
 
-    # ─── tracer ───────────────────────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(12, 3))
-    renderer = fig.canvas.get_renderer()
+def resource_calendars(state: State):
+    return {
+        "Station 1":  state.all_stations.get(STATION_1).calendar.events,
+        "Station 2":  state.all_stations.get(STATION_2).calendar.events,
+        "Station 3":  state.all_stations.get(STATION_3).calendar.events,
+        "Machine 1":  state.process1.calendar.events,
+        "Machine 2":  state.process2.calendar.events,
+        "Robot":      state.robot.calendar.events,
+        "Positioner": [e for e in state.process1.calendar.events
+                       if e.event_type == POS],
+    }
 
+
+def gnn_gantt(state: State, instance: str,
+              bar_h: float = 0.8, min_bar_for_text: float = 5):
+    calendars   = resource_calendars(state)
+    level_index = {lvl: i for i, lvl in enumerate(LEVELS)}
+    tasks       = []
+
+    # 3-a. Construction des tâches
+    for lvl, events in calendars.items():
+        for e in events:
+            dur = e.end - e.start
+            if dur < MIN_REAL_DURATION and e.event_type == LOAD:
+                continue
+
+            job    = getattr(e, "job", None)
+            job_id = job.id if job else -1
+            color  = JOB_COLORS[job_id % len(JOB_COLORS)] if job_id >= 0 else "#cccccc"
+
+            if e.event_type in {EXECUTE, HOLD} and job and e.operation:
+                op_id = e.operation.id + 1
+                label = f"{'execute' if e.event_type==EXECUTE else 'hold'} : J{job_id+1} ⇒ Op{op_id}"
+            else:
+                label = EVENT_NAMES[e.event_type]
+
+            tasks.append({
+                "level":      lvl,
+                "start":      e.start,
+                "end":        e.end,
+                "dur":        dur,
+                "event_type": e.event_type,
+                "label":      label,
+                "color":      color,
+            })
+
+    if not tasks:
+        print("Aucun évènement à tracer.")
+        return
+
+    # 3-b. Figure et barre de temps
+    t_min = min(t["start"] for t in tasks)
+    t_max = max(t["end"]   for t in tasks)
+    fig, ax = plt.subplots(figsize=(max(12, (t_max - t_min) * .12), 6))
+
+    # 3-c. Tracé des barres
     for t in tasks:
-        level = t["station"]
-        face  = job_colors[t["job_id"] % len(job_colors)]
-        edge  = machine_colors[t["proc_type"]]
+        y = level_index[t["level"]]
+        ax.barh(y, t["dur"], left=t["start"],
+                height=bar_h, align="edge",
+                color=t["color"], edgecolor="black")
 
-        # barre
-        ax.barh(level, t["duration"], left=t["start"],
-                color=face, edgecolor=edge, linewidth=2)
+        rot = 90 if t["label"] in {"move", "load", "unload"} else 0
+        fw  = 'bold' if t["event_type"] in BOLD_EVENTS else 'normal'
 
-        # calcul police auto
-        bar_px = (ax.transData.transform([[t["start"], 0],
-                                          [t["start"] + t["duration"], 0]])[1, 0]
-                  - ax.transData.transform([[0, 0]])[0, 0])
+        if rot == 90 or t["dur"] >= min_bar_for_text:
+            x_text, ha = t["start"] + t["dur"]/2, "center"
+        else:
+            x_text, ha = t["end"] + 0.2, "left"
 
-        for fs in range(10, 3, -1):
-            test = ax.text(0, 0, t["label"], fontsize=fs)
-            w = test.get_window_extent(renderer).width
-            test.remove()
-            if w < bar_px - 4:      # marge interne
-                break
+        ax.text(x_text, y + bar_h/2, t["label"],
+                rotation=rot, ha=ha, va="center",
+                fontsize=7, fontweight=fw)
 
-        # étiquette finale (une seule)
-        ax.text(t["start"] + t["duration"]/2, level,
-                t["label"], ha='center', va='center',
-                fontsize=fs, clip_on=True)
+    # 3-d. Lignes de niveau
+    for i in range(len(LEVELS)):
+        ax.hlines(i, t_min, t_max, colors="grey", linestyles=":", linewidth=0.8, alpha=0.6, zorder=2)
 
-    # ─── axes et légende (inchangés) ──────────────────────────────────
-    ax.set_yticks([0, 1, 2, 3, 4])
-    ax.set_yticklabels(['0','S1', 'S2', 'S3', ''])
+    # 3-e. Repères « load » initiaux (stations qui ont un LOAD à t_min)
+    base_width = 1
+    for st in STATIONS:
+        events_lvl = calendars[st]
+        first_load = next((e for e in events_lvl if e.event_type == LOAD and e.start == t_min), None)
+        if not first_load:
+            continue
+        job    = first_load.job
+        job_id = job.id if job else -1
+        color  = JOB_COLORS[job_id % len(JOB_COLORS)] if job else "#cccccc"
+        y      = level_index[st]
 
-    time_points = sorted({t["start"] for t in tasks}
-                         | {t["end"] for t in tasks})
-    ax.set_xticks(time_points)
-    ax.set_xticklabels([f'{t:.1f}' for t in time_points],
-                       rotation=45, fontsize=8)
-    ax.set_xlim(0, max(time_points) + 5)
+        ax.add_patch(Rectangle((t_min, y), base_width, bar_h, facecolor=color, edgecolor="black", hatch="///", clip_on=False, zorder=3))
+        ax.text(t_min + base_width/2, y + bar_h/2, "", rotation=90, ha="center", va="center",zorder=2)
 
-    ax.set_xlabel("Temps")
+    # 3-f. Axe X
+    times = sorted({p for t in tasks for p in (t["start"], t["end"])})
+    ax.set_xticks(times)
+    ax.set_xticklabels([f"{x:.1f}" for x in times], rotation=45, fontsize=6)
+    ax.set_xlim(times[0], times[-1])
+
+    # 3-g. Axe Y
+    ax.set_yticks(range(len(LEVELS)))
+    ax.set_yticklabels(LEVELS, fontsize=8)
+
     ax.set_title(f"Diagramme de Gantt – {instance}")
-
-    handles = [plt.Rectangle((0,0), 1, 1, fc='white',
-                             ec=machine_colors[p], lw=2)
-               for p in sorted(machine_colors)]
-    ax.legend(handles, [f"Machine {p+1}" for p in sorted(machine_colors)],
-              loc='upper right', fontsize=7)
-
-    ax.grid(axis='x', linestyle='--', alpha=.3)
-    plt.tight_layout()
+    ax.grid(axis="x", linestyle="--", alpha=0.3)
+    fig.tight_layout()
     plt.show()

@@ -213,8 +213,8 @@ def execute_operation(j: JobState, o: OperationState, robot: RobotState, process
     if not parallel:
         robot.free_at   = time
         robot.calendar.add(Event(start=time, end=(time + execution_time), event_type=HOLD, job=j, source=process, dest=process, operation=o, station=None))
-    j.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=process, dest=process, operation=o, station=j.current_station))
-    process.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=process, dest=process, operation=o, station=j.current_station))
+    j.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=process, dest=process, operation=o, station=None))
+    process.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=process, dest=process, operation=o, station=None))
     time               += execution_time
     process.free_at     = time
     o.end               = time
