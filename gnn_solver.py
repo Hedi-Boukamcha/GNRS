@@ -166,9 +166,9 @@ def train(agent: Agent, path: str, device: str):
             agent.save()
     print("End!")
 
-# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=False --path=./
-# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=False --path=./
-# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=False --path=./
+# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=./
+# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=false --path=./
+# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=false --path=./
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)

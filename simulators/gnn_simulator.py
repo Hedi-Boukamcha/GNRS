@@ -164,7 +164,7 @@ def cancel_unloading_last_parallel_if_exist(state: State, needs_station_2: bool)
 # (3/4) FREE THE TARGET MACHINE IF STILL BUSY ##############################################################
 
 def previous_job_back_to_station(state: State, robot: RobotState, j: JobState, machine: Machine, M: int, time: int) -> int:
-    time = max(time, machine.free_at)
+    time = max(time, machine.free_at, robot.free_at)
     if machine.calendar.has_events(): 
         previous_job: JobState = machine.calendar.get(-1).job
         previous_op: OperationState = machine.calendar.get(-1).operation
@@ -177,7 +177,7 @@ def simulate_station_min_free_at(robot: RobotState, j: JobState, o: OperationSta
     if robot.location != j.location:
         simulated_time += M
     j.current_station.free_at = simulated_time # min time at which the station could be free
-    simulated_time = simulated_time + M + j.operation_states[o.id + 1].operation.processing_time
+    simulated_time            = simulated_time + M + j.operation_states[o.id + 1].operation.processing_time
     j.end                     = simulated_time # min time at which the job could end
     j.delay                   = max(0, j.end - j.job.due_date)
     return simulated_time
@@ -211,7 +211,7 @@ def execute_operation(j: JobState, o: OperationState, robot: RobotState, machine
     execution_time: int = o.operation.processing_time
     o.start             = time
     if not parallel:
-        robot.free_at   = time
+        robot.free_at   = time + execution_time
         robot.calendar.add(Event(start=time, end=(time + execution_time), event_type=HOLD, job=j, source=machine, dest=machine, operation=o, station=None))
     j.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=machine, dest=machine, operation=o, station=None))
     machine.calendar.add(Event(start=time, end=(time + execution_time), event_type=EXECUTE, job=j, source=machine, dest=machine, operation=o, station=None))
@@ -227,6 +227,7 @@ def robot_move_to_job(j: JobState, o: OperationState, robot: RobotState, M: int,
         s: StationState = j.current_station if j.location.position_type == POS_STATION else None
         robot.calendar.add(Event(start=time, end=(time + M), event_type=MOVE, job=j, source=robot.location, dest=j.location, operation=o, station=s))
         robot.location  = j.location
+        robot.free_at   = max(robot.free_at, time + M)
         time           += M
     return time
 
