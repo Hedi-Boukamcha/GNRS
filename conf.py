@@ -18,8 +18,8 @@ STATION_3: int = 2
 FIRST_OP: int = 0 
 
 POS_STATION: int   = 0
-POS_PROCESS_1: int = 1
-POS_PROCESS_2: int = 2
+POS_MACHINE_1: int = 1
+POS_MACHINE_2: int = 2
 LOCATION_NAMES: list[str] = ["stations", "process 1", "process 2"]
 
 LOAD: int    = 0

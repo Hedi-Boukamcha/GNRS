@@ -93,12 +93,12 @@ class Calendar:
         c: Calendar = Calendar()
         for e in self.events:
             job: JobState         = new_state.get_job(e.job)
-            source: Position      = new_state.process1 if e.source and e.source.position_type == POS_PROCESS_1 \
-                                        else new_state.process2 if e.source and e.source.position_type == POS_PROCESS_2 \
+            source: Position      = new_state.process1 if e.source and e.source.position_type == POS_MACHINE_1 \
+                                        else new_state.process2 if e.source and e.source.position_type == POS_MACHINE_2 \
                                         else new_state.all_stations if e.source and e.source.position_type == POS_STATION \
                                         else None
-            dest: Position        = new_state.process1 if e.dest and e.dest.position_type == POS_PROCESS_1 \
-                                        else new_state.process2 if e.dest and e.dest.position_type == POS_PROCESS_2 \
+            dest: Position        = new_state.process1 if e.dest and e.dest.position_type == POS_MACHINE_1 \
+                                        else new_state.process2 if e.dest and e.dest.position_type == POS_MACHINE_2 \
                                         else new_state.all_stations if e.dest and e.dest.position_type == POS_STATION \
                                         else None
             operation: Operation  = job.get_operation(e.operation.id) if job is not None and e.operation is not None else None
@@ -145,8 +145,8 @@ class State:
             self.total_delay += j.delay
 
     def display_calendars(self):
-        self.process1.calendar.display_calendar("PROCESS #1")
-        self.process2.calendar.display_calendar("PROCESS #2")
+        self.process1.calendar.display_calendar("MACHINE #1")
+        self.process2.calendar.display_calendar("MACHINE #2")
         self.robot.calendar.display_calendar("ROBOT")
         for s in self.all_stations.stations:
             s.calendar.display_calendar(f"LOADING STATION #{(s.id +1)}")
@@ -236,12 +236,12 @@ class State:
                     cs3 = 1.0
                     job_station_3 = j.graph_id
                 m1, m2 = 0.0, 0.0
-                if self.check_location(j.location, POS_PROCESS_1):
+                if self.check_location(j.location, POS_MACHINE_1):
                     m1 = 1.0
                     job_machine_1 = j.graph_id
                     if j.id != last_job_in_pos:
                         job_robot = j.graph_id
-                elif self.check_location(j.location, POS_PROCESS_2):
+                elif self.check_location(j.location, POS_MACHINE_2):
                     m2 = 1.0
                     job_machine_2 = j.graph_id
                     job_robot = j.graph_id
@@ -351,8 +351,8 @@ class State:
         robot_features: list = []
         time_before_free: float = max(0.0, self.robot.free_at - current_time)
         robot_features.append([self.check_location(self.robot.location, POS_STATION),   # 0. Is the robot on the stations?
-                               self.check_location(self.robot.location, POS_PROCESS_1), # 1. Is the robot on machine 1
-                               self.check_location(self.robot.location, POS_PROCESS_2), # 2. Is the robot on machine 2
+                               self.check_location(self.robot.location, POS_MACHINE_1), # 1. Is the robot on machine 1
+                               self.check_location(self.robot.location, POS_MACHINE_2), # 2. Is the robot on machine 2
                                time_before_free])                                       # 3. Estimated (or real) remaining time before free
         graph["robot"].x = torch.tensor(robot_features, dtype=torch.float)
 
@@ -378,8 +378,8 @@ class RobotState:
     def clone_calendar_and_current_job_and_location(self, new_state: State):
         new_state.robot.current_job = new_state.get_job(self.current_job)
         new_state.robot.calendar    = self.calendar.clone(new_state)
-        new_state.robot.location    = new_state.process1 if self.location.position_type == POS_PROCESS_1 \
-                                        else new_state.process2 if self.location.position_type == POS_PROCESS_2 \
+        new_state.robot.location    = new_state.process1 if self.location.position_type == POS_MACHINE_1 \
+                                        else new_state.process2 if self.location.position_type == POS_MACHINE_2 \
                                         else new_state.all_stations
 
 @dataclass
@@ -438,7 +438,7 @@ class Process1(Process):
     def __init__(self):
         super().__init__()
         self.pos_is_full: bool  = False
-        self.position_type: int = POS_PROCESS_1
+        self.position_type: int = POS_MACHINE_1
         
     def clone(self) -> 'Process1':
         p1: Process1     = Process1()
@@ -454,7 +454,7 @@ class Process1(Process):
 class Process2(Process):
     def __init__(self):
         super().__init__()
-        self.position_type: int = POS_PROCESS_2
+        self.position_type: int = POS_MACHINE_2
 
     def clone(self) -> 'Process2':
         p2: Process2     = Process2()
@@ -503,8 +503,8 @@ class JobState:
         new_job.current_station = new_state.get_station(self.current_station)
         new_job.calendar        = self.calendar.clone(new_state)
         if self.location:
-            new_job.location = new_state.process1 if self.location.position_type == POS_PROCESS_1 \
-                                else new_state.process2 if self.location.position_type == POS_PROCESS_2 \
+            new_job.location = new_state.process1 if self.location.position_type == POS_MACHINE_1 \
+                                else new_state.process2 if self.location.position_type == POS_MACHINE_2 \
                                 else new_state.all_stations if self.location.position_type == POS_STATION \
                                 else None
 

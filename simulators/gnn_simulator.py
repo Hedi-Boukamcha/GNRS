@@ -112,9 +112,9 @@ def get_loading_time_and_force_unloading_previous(state: State, station: Station
         current_job: JobState   = station.current_job
         last_op: OperationState = current_job.get_last_executed_operation()
         time: int               = last_op.end if last_op else 0
-        if current_job.location.position_type == POS_PROCESS_1:
+        if current_job.location.position_type == POS_MACHINE_1:
             time = robot_move_job_to_station(state, state.robot, current_job, last_op, state.process1, state.M, time)
-        elif current_job.location.position_type == POS_PROCESS_2:
+        elif current_job.location.position_type == POS_MACHINE_2:
             time = robot_move_job_to_station(state, state.robot, current_job, last_op, state.process2, state.M, time)
         time = unload(state, current_job, last_op, L, time)
         return time
@@ -126,7 +126,7 @@ def test_loading_time(state: State, station: StationState) -> int:
         current_job: JobState   = station.current_job
         last_op: OperationState = current_job.get_last_executed_operation()
         time: int               = last_op.end if last_op else 0
-        if current_job.location.position_type == POS_PROCESS_1 or current_job.location.position_type == POS_PROCESS_2:
+        if current_job.location.position_type == POS_MACHINE_1 or current_job.location.position_type == POS_MACHINE_2:
             time +=2* state.M if state.robot.location != current_job.location else state.M
         time += state.L
         return time
@@ -161,7 +161,7 @@ def cancel_unloading_last_parallel_if_exist(state: State, needs_station_2: bool)
             return j, j.current_station
     return None, None
 
-# (3/4) FREE THE TARGET PROCESS IF STILL BUSY ##############################################################
+# (3/4) FREE THE TARGET MACHINE IF STILL BUSY ##############################################################
 
 def previous_job_back_to_station(state: State, robot: RobotState, j: JobState, process: Process, M: int, time: int) -> int:
     time = max(time, process.free_at)
