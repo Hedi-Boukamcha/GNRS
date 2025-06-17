@@ -18,21 +18,19 @@ __license__ = "MIT"
 
 def resource_calendars(state: State):
     return {
-        "Station 1":  state.all_stations.get(STATION_1).calendar.events,
-        "Station 2":  state.all_stations.get(STATION_2).calendar.events,
-        "Station 3":  state.all_stations.get(STATION_3).calendar.events,
-        "Machine 1":  state.machine1.calendar.events,
-        "Machine 2":  state.machine2.calendar.events,
-        "Robot":      state.robot.calendar.events,
-        "Positioner": [e for e in state.machine1.calendar.events
-                       if e.event_type == POS],
+        "Station 1" : state.all_stations.get(STATION_1).calendar.events,
+        "Station 2" : state.all_stations.get(STATION_2).calendar.events,
+        "Station 3" : state.all_stations.get(STATION_3).calendar.events,
+        "Machine 1" : state.machine1.calendar.events,
+        "Machine 2" : state.machine2.calendar.events,
+        "Robot"     : state.robot.calendar.events,
+        "Positioner": [e for e in state.machine1.calendar.events if e.event_type == POS],
     }
 
 
-def gnn_gantt(state: State, instance: str,
-              bar_h: float = 0.8, min_bar_for_text: float = 5):
+def gnn_gantt(state: State, instance: str, bar_h: float = 0.8, min_bar_for_text: float = 5):
     calendars   = resource_calendars(state)
-    level_index = {lvl: i for i, lvl in enumerate(LEVELS)}
+    level_index = {lvl: i for i, lvl in enumerate(GNN_GANTT_LEVELS)}
     tasks       = []
 
     # 3-a. Construction des tâches
@@ -53,13 +51,13 @@ def gnn_gantt(state: State, instance: str,
                 label = EVENT_NAMES[e.event_type]
 
             tasks.append({
-                "level":      lvl,
-                "start":      e.start,
-                "end":        e.end,
-                "dur":        dur,
+                "level"     : lvl,
+                "start"     : e.start,
+                "end"       : e.end,
+                "dur"       : dur,
                 "event_type": e.event_type,
-                "label":      label,
-                "color":      color,
+                "label"     : label,
+                "color"     : color,
             })
 
     if not tasks:
@@ -67,8 +65,8 @@ def gnn_gantt(state: State, instance: str,
         return
 
     # 3-b. Figure et barre de temps
-    t_min = min(t["start"] for t in tasks)
-    t_max = max(t["end"]   for t in tasks)
+    t_min   = min(t["start"] for t in tasks)
+    t_max   = max(t["end"]   for t in tasks)
     fig, ax = plt.subplots(figsize=(max(12, (t_max - t_min) * .12), 6))
 
     # 3-c. Tracé des barres
@@ -86,13 +84,11 @@ def gnn_gantt(state: State, instance: str,
         else:
             x_text, ha = t["end"] + 0.2, "left"
 
-        ax.text(x_text, y + bar_h/2, t["label"],
-                rotation=rot, ha=ha, va="center",
-                fontsize=7, fontweight=fw)
+        ax.text(x_text, y + bar_h/2, t["label"], rotation=rot, ha=ha, va="center", fontsize=7, fontweight=fw)
 
     # 3-d. Lignes de niveau
-    for i in range(len(LEVELS)):
-        ax.hlines(i, t_min, t_max, colors="grey", linestyles=":", linewidth=0.8, alpha=0.6, zorder=2)
+    for i in range(len(GNN_GANTT_LEVELS)):
+        ax.hlines(i, t_min, t_max, colors="grey", linestyles=":", linewidth=0.8, alpha=0.6, zorder=0)
 
     # 3-e. Repères « load » initiaux (stations qui ont un LOAD à t_min)
     base_width = 1
@@ -116,8 +112,8 @@ def gnn_gantt(state: State, instance: str,
     ax.set_xlim(times[0], times[-1])
 
     # 3-g. Axe Y
-    ax.set_yticks(range(len(LEVELS)))
-    ax.set_yticklabels(LEVELS, fontsize=8)
+    ax.set_yticks(range(len(GNN_GANTT_LEVELS)))
+    ax.set_yticklabels(GNN_GANTT_LEVELS, fontsize=8)
 
     ax.set_title(f"Diagramme de Gantt – {instance}")
     ax.grid(axis="x", linestyle="--", alpha=0.3)
