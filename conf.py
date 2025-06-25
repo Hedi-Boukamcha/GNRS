@@ -63,10 +63,9 @@ LR                  = 1e-3   # learning rate of AdamW
 EPS_START           = 0.9    # starting value of epsilon
 EPS_END             = 0.005  # final value of epsilon
 EPS_DECAY_RATE      = 4000   # controls the rate of exponential decay of epsilon
-NB_EPISODES         = 15_000 # 33 episodes per instances on average
+NB_EPISODES         = 12_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
-
 
 # Gantt CONFIG
 JOB_COLORS        = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9']
