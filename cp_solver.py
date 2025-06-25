@@ -295,7 +295,7 @@ def c21(model: cp_model.CpModel, i: MathInstance):
             model.Add(i.s.exe_start[j][o] - sum(terms) >= 0)
     return model, i.s
 
-def solver_per_file(path, id, debug: bool=True):
+def solver_per_file(path, id, debug: bool=False):
     start_time = time.time()
     instance_file = path+"/instance_"+id+".json"
     instance: Instance = Instance.load(instance_file)
@@ -315,14 +315,14 @@ def solver_per_file(path, id, debug: bool=True):
         solver.parameters.enumerate_all_solutions = False
         solver.parameters.log_search_progress     = True
     else:
-        solver.parameters.max_time_in_seconds = 10 * 60.0 * 60.0 # 10 hours
-        solver.parameters.max_memory_in_mb    = 150_000          # 150 giga RAM
+        solver.parameters.max_time_in_seconds = 23 * 60.0 * 60.0 # 23 hours
+        solver.parameters.max_memory_in_mb    = 175_000          # 150 giga RAM
         solver.parameters.num_search_workers  = 32               # 32 CPUs
         solver.parameters.random_seed         = 1
         solver.parameters.cp_model_presolve                         = True
         solver.parameters.max_presolve_iterations                   = 3
         solver.parameters.presolve_probing_deterministic_time_limit = 5
-        # solver.parameters.use_timestamps_in_interleave_operator     = True
+        # solver.parameters.use_timestamps_in_interleave_operator   = True
         solver.parameters.search_branching                          = (cp_model.PORTFOLIO_WITH_QUICK_RESTART_SEARCH)
         solver.parameters.linearization_level                       = 1
     status = solver.Solve(model)
