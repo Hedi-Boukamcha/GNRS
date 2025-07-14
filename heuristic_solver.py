@@ -22,8 +22,9 @@ def solve_all_test(path: str):
         p: str = path+folder+"/"
         for i in os.listdir(p):
             if i.endswith('.json'):
-                id: str = re.search(r"instance_(\d+)\.json", i)
-                solve_one(path=path, size=folder, id=id)
+                idx = re.search(r"instance_(\d+)\.json", i)
+                for id in idx.groups():
+                    solve_one(path=path, size=folder, id=id)
 
 def solve_one(path: str, size: str, id: str):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
@@ -54,16 +55,12 @@ def solve_one(path: str, size: str, id: str):
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
-    parser.add_argument("--interactive", help="display loss in real time", required=True)
-    parser.add_argument("--mode", help="GNN use mode, either train, test_one, or test_all", required=True)
+    parser.add_argument("--mode", help="LS use mode, either train, test_one, or test_all", required=True)
     parser.add_argument("--size", help="size of the instance, either s, m, l or xl", required=False)
     parser.add_argument("--id", help="id of the instance to solve", required=False)
-    parser.add_argument("--load", help="do we load the weights of policy_net", required=True)
-    parser.add_argument("--improve", help="improve the solution using local improvement operator", required=False)
     args               = parser.parse_args()
     base_path: str     = args.path
-    instance_type: str = "debug/" if args.mode=="debug" else "train/" if args.mode == "train" else "test/"
-    path: str          = base_path + "/data/instances/" + instance_type
+    path: str          = base_path + "/data/instances/test/"
     if args.mode == "test_all":
         solve_all_test(path=path)
     else:
