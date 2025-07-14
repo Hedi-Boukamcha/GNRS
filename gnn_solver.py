@@ -84,7 +84,7 @@ def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
 def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:
     return torch.tensor([-1.0 * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
+def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
     last_job_in_pos: int = -1
@@ -118,23 +118,25 @@ def solve_one(agent: Agent, path: str, size: str, id: str, improve: bool, device
     if not train:
         if improve:
             state = LS(i, state.decisions) # improve with local search
-            gnn_gantt(state, f"instance_{id}")
-        state.display_calendars()
+        #state.display_calendars()
         computing_time = time.time() - start_time
         with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
             pickle.dump(state, f)
+        gnn_gantt(gantt_path, state, f"instance_{id}")
         obj: int = state.total_delay + state.cmax
         results = pd.DataFrame({'id': [id], 'obj': [obj], 'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+"gnn_solution_"+extension+id+".csv", index=False)
 
-def solve_all_test(agent: Agent, path: str, improve: bool, device: str):
+def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
+    extension: str = "improved_gnn" if improve else "gnn"
     for folder, _, _ in INSTANCES_SIZES:
         p: str = path+folder+"/"
         for i in os.listdir(p):
             if i.endswith('.json'):
-                id: str = re.search(r"instance_(\d+)\.json", i)
-                solve_one(agent=agent, path=path, size=folder, id=id, improve=improve, device=device, train=False, eps_threshold=0.0)
+                idx = re.search(r"instance_(\d+)\.json", i)
+                for id in idx.groups():
+                    solve_one(agent=agent, gantt_path=gantt_path+extension+"_"+folder+"_"+id+".png", path=path, size=folder, id=id, improve=improve, device=device, train=False, eps_threshold=0.0)
 
 def train(agent: Agent, path: str, device: str):
     start_time = time.time()
@@ -168,7 +170,7 @@ def train(agent: Agent, path: str, device: str):
 
 # TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=./
 # TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=false --path=./
-# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=false --path=./
+# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=.
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
@@ -182,6 +184,7 @@ if __name__ == "__main__":
     base_path: str     = args.path
     instance_type: str = "debug/" if args.mode=="debug" else "train/" if args.mode == "train" else "test/"
     path: str          = base_path + "/data/instances/" + instance_type
+    gantt_path: str    = base_path + "/data/gantts/"
     load_weights: bool = to_bool(args.load)
     interactive: bool  = to_bool(args.interactive)
     # device: str      = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
@@ -191,6 +194,8 @@ if __name__ == "__main__":
     if args.mode == "train":
         train(agent=agent, path=path, device=device)
     elif args.mode == "test_all":
-        solve_all_test(agent=agent, path=path, improve=to_bool(args.improve), device=device)
+        solve_all_test(agent=agent, path=path, gantt_path=gantt_path, improve=to_bool(args.improve), device=device)
     else:
-        solve_one(agent=agent, path=path, size=args.size , id=args.id, improve=to_bool(args.improve), device=device, train=False, eps_threshold=0.0) 
+        improve: bool = to_bool(args.improve)
+        extension: str = "improved_gnn_" if improve else "gnn_"
+        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+"_"+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, device=device, train=False, eps_threshold=0.0) 

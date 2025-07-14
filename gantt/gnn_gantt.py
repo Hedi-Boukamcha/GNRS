@@ -27,8 +27,7 @@ def resource_calendars(state: State):
         "Positioner": [e for e in state.machine1.calendar.events if e.event_type == POS],
     }
 
-
-def gnn_gantt(state: State, instance: str, bar_h: float = 0.8, min_bar_for_text: float = 5):
+def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_bar_for_text: float = 5):
     calendars   = resource_calendars(state)
     level_index = {lvl: i for i, lvl in enumerate(GNN_GANTT_LEVELS)}
     tasks       = []
@@ -118,4 +117,5 @@ def gnn_gantt(state: State, instance: str, bar_h: float = 0.8, min_bar_for_text:
     ax.set_title(f"Diagramme de Gantt – {instance}")
     ax.grid(axis="x", linestyle="--", alpha=0.3)
     fig.tight_layout()
-    plt.show()
+    fig.savefig(path, dpi=700, bbox_inches="tight")
+    plt.close(fig)
