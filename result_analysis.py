@@ -12,17 +12,17 @@ __license__ = "MIT"
 
 
 
-def exact_solver_results():
+def exact_solver_results(result_type: str, output_file: str):
     path = "./data/instances/test/"
     results_path = "./data/results/"
     sizes = ['s', 'm', 'l', 'xl',]
-
+    
     columns = ['Size', 'Instance ID', 'Status', 'Obj', 'Delay', 'Cmax', 'Computing_time']
     rows = []
 
     for size in sizes:
         for inst_id in range(51):
-            filename = os.path.join(path, f"{size}/exact_solution_{inst_id}.csv")
+            filename = os.path.join(path, f"{size}/{result_type}_{inst_id}.csv")
             if os.path.exists(filename):
                 df = pd.read_csv(filename)
                 row_data = df.iloc[0].to_dict()
@@ -49,9 +49,11 @@ def exact_solver_results():
     df_exact = pd.DataFrame(rows, columns=columns)
     df_exact['Size'] = pd.Categorical(df_exact['Size'], categories=sizes, ordered=True)
     df_exact = df_exact.sort_values(['Size', 'Instance ID'])
-    df_exact.to_csv(results_path+"exact_solver_results.csv", index=False)
+    df_exact.to_csv(results_path + output_file, index=False)
 
 
 if __name__ == "__main__":
-    exact_solver_results()
-    pass
+    exact_solver_results(result_type='exact_solution', output_file='exact_solution_results.csv')
+    exact_solver_results(result_type='gnn_solution', output_file='gnn_solution_results.csv')
+    exact_solver_results(result_type='gnn_solution_improved', output_file='gnn_solution_improved_results.csv')
+    exact_solver_results(result_type='heuristic_solution', output_file='heuristic_solution_results.csv')
