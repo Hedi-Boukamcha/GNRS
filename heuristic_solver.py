@@ -48,7 +48,7 @@ def solve_one(path: str, size: str, id: str):
         pickle.dump(state, f)
     obj: int = state.total_delay + state.cmax
     results = pd.DataFrame({'id': [id], 'obj': [obj], 'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
-    results.to_csv(path+"heuristic_solution_"+id+".csv", index=False)
+    results.to_csv(path+size+"/heuristic_solution_"+id+".csv", index=False)
 
 # TEST ONE WITH: python heuristic_solver.py --mode=test_one --size=s --id=1 --path=./
 # SOLVE ALL WITH: python heuristic_solver.py --mode=test_all --path=./

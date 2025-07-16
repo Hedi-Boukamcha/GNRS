@@ -126,7 +126,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         obj: int = state.total_delay + state.cmax
         results = pd.DataFrame({'id': [id], 'obj': [obj], 'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
-        results.to_csv(path+"gnn_solution_"+extension+id+".csv", index=False)
+        results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
 
 def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
     extension: str = "improved_gnn" if improve else "gnn"
