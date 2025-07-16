@@ -58,7 +58,7 @@ def results_tables(result_type: str, output_file: str):
 
 def detailed_results_per_method(
     file_per_methode: dict,
-    variable: str,
+    variables: list,
     sizes=('s', 'm', 'l', 'xl'),
     output='./data/results/'
     ):
@@ -84,9 +84,15 @@ def detailed_results_per_method(
             df = pd.read_csv(csv_file)
             df_taille = df[df['Size'] == size]
 
-            # Extraction et alignement sur Instance ID
-            valeurs = df_taille.set_index('Instance ID')[variable]
-            df_result[method] = df_result['Instance ID'].map(valeurs)
+            for var in variables:
+                value = df_taille.set_index('Instance ID')[var]
+                df_result[f'{method}_{var}'] = df_result['Instance ID'].map(value)
+            
+            if method == 'exact' and 'Status' in df.columns and 'Instance ID' in df.columns:
+                df = df.drop_duplicates(subset='Instance ID')
+                df_result['exact_Status'] = df_result['Instance ID'].map(
+                    df.set_index('Instance ID')['Status']
+                )
 
         # Sauvegarde par taille
         df_result.to_csv(os.path.join(output, f"detailed_results_{size}.csv"), index=False)
@@ -146,6 +152,9 @@ def construire_tableau_latex_agrégé(
 
 # python3 result_analysis.py
 if __name__ == "__main__":
+
+    variables = ['Delay', 'Cmax', 'Obj', 'Computing_time']
+
     results_tables(result_type='exact_solution', output_file='exact_solution_results.csv')
     results_tables(result_type='gnn_solution', output_file='gnn_solution_results.csv')
     results_tables(result_type='gnn_solution_improved', output_file='gnn_solution_improved_results.csv')
@@ -167,6 +176,6 @@ if __name__ == "__main__":
 
     detailed_results_per_method(
     file_per_methode = result_files,
-    variable ='Delay',
+    variables =variables,
     output='./data/results/'
     )
