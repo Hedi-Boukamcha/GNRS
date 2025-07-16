@@ -167,7 +167,7 @@ def c8(model: cp_model.CpModel, i: MathInstance):
             model.Add(i.s.exe_parallel[j][o] <= i.needed_proc[j][o][MACHINE_2])
     return model, i.s
 
-# The first operation of a job (that is not removed form a station & has no history) starts its first operation after being loaded + one robot move
+# The first operation of a job (that is not removed from a station & has no history) starts its first operation after being loaded + one robot move
 def c9(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         terms = []
