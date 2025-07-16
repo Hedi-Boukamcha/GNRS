@@ -11,6 +11,54 @@ __license__ = "MIT"
 
 
 
+def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
+    df = pd.read_csv(input_csv)
+
+    # Colonnes exactes (Math)
+    math_cols = ['exact_Status', 'exact_Obj', 'exact_Computing_time', 'exact_Cmax', 'exact_Delay', 'exact_Gap']
+    ls_cols   = ['heuristic_Computing_time', 'heuristic_dev_Cmax', 'heuristic_dev_Delay', 'heuristic_dev_Obj']
+    gnn_cols  = ['gnn_Computing_time', 'gnn_dev_Cmax', 'gnn_dev_Delay', 'gnn_dev_Obj']
+    gnnls_cols = ['gnn + ls_Computing_time', 'gnn + ls_dev_Cmax', 'gnn + ls_dev_Delay', 'gnn + ls_dev_Obj']
+
+    # Vérifie la présence des colonnes pour éviter les erreurs
+    columns_present = df.columns.tolist()
+    math_cols = [col for col in math_cols if col in columns_present]
+    ls_cols   = [col for col in ls_cols if col in columns_present]
+    gnn_cols  = [col for col in gnn_cols if col in columns_present]
+    gnnls_cols = [col for col in gnnls_cols if col in columns_present]
+
+    # Final column order
+    ordered_columns = ['Instance ID'] + math_cols + ls_cols + gnn_cols + gnnls_cols
+    df = df[ordered_columns]
+
+    # En-têtes pour LaTeX
+    col_labels = (
+        ['Instance ID'] +
+        ['Status', 'Obj', 'CT', 'Cmax', 'Delay', 'Gap'][:len(math_cols)] +
+        ['CT', 'Dev_Cmax', 'Dev_Delay', 'Dev_Obj'][:len(ls_cols)] +
+        ['CT', 'Dev_Cmax', 'Dev_Delay', 'Dev_Obj'][:len(gnn_cols)] +
+        ['CT', 'Dev_Cmax', 'Dev_Delay', 'Dev_Obj'][:len(gnnls_cols)]
+    )
+
+    # Niveau 1 (groupe)
+    top_headers = (
+        [''] +  # Instance ID
+        ['Math'] * len(math_cols) +
+        ['LS'] * len(ls_cols) +
+        ['GNN'] * len(gnn_cols) +
+        ['GNN+LS'] * len(gnnls_cols)
+    )
+
+    # Construction MultiIndex
+    multi_index = pd.MultiIndex.from_arrays([top_headers, col_labels])
+    df.columns = multi_index
+
+    # Export LaTeX
+    latex_code = df.to_latex(index=False, multicolumn=True, multicolumn_format='c', float_format="%.3f", escape=False)
+
+    # Sauvegarde
+    with open(output_tex, 'w') as f:
+        f.write(latex_code)
 
 def results_tables(result_type: str, output_file: str):
     path         = "./data/instances/test/"
@@ -59,9 +107,6 @@ def results_tables(result_type: str, output_file: str):
     df_result = df_result[columns]
     df_result.to_csv(results_path + output_file, index=False)
 
-
-
-
 def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=('s', 'm', 'l', 'xl'), output='./data/results/'):
 
     os.makedirs(output, exist_ok=True)
@@ -69,32 +114,28 @@ def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=(
         df_result = pd.DataFrame({'Instance ID': list(range(51))})
         exact_data = {}
 
-        # Lecture et stockage des données exactes
         for method, csv_file in file_per_methode.items():
             if method == 'exact':
                 if not os.path.exists(csv_file):
-                    print(f"Fichier exact manquant : {csv_file}")
+                    print(f"No file named : {csv_file}")
                     continue
                 df_exact = pd.read_csv(csv_file)
                 df_exact = df_exact[df_exact['Size'] == size].drop_duplicates(subset='Instance ID')
                 exact_data = df_exact.set_index('Instance ID')
 
-                # Ajout direct des variables exactes
                 for var in variables:
                     if var in exact_data.columns:
                         df_result[f'exact_{var}'] = df_result['Instance ID'].map(exact_data[var])
 
-                # Ajout du Status si dispo
                 if 'Status' in exact_data.columns:
                     df_result['exact_Status'] = df_result['Instance ID'].map(exact_data['Status'])
 
                 if 'Gap' in exact_data.columns:
                     df_result['exact_Gap'] = df_result['Instance ID'].map(exact_data['Gap'])
 
-        # Traitement des autres méthodes
         for method, csv_file in file_per_methode.items():
             if method == 'exact':
-                continue  # déjà traité
+                continue 
 
             if not os.path.exists(csv_file):
                 print(f"Fichier introuvable pour {method}: {csv_file}")
@@ -111,20 +152,16 @@ def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=(
                     deviation = (diff - base) / base
                     df_result[f'{method}_dev_{var}'] = deviation
 
-            # On garde computing_time tel quel
             if 'Computing_time' in df_method.columns:
                 df_result[f'{method}_Computing_time'] = df_result['Instance ID'].map(df_method['Computing_time'])
 
-        # Sauvegarde
         output_file = os.path.join(output, f'detailed_results_{size}.csv')
         df_result.to_csv(output_file, index=False)
 
-
-
-
-
-
-
+        for size in sizes:
+            input_csv = f'./data/results/detailed_results_{size}.csv'
+            output_tex = f'./data/results/detailed_results_{size}.tex'
+            csv_to_latex_table(input_csv, output_tex)
 
 def construire_tableau_latex_agrégé(
     method: dict,
