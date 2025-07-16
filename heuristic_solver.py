@@ -51,7 +51,7 @@ def solve_one(path: str, size: str, id: str):
     results.to_csv(path+size+"/heuristic_solution_"+id+".csv", index=False)
 
 # TEST ONE WITH: python heuristic_solver.py --mode=test_one --size=s --id=1 --path=./
-# SOLVE ALL WITH: python heuristic_solver.py --mode=test_all --path=./
+# SOLVE ALL WITH: python heuristic_solver.py --mode=test_all --path=.
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
