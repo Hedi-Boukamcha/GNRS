@@ -16,9 +16,10 @@ def results_tables(result_type: str, output_file: str):
     path         = "./data/instances/test/"
     results_path = "./data/results/"
     sizes        = ['s', 'm', 'l', 'xl',]
-    columns      = ['Size', 'Instance ID', 'Status', 'Obj', 'Delay', 'Cmax', 'Computing_time']
+    columns      = ['Size', 'Instance ID', 'Obj', 'Delay', 'Cmax', 'Computing_time']
     rows         = []
     status_exists_globally = False
+    gap_exists_globally = False
     for size in sizes:
         for inst_id in range(51):
             filename = os.path.join(path, f"{size}/{result_type}_{inst_id}.csv")
@@ -28,7 +29,7 @@ def results_tables(result_type: str, output_file: str):
                 'Obj':            None,
                 'Delay':          None,
                 'Cmax':           None,
-                'Computing_time': None
+                'Computing_time': None,
             }
             if os.path.exists(filename):
                 df                    = pd.read_csv(filename)
@@ -40,18 +41,23 @@ def results_tables(result_type: str, output_file: str):
                 if 'status' in row_data:
                     row['Status']          = row_data['status']
                     status_exists_globally = True
+                if 'gap' in row_data:
+                    row['Gap']          = row_data['gap']
+                    gap_exists_globally = True
             else:
                 pass
             rows.append(row)
-    df_exact         = pd.DataFrame(rows)
-    df_exact['Size'] = pd.Categorical(df_exact['Size'], categories=sizes, ordered=True)
-    df_exact         = df_exact.sort_values(['Size', 'Instance ID'])
+    df_result         = pd.DataFrame(rows)
+    df_result['Size'] = pd.Categorical(df_result['Size'], categories=sizes, ordered=True)
+    df_result         = df_result.sort_values(['Size', 'Instance ID'])
     columns          = ['Size', 'Instance ID']
-    if status_exists_globally and 'Status' in df_exact.columns:
+    if status_exists_globally and 'Status' in df_result.columns:
         columns.append('Status')
+    if gap_exists_globally and 'Gap' in df_result.columns:
+        columns.append('Gap')
     columns += ['Obj', 'Delay', 'Cmax', 'Computing_time']
-    df_exact = df_exact[columns]
-    df_exact.to_csv(results_path + output_file, index=False)
+    df_result = df_result[columns]
+    df_result.to_csv(results_path + output_file, index=False)
 
 
 
@@ -88,11 +94,18 @@ def detailed_results_per_method(
                 value = df_taille.set_index('Instance ID')[var]
                 df_result[f'{method}_{var}'] = df_result['Instance ID'].map(value)
             
-            if method == 'exact' and 'Status' in df.columns and 'Instance ID' in df.columns:
-                df = df.drop_duplicates(subset='Instance ID')
-                df_result['exact_Status'] = df_result['Instance ID'].map(
-                    df.set_index('Instance ID')['Status']
-                )
+            if method == 'exact':
+                df_exact = df_taille.drop_duplicates(subset='Instance ID')
+
+                if 'Status' in df_exact.columns:
+                    df_result['exact_Status'] = df_result['Instance ID'].map(
+                        df_exact.set_index('Instance ID')['Status']
+                    )
+
+                if 'Gap' in df_exact.columns:
+                    df_result['exact_Gap'] = df_result['Instance ID'].map(
+                        df_exact.set_index('Instance ID')['Gap']
+                    )
 
         # Sauvegarde par taille
         df_result.to_csv(os.path.join(output, f"detailed_results_{size}.csv"), index=False)
@@ -108,7 +121,7 @@ def construire_tableau_latex_agrégé(
     variable: str,
     output_path: str,
     sizes=('s', 'm', 'l', 'xl'),
-    colonnes_source=('Size', 'Delay', 'Cmax', 'Computing_time')
+    colonnes_source=('Size', 'Delay', 'Cmax', 'Computing_time', 'Gap')
     ):
     """
     Construit un tableau LaTeX où les lignes sont les méthodes,
