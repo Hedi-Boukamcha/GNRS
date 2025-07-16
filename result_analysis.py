@@ -62,53 +62,63 @@ def results_tables(result_type: str, output_file: str):
 
 
 
-def detailed_results_per_method(
-    file_per_methode: dict,
-    variables: list,
-    sizes=('s', 'm', 'l', 'xl'),
-    output='./data/results/'
-    ):
-    """
-    Crée un fichier CSV par taille avec une ligne par instance (0-50) et une colonne par méthode.
+def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=('s', 'm', 'l', 'xl'), output='./data/results/'):
 
-    Args:
-        fichiers_par_methode: dict {nom_methode: chemin_fichier_csv}
-        variable: le nom de la colonne à extraire ('Delay', 'Cmax', etc.)
-        tailles: les tailles à traiter
-        output_dir: dossier de sortie
-    """
     os.makedirs(output, exist_ok=True)
-
     for size in sizes:
-        df_result = pd.DataFrame({'Instance ID': list(range(51))}) 
+        df_result = pd.DataFrame({'Instance ID': list(range(51))})
+        exact_data = {}
 
+        # Lecture et stockage des données exactes
         for method, csv_file in file_per_methode.items():
+            if method == 'exact':
+                if not os.path.exists(csv_file):
+                    print(f"Fichier exact manquant : {csv_file}")
+                    continue
+                df_exact = pd.read_csv(csv_file)
+                df_exact = df_exact[df_exact['Size'] == size].drop_duplicates(subset='Instance ID')
+                exact_data = df_exact.set_index('Instance ID')
+
+                # Ajout direct des variables exactes
+                for var in variables:
+                    if var in exact_data.columns:
+                        df_result[f'exact_{var}'] = df_result['Instance ID'].map(exact_data[var])
+
+                # Ajout du Status si dispo
+                if 'Status' in exact_data.columns:
+                    df_result['exact_Status'] = df_result['Instance ID'].map(exact_data['Status'])
+
+                if 'Gap' in exact_data.columns:
+                    df_result['exact_Gap'] = df_result['Instance ID'].map(exact_data['Gap'])
+
+        # Traitement des autres méthodes
+        for method, csv_file in file_per_methode.items():
+            if method == 'exact':
+                continue  # déjà traité
+
             if not os.path.exists(csv_file):
-                print(f"Non existing file for {method}: {csv_file}")
+                print(f"Fichier introuvable pour {method}: {csv_file}")
                 continue
 
             df = pd.read_csv(csv_file)
-            df_taille = df[df['Size'] == size]
+            df = df[df['Size'] == size].drop_duplicates(subset='Instance ID')
+            df_method = df.set_index('Instance ID')
 
-            for var in variables:
-                value = df_taille.set_index('Instance ID')[var]
-                df_result[f'{method}_{var}'] = df_result['Instance ID'].map(value)
-            
-            if method == 'exact':
-                df_exact = df_taille.drop_duplicates(subset='Instance ID')
+            for var in ['Cmax', 'Delay', 'Obj']:
+                if var in df_method.columns and f'exact_{var}' in df_result.columns:
+                    diff = df_result['Instance ID'].map(df_method[var])
+                    base = df_result[f'exact_{var}']
+                    deviation = (diff - base) / base
+                    df_result[f'{method}_dev_{var}'] = deviation
 
-                if 'Status' in df_exact.columns:
-                    df_result['exact_Status'] = df_result['Instance ID'].map(
-                        df_exact.set_index('Instance ID')['Status']
-                    )
+            # On garde computing_time tel quel
+            if 'Computing_time' in df_method.columns:
+                df_result[f'{method}_Computing_time'] = df_result['Instance ID'].map(df_method['Computing_time'])
 
-                if 'Gap' in df_exact.columns:
-                    df_result['exact_Gap'] = df_result['Instance ID'].map(
-                        df_exact.set_index('Instance ID')['Gap']
-                    )
+        # Sauvegarde
+        output_file = os.path.join(output, f'detailed_results_{size}.csv')
+        df_result.to_csv(output_file, index=False)
 
-        # Sauvegarde par taille
-        df_result.to_csv(os.path.join(output, f"detailed_results_{size}.csv"), index=False)
 
 
 
