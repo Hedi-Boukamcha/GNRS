@@ -87,44 +87,50 @@ def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_ne
 def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
-    last_job_in_pos: int = -1
-    action_time: int = 0
-    state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
-    graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
-    poss_dess, dessT = search_possible_decisions(state=state, device=device)
     ub_cmax: int = 0
     ub_delay: int = 0
+    best_state: State = None
+    best_obj: int = -1
     if train:
         ub_cmax, ub_delay = compute_upper_bounds(i)
-    env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
-    while env.possible_decisions:
-        action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train)
-        d: Decision = env.possible_decisions[action_id]
-        if d.parallel:
-            if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
-                last_job_in_pos = d.job_id
-        else:
-            last_job_in_pos = -1
-        state = simulate(state, d=d, clone=False)
-        next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=action_time, device=device)
-        next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device)
-        if train:
-            final: bool   = len(next_possible_decisions) == 0
-            duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-            _r: Tensor    = reward(duration=duration, cmax_old=env.cmax, cmax_new=state.cmax, delay_old=env.delay, delay_new=state.total_delay, ub_cmax=ub_cmax, ub_delay=ub_delay, device=device)
-            agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
-        action_time = state.min_action_time()
-        env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
-    if not train:
+    for retry in range(RETRIES):
+        greedy: bool = (retry == 1)
+        last_job_in_pos: int = -1
+        action_time: int = 0
+        state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+        graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
+        poss_dess, dessT = search_possible_decisions(state=state, device=device)
+        env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
+        while env.possible_decisions:
+            action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=greedy)
+            d: Decision = env.possible_decisions[action_id]
+            if d.parallel:
+                if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
+                    last_job_in_pos = d.job_id
+            else:
+                last_job_in_pos = -1
+            state = simulate(state, d=d, clone=False)
+            next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=action_time, device=device)
+            next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device)
+            if train:
+                final: bool   = len(next_possible_decisions) == 0
+                duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
+                _r: Tensor    = reward(duration=duration, cmax_old=env.cmax, cmax_new=state.cmax, delay_old=env.delay, delay_new=state.total_delay, ub_cmax=ub_cmax, ub_delay=ub_delay, device=device)
+                agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
+            action_time = state.min_action_time()
+            env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
         if improve:
             state = LS(i, state.decisions) # improve with local search
-        #state.display_calendars()
+        obj: int = state.total_delay + state.cmax
+        if best_state is None or obj < best_obj:
+            best_obj   = obj
+            best_state = state
+    if not train:
         computing_time = time.time() - start_time
         with open(path+size+"/gnn_state_"+id+'.pkl', 'wb') as f:
-            pickle.dump(state, f)
-        gnn_gantt(gantt_path, state, f"instance_{id}")
-        obj: int = state.total_delay + state.cmax
-        results = pd.DataFrame({'id': [id], 'obj': [obj], 'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
+            pickle.dump(best_state, f)
+        gnn_gantt(gantt_path, best_state, f"instance_{id}")
+        results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
 

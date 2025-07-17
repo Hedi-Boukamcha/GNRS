@@ -1,3 +1,4 @@
+# Vocabulary
 M: int = 3
 L: int = 2
 
@@ -35,9 +36,11 @@ IN_SYSTEM: int = 1
 IN_EXECUTION: int = 2
 DONE: int = 3
 
-
 INSTANCES_SIZES: list[str] = [("s", 3, 5), ("m", 7, 10), ("l", 15, 20), ("xl", 30, 50)]
 NB_TRAIN: int              = 150
+
+# Solving stage configuration
+RETRIES: int = 5
 
 # DL model configuration
 DROPOUT: float        = 0.1
@@ -67,7 +70,7 @@ NB_EPISODES         = 12_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
 
-# Gantt CONFIG
+# Gantt configuration
 JOB_COLORS        = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9']
 GNN_GANTT_LEVELS  = ["Station 1", "Station 2", "Station 3", "Robot", "Machine 1", "Machine 2", "Positioner"]
 CP_GANTT_LEVELS   = ["Station 1", "Station 2", "Station 3", "Machine 1", "Machine 2"]

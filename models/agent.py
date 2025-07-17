@@ -13,6 +13,7 @@ from models.gnn import QNet
 from models.memory import ReplayMemory, Transition
 from conf import *
 from models.state import Decision
+from utils.common import tensors_to_probs
 
 # #################
 # =*= DQN Agent =*=
@@ -77,12 +78,17 @@ class Agent:
         else:
             self.policy_net.eval()
 
-    def select_next_decision(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool) -> int:
-        if not train or random.random() > eps_threshold:
-            Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
-            return torch.argmax(Q_values.view(-1)).item()
+    def select_next_decision(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool, greedy: bool) -> int:
+        if train:
+            if random.random() > eps_threshold:
+                Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
+                return torch.argmax(Q_values.view(-1)).item()
+            else:
+                return random.randint(0, len(possible_decisions)-1) 
         else:
-            return random.randint(0, len(possible_decisions)-1)
+            with torch.no_grad():
+                Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
+                return torch.argmax(Q_values.view(-1)).item() if greedy else torch.multinomial(tensors_to_probs(Q_values.view(-1)), 1).item()
 
     def save(self):
         print(f"Saving policy_net and current loss...")
