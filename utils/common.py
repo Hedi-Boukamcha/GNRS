@@ -19,3 +19,12 @@ def tensors_to_probs(q: Tensor, temperature: float = 1.0) -> Tensor:
     if torch.allclose(probs.sum(), torch.tensor(0.0, device=probs.device)):
         probs = torch.ones_like(probs) / probs.numel()
     return probs
+
+def top_k_Q_to_probs(q: Tensor, temperature: float = 0.4) -> int:
+    topk = 5                          
+    vals, idx = torch.topk(q, k=topk)                                  # largest-Q actions
+    vals = torch.nan_to_num(vals, nan=-1e9, posinf=1e9, neginf=-1e9)   # finite
+    vals = vals - vals.max()                                           # improves soft‑max stability
+    p = torch.softmax(vals / temperature, dim=0)                       # Boltzmann exploration
+    choice = idx[torch.multinomial(p, 1)].item()
+    return choice 

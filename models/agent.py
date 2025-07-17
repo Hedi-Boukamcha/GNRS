@@ -13,7 +13,7 @@ from models.gnn import QNet
 from models.memory import ReplayMemory, Transition
 from conf import *
 from models.state import Decision
-from utils.common import tensors_to_probs
+from utils.common import top_k_Q_to_probs
 
 # #################
 # =*= DQN Agent =*=
@@ -88,7 +88,7 @@ class Agent:
         else:
             with torch.no_grad():
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
-                return torch.argmax(Q_values.view(-1)).item() if greedy else torch.multinomial(tensors_to_probs(Q_values.view(-1)), 1).item()
+                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q_values.view(-1))
 
     def save(self):
         print(f"Saving policy_net and current loss...")
