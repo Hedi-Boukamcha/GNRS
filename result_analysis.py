@@ -9,8 +9,6 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
-
-
 def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     df = pd.read_csv(input_csv)
 
@@ -208,13 +206,9 @@ def construire_tableau_latex_agrégé(
     with open(output_path, 'w') as f:
         f.write(latex_code)
 
-
-
 # python3 result_analysis.py
 if __name__ == "__main__":
-
     variables = ['Delay', 'Cmax', 'Obj', 'Computing_time']
-
     results_tables(result_type='exact_solution', output_file='exact_solution_results.csv')
     results_tables(result_type='gnn_solution', output_file='gnn_solution_results.csv')
     results_tables(result_type='gnn_solution_improved', output_file='gnn_solution_improved_results.csv')

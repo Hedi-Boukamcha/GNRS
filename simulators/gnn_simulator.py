@@ -77,14 +77,14 @@ def search_start_time(state: State, j: JobState, d: Decision, forbidden_station:
     return start
 
 def search_best_station_and_load_job(state: State, j: JobState, forbidden_station: StationState) -> int:
-    min_possible_loaded_time: int = -1 
+    min_possible_loaded_time: int = -1
     selected_station: StationState = None
     for s in state.all_stations.get_possible_stations(j.is_big()):
         if forbidden_station is None or s.id != forbidden_station.id:
-            possible_loading_time = test_loading_time(state, s) 
-            if min_possible_loaded_time < 0 or possible_loading_time < min_possible_loaded_time:
+            possible_loading_time = test_loading_time(state, s)
+            if min_possible_loaded_time < 0 or possible_loading_time < min_possible_loaded_time or (selected_station.accept_big and not s.accept_big and possible_loading_time <= (1.02 * min_possible_loaded_time)):
                 selected_station = s
-                min_possible_loaded_time = possible_loading_time    
+                min_possible_loaded_time = possible_loading_time
     time: int = get_loading_time_and_force_unloading_previous(state, selected_station)
     time      = load_job_into_station(state, j, selected_station, state.L, time)
     return time
