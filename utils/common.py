@@ -13,14 +13,7 @@ __license__ = "MIT"
 def to_bool(v: str) -> bool:
     return v.lower() in ['true', 't', 'yes', '1']
 
-def tensors_to_probs(q: Tensor, temperature: float = 0.45) -> Tensor:
-    q = torch.nan_to_num(q, nan=-1e9, posinf=1e9, neginf=-1e9)  # finite
-    probs = F.softmax(q / temperature, dim=0)
-    if torch.allclose(probs.sum(), torch.tensor(0.0, device=probs.device)):
-        probs = torch.ones_like(probs) / probs.numel()
-    return probs
-
-def top_k_Q_to_probs(Q: Tensor, temperature: float = 0.45) -> int:
+def top_k_Q_to_probs(Q: Tensor, temperature: float = 0.5) -> int:
     topk = 5                          
     vals, idx = torch.topk(Q, k=topk)                                  # largest-Q actions
     vals = torch.nan_to_num(vals, nan=-1e9, posinf=1e9, neginf=-1e9)   # finite

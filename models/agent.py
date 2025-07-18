@@ -165,7 +165,7 @@ class Agent:
         # ---------- 4. compute (and display) the huber loss & optimize ------------------------------------------
         y = rewards.clone()                                            # y = reward r (start with that)
         y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]
-        loss = F.smooth_l1_loss(q_sa_cur, y)                           # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
+        loss = F.smooth_l1_loss(q_sa_cur, y, beta=0.15)                # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
         self.optimizer.zero_grad()                                     # reset gradients ∇ℓ = 0
         loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
         clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients
