@@ -109,12 +109,16 @@ def c3(model: cp_model.CpModel, i: MathInstance):
 
 # An operation o starts after the end of the previous one o_prime of the same job (plus 3 robot moves): the previous one was bloqued by another operation
 def c3_b(model: cp_model.CpModel, i: MathInstance):
-    for j in i.loop_jobs():
-        for o in i.loop_operations(j, exclude_first=True):
-            for j_prime in i.loop_jobs():
-                if j_prime != j:
-                    for o_prime in i.loop_operations(j_prime):
-                        model.Add(i.s.exe_start[j][o] - free(i, j, j_prime, o-1, o_prime) >= 3*i.M) 
+    for j in i.loop_jobs(): 
+        for j_prime in i.loop_jobs():
+            if j_prime != j:
+                for j_sec in i.loop_jobs():
+                    if j_prime != j_sec:
+                        for o in i.loop_operations(j):
+                            for o_prime in i.loop_operations(j_prime):
+                                for o_sec in i.loop_operations(j_sec):
+                                    if not is_same(j, j_sec, o, o_sec):
+                                        model.Add(i.s.exe_start[j][o] - free(i, j_sec, j_prime, o_sec, o_prime) + i.I*(1 - i.s.exe_before[j_prime][j][o_prime][o]) >= 3*i.M)
     return model, i.s
 
 # An operation o starts after the end of the previous one o_prime according to decided priority
