@@ -6,7 +6,6 @@ from matplotlib.patches import Rectangle
 from conf import *
 from models.state import State
 
-
 # #########################
 # =*= DISPLAY GNN GANTT =*=
 # #########################
@@ -14,7 +13,6 @@ __author__  = "Hedi Boukamcha"
 __email__   = "hedi.boukamcha.1@ulaval.ca"
 __version__ = "1.0.0" 
 __license__ = "MIT"
-
 
 def resource_calendars(state: State):
     return {

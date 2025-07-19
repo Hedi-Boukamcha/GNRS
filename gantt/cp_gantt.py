@@ -3,18 +3,23 @@ import matplotlib.pyplot as plt
 from models.instance import Instance, MathInstance
 from conf import *
 
-def plot_gantt_chart(tasks, instance_file: str):
+# #########################
+# =*= DISPLAY GNN GANTT =*=
+# #########################
+__author__  = "Hedi Boukamcha"
+__email__   = "hedi.boukamcha.1@ulaval.ca"
+__version__ = "1.0.0" 
+__license__ = "MIT"
+
+def plot_gantt_chart(path: str, tasks, instance_file: str):
     fig, ax   = plt.subplots(figsize=(10, 3))
     level_idx = {lvl: i for i, lvl in enumerate(CP_GANTT_LEVELS)}
-    
-
     for task in tasks:
         y     = level_idx[task["level"]] 
         rot   = 90 if task["label"].startswith(("M", "Pos")) else 0
         w     = task["duration"]
         x_txt = task["start"] + w / 2          
         y_txt = y + 0.8 / 2  
-
         ax.barh(y, task["duration"], left=task["start"], color=task["color"], edgecolor='black', hatch=task.get("hatch", None), align="edge")
         ax.text(x_txt, y_txt, task["label"], rotation=rot, ha="center", va="center", fontsize=8, fontweight="bold" if task["label"] in {"L", "M", "Pos"} else "normal")
         time_points = sorted(set([task["start"] for task in tasks] + [task["end"] for task in tasks]))
@@ -29,12 +34,11 @@ def plot_gantt_chart(tasks, instance_file: str):
     ax.set_yticks(range(len(CP_GANTT_LEVELS))) 
     ax.set_yticklabels(CP_GANTT_LEVELS, fontsize=8)
     ax.set_title(f"Diagramme de Gantt - {instance_file}")
-    plt.tight_layout()
-    plt.grid(True, axis='x', linestyle='--', alpha=0.3)
-    plt.show()
-
-
-def cp_gantt(instance: Instance, i: MathInstance, solver, instance_file: str):
+    ax.grid(axis="x", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=700, bbox_inches="tight")
+    
+def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_file: str):
     print("\n--- Simulation Gantt à partir du modèle mathématique ---")
     tasks      = []
     for j, job in enumerate(instance.jobs):
@@ -120,4 +124,4 @@ def cp_gantt(instance: Instance, i: MathInstance, solver, instance_file: str):
                     "color"   : JOB_COLORS[j % len(JOB_COLORS)],
                     "level"   : station_level,
                 })
-    plot_gantt_chart(tasks, instance_file)
+    plot_gantt_chart(path, tasks, instance_file)

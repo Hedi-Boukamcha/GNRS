@@ -299,7 +299,7 @@ def c21(model: cp_model.CpModel, i: MathInstance):
             model.Add(i.s.exe_start[j][o] - sum(terms) >= 0)
     return model, i.s
 
-def solver_per_file(path, id, debug: bool=False):
+def solver_per_file(gantt_path: str, path: str, id: str, debug: bool=False):
     start_time = time.time()
     instance_file = path+"/instance_"+id+".json"
     instance: Instance = Instance.load(instance_file)
@@ -342,8 +342,8 @@ def solver_per_file(path, id, debug: bool=False):
         results = pd.DataFrame({'id': [id], 'status': [s], 'obj': [obj], 'delay': [total_delay], 'cmax': [cmax], 'computing_time': [computing_time], 'gap': [gap]})
         results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
         if debug:
-            cp_gantt(instance, i, solver, instance_file)
             instance.display()
+        cp_gantt(gantt_path, instance, i, solver, instance_file)
     else:
         no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
         no_results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
@@ -356,4 +356,4 @@ if __name__ == "__main__":
     parser.add_argument("--size", help="size of the instance, either s, m, l or xl", required=True)
     parser.add_argument("--id", help="id of the instance to solve", required=True)
     args = parser.parse_args()
-    solver_per_file(path=args.path+"data/instances/"+args.type+"/"+args.size,id=args.id)
+    solver_per_file(gantt_path=args.path+"data/gantts/cp_"+args.size+"_"+args.id+".png", path=args.path+"data/instances/"+args.type+"/"+args.size, id=args.id)
