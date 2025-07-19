@@ -118,7 +118,7 @@ def c3_b(model: cp_model.CpModel, i: MathInstance):
                             for o_prime in i.loop_operations(j_prime):
                                 for o_sec in i.loop_operations(j_sec):
                                     if not is_same(j, j_sec, o, o_sec):
-                                        model.Add(i.s.exe_start[j][o] - free(i, j_sec, j_prime, o_sec, o_prime) + i.I*(1 - i.s.exe_before[j_prime][j][o_prime][o]) >= 3*i.M)
+                                        model.Add(i.s.exe_start[j][o] - free(i, j_sec, j_prime, o_sec, o_prime) + i.I*(1 - i.s.exe_before[j_prime][j][o_prime][o] + i.s.exe_parallel[j][o]) >= 3*i.M)
     return model, i.s
 
 # An operation o starts after the end of the previous one o_prime according to decided priority
