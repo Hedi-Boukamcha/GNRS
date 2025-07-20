@@ -48,7 +48,7 @@ def C1(model: cp_model.CpModel, i: MathInstance):
         model.Add(i.s.C_max >= i.s.end_j[j])
     return model, i.s
 
-# En of job computation (two cases: with and without parallelism)
+# (C2 and C3, but also call to C26 and C27) En of job computation (two cases: with and without parallelism)
 def C2_3(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
