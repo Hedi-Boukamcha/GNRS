@@ -60,7 +60,6 @@ class MathSolution:
         self.C_max = None,
         self.end_j = []
         self.end_o = []
-        self.free_j = []
         self.free_o = []
         self.delay = []
         self.exe_mode = [], [], []

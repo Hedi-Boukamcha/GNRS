@@ -19,8 +19,7 @@ def init_vars(model: cp_model.CpModel, i: MathInstance):
     i.s.C_max = model.NewIntVar(0, i.I, "C_max")
     i.s.delay = [model.NewIntVar(0, i.I, f'delay_{j}') for j in i.loop_jobs()] 
     i.s.end_j = [model.NewIntVar(0, i.I, f'end_j_{j}') for j in i.loop_jobs()] 
-    i.s.end_o =  [[model.NewIntVar(0, i.I, f'end_o_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
-    i.s.free_j = [model.NewIntVar(0, i.I, f'free_j_{j}') for j in i.loop_jobs()]  
+    i.s.end_o =  [[model.NewIntVar(0, i.I, f'end_o_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()] 
     i.s.free_o =  [[model.NewIntVar(0, i.I, f'free_o_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
     i.s.end_o =  [[model.NewIntVar(0, i.I, f'end_o_j{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
     i.s.exe_start = [[model.NewIntVar(0, i.I, f'exe_start_{j}_{o}') for o in i.loop_operations(j)] for j in i.loop_jobs()]
@@ -34,6 +33,7 @@ def init_vars(model: cp_model.CpModel, i: MathInstance):
 def is_same(j: int, j_prime: int, o: int, o_prime):
     return (j == j_prime) and (o == o_prime)
 
+# Z
 def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     terms = []
     terms.append(i.s.C_max)
@@ -42,88 +42,69 @@ def init_objective_function(model: cp_model.CpModel, i: MathInstance):
     model.Minimize(sum(terms)) 
     return model, i.s
 
-# Check if job j is loaded on station c and if its loaded before j'
-def prec(i: MathInstance, j: int, j_prime: int, c: int): #c = station
-    return i.I * (3 - i.s.exe_before[j][j_prime][FIRST_OP][FIRST_OP] - i.s.job_loaded[j][c] - i.s.job_loaded[j_prime][c])
-
-# Check the real end date of operation o of job j considering the mandatory robot travel and position time (if mode B)
-def end(i: MathInstance, j: int, o: int):
-    if (o == 0):
-        return i.s.exe_start[j][o] + i.welding_time[j][o] + ((i.pos_j[j] * i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B]) * (1 - i.job_modeB[j]))
-    else:
-        return i.s.exe_start[j][o] + i.welding_time[j][o] + (i.pos_j[j] * i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B])
-
-# Check the time at which the robot could be free to move job j after its operation o considering anther operation o' of job j' that could occupy the robot arm
-def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
-    if (i.nb_jobs == 2):
-        return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][MACHINE_2_MODE_C])
-    else:
-        terms = []
-        for q in i.loop_jobs():
-            if (q != j) and (q != j_prime):
-                for x in range(i.operations_by_job[q]):
-                    term = (i.s.exe_before[j][q][o][x] + i.s.exe_before[q][j_prime][x][o_prime]) - i.s.exe_before[j][j_prime][o][o_prime]
-                    terms.append(i.needed_proc[q][x][MACHINE_1] * term)
-        return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][MACHINE_2_MODE_C] 
-                                     - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
-
-# Cmax computation (case 1: no parallelism)
-def c1_s(model: cp_model.CpModel, i: MathInstance):
+# Cmax computation
+def C1(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        model.Add(i.s.C_max >= i.s.end_j[j] + i.L + i.M)
+        model.Add(i.s.C_max >= i.s.end_j[j])
     return model, i.s
 
-# Cmax computation (case 2: with parallelism)
-def c1_p(model: cp_model.CpModel, i: MathInstance):
-    for j in i.loop_jobs():
-        model.Add(i.s.C_max >= i.s.free_j[j] + i.L + 3*i.M)
-    return model, i.s
-
-def c_end_and_free(model: cp_model.CpModel, i: MathInstance):
+# En of job computation (two cases: with and without parallelism)
+def C2_3(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             model.Add(i.s.end_o[j][o] == end(i,j,o))
-            model.Add(i.s.end_j[j] >= i.s.end_o[j][o])
+            model.Add(i.s.end_j[j] >= i.s.end_o[j][o] + i.L + i.M)
             for j_prime in i.loop_jobs():
                 for o_prime in i.loop_operations(j_prime):
                     model.Add(i.s.free_o[j][o] >= free(i, j, j_prime, o, o_prime))
-                    model.Add(i.s.free_j[j] >= i.s.free_o[j][o])
+                    model.Add(i.s.end_j[j] >= i.s.free_o[j][o] + i.L + 3*i.M)
     return model, i.s
 
 # Either o_prime before o ; Or o before o_prime [one and only one priority]
-def c2(model: cp_model.CpModel, i: MathInstance):
+def C4(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             for o in i.loop_operations(j):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
                         model.Add(1 == i.s.exe_before[j][j_prime][o][o_prime] + i.s.exe_before[j_prime][j][o_prime][o])
-    return model, i.s
+    return model, i.s6
 
 # An operation o starts after the end of the previous one o-1 of the same job (plus 1 to 4 robot moves in case of parallel)
-def c3(model: cp_model.CpModel, i: MathInstance):
+# Part 1/2
+def C5(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j, exclude_first=True):
             model.Add(i.s.exe_start[j][o] - end(i, j, o-1) - i.M * (3*i.s.exe_parallel[j][o-1] + 1) >= 0) 
     return model, i.s
 
-# An operation o starts after the end of the previous one o_prime of the same job (plus 3 robot moves): the previous one was bloqued by another operation
-def c3_b(model: cp_model.CpModel, i: MathInstance):
+# An operation o in M2 starts after the end of the previous one o_prime (in M1) of the same job (plus 3 robot moves): the previous one was bloqued by another operation
+# Part 2/2
+def C6(model: cp_model.CpModel, i: MathInstance):
+    for j in i.loop_jobs():
+        for o in i.loop_operations(j, exclude_first=True):
+            for j_prime in i.loop_jobs():
+                if j_prime != j:
+                    for o_prime in i.loop_operations(j_prime):
+                        model.Add(i.s.exe_start[j][o] - free(i, j, j_prime, o-1, o_prime) >= 3*i.M) 
+    return model, i.s                   
+
+# An operation o in M2 starts after the end of a previous one o_sec (also in M2) of other job (plus 4 robot moves): the previous one was bloquing by another operation o_prime in the pos
+def C7(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs(): 
         for j_prime in i.loop_jobs():
             if j_prime != j:
                 for j_sec in i.loop_jobs():
-                    if j_prime != j_sec:
+                    if j_prime != j_sec and j != j_sec:
                         for o in i.loop_operations(j):
                             for o_prime in i.loop_operations(j_prime):
                                 for o_sec in i.loop_operations(j_sec):
-                                    if not is_same(j, j_sec, o, o_sec):
-                                        model.Add(i.s.exe_start[j][o] - free(i, j_sec, j_prime, o_sec, o_prime) + i.I*(1 - i.s.exe_before[j_prime][j][o_prime][o] + i.s.exe_parallel[j][o]) >= 3*i.M)
+                                    model.Add(i.s.exe_start[j][o] - free(i, j_sec, j_prime, o_sec, o_prime) + i.I*(1 - i.s.exe_before[j_prime][j][o_prime][o] + i.s.exe_parallel[j][o]) >= 4*i.M)
     return model, i.s
 
 # An operation o starts after the end of the previous one o_prime according to decided priority
 # Part 1/3: Except if o is in parrallel (mode B)
-def c4(model: cp_model.CpModel, i: MathInstance):
+def C8(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if j_prime != j:
@@ -134,7 +115,7 @@ def c4(model: cp_model.CpModel, i: MathInstance):
 
 # An operation o starts after the end of the previous one o_prime according to decided priority
 # Part 2/3: Except if o_prime can have someone in parrallel (mode C)
-def c5(model: cp_model.CpModel, i: MathInstance):
+def C9(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if j_prime != j:
@@ -145,7 +126,7 @@ def c5(model: cp_model.CpModel, i: MathInstance):
 
 # A non-parallel operation o starts after the end of the previous one o_prime according to decided priority
 # Part 3/3: Case of no exeption (the robot was really busy with the previous op..)
-def c6(model: cp_model.CpModel, i: MathInstance):
+def C10(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if j_prime != j:
@@ -155,7 +136,7 @@ def c6(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # An operation starts only after a previous operation started + two robot moves + possibly a positioner time (only if the previous job is not already on the positioner)
-def c7(model: cp_model.CpModel, i: MathInstance):
+def C11(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if j_prime != j:
@@ -165,14 +146,14 @@ def c7(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # Only operation needing Machine2 can be executed in parallel (meaning: there is another job in the positioner for Machine1)
-def c8(model: cp_model.CpModel, i: MathInstance):
+def C12(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             model.Add(i.s.exe_parallel[j][o] <= i.needed_proc[j][o][MACHINE_2])
     return model, i.s
 
 # The first operation of a job (that is not removed from a station & has no history) starts its first operation after being loaded + one robot move
-def c9(model: cp_model.CpModel, i: MathInstance):
+def C13(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         terms = []
         for c in i.loop_stations():
@@ -181,7 +162,7 @@ def c9(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # Operations are executed in one and exactly one mode
-def c10(model: cp_model.CpModel, i: MathInstance):
+def C14(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             terms = []
@@ -191,14 +172,14 @@ def c10(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # Operation requirering Machine2 are executed in Mode C (neither A or B - reserved for Machine1)
-def c11(model: cp_model.CpModel, i: MathInstance):
+def C15(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             model.Add(i.s.exe_mode[j][o][MACHINE_2_MODE_C] == i.needed_proc[j][o][MACHINE_2])
     return model, i.s
 
 # Each must enter one and exactly one loading station!
-def c12(model: cp_model.CpModel, i: MathInstance):
+def C16(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         terms = []
         for c in i.loop_stations():
@@ -207,31 +188,19 @@ def c12(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # A large job should enter only the station 2! Other jobs have the choice...
-def c13(model: cp_model.CpModel, i: MathInstance):
+def C17(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         model.Add(i.s.job_loaded[j][STATION_2] >= i.lp[j])
     return model, i.s
 
-# Delay case 1: |end last operation - deadline|
-def c14(model: cp_model.CpModel, i: MathInstance):
+# Delay: |end last operation - deadline|
+def C18(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
-        model.Add(i.s.delay[j] - i.s.end_j[j] >= i.L + i.M - i.due_date[j])
-        # model.Add(i.s.delay[j] - end(i, j, i.last_operations(j)) >= i.L + i.M - i.due_date[j])
-    return model, i.s
-
-# Delay case 2: still equals |end - deadline| but this time, the job is blocked in mode B and waits for the end of another job
-def c15(model: cp_model.CpModel, i: MathInstance):
-    for j in i.loop_jobs():
-        for j_prime in i.loop_jobs():
-            if (j != j_prime):
-                for o in i.loop_operations(j):
-                    for o_prime in i.loop_operations(j_prime):
-                        model.Add(i.s.delay[j] - i.s.free_j[j] >= i.L + 3*i.M - i.due_date[j])
-                        # model.Add(i.s.delay[j] - free(i, j, j_prime, o, o_prime) >= i.L + 3*i.M - i.due_date[j])
+        model.Add(i.s.delay[j] - i.s.end_j[j] >= - i.due_date[j])
     return model, i.s
 
 # A Job enters into a station only after the previous has exited (case 1: no parallelism)
-def c16(model: cp_model.CpModel, i: MathInstance):
+def C19(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if (j != j_prime):
@@ -241,7 +210,7 @@ def c16(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # A Job enters into a station only after the previous has exited (which sometimes requires waiting for it to be freed from a third job - in case of last operation in B mode)
-def c17(model: cp_model.CpModel, i: MathInstance):
+def C20(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             for j_second in i.loop_jobs():
@@ -253,7 +222,7 @@ def c17(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # A possible entering date into a loading station must wait for unloading times (part 1): same job is unloaded from another station
-def c18(model: cp_model.CpModel, i: MathInstance):
+def C21(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for c_prime in i.loop_stations():
             terms = []
@@ -267,7 +236,7 @@ def c18(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # A possible entering date into a loading station must wait for unloading times (part 2): another job is unloaded from the same station
-def c19(model: cp_model.CpModel, i: MathInstance):
+def C22(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if (j != j_prime):
@@ -280,7 +249,7 @@ def c19(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # If a job is executed before one that have an history (already either in robot or positioner), the later should be removed
-def c20(model: cp_model.CpModel, i: MathInstance):
+def C23(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for j_prime in i.loop_jobs():
             if (j != j_prime):
@@ -289,7 +258,7 @@ def c20(model: cp_model.CpModel, i: MathInstance):
     return model, i.s
 
 # The start of the first operation of any job should wait for possible unloading time of another job (either from robot or positioner)
-def c21(model: cp_model.CpModel, i: MathInstance):
+def C24(model: cp_model.CpModel, i: MathInstance):
     for j in i.loop_jobs():
         for o in i.loop_operations(j):
             terms = []
@@ -298,6 +267,31 @@ def c21(model: cp_model.CpModel, i: MathInstance):
                     terms.append(i.s.job_unload[p][c] * (i.M*i.job_robot[p]*(1-i.job_modeB[j]) + 2*i.M*i.job_modeB[p]))
             model.Add(i.s.exe_start[j][o] - sum(terms) >= 0)
     return model, i.s
+
+# (C25) Check if job j is loaded on station c and if its loaded before j'
+def prec(i: MathInstance, j: int, j_prime: int, c: int): #c = station
+    return i.I * (3 - i.s.exe_before[j][j_prime][FIRST_OP][FIRST_OP] - i.s.job_loaded[j][c] - i.s.job_loaded[j_prime][c])
+
+# (C26) Check the real end date of operation o of job j considering the mandatory robot travel and position time (if mode B)
+def end(i: MathInstance, j: int, o: int):
+    if (o == 0):
+        return i.s.exe_start[j][o] + i.welding_time[j][o] + ((i.pos_j[j] * i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B]) * (1 - i.job_modeB[j]))
+    else:
+        return i.s.exe_start[j][o] + i.welding_time[j][o] + (i.pos_j[j] * i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B])
+
+# (C27) Check the time at which the robot could be free to move job j after its operation o considering anther operation o' of job j' that could occupy the robot arm
+def free(i: MathInstance, j: int, j_prime: int, o: int, o_prime: int):
+    if (i.nb_jobs == 2):
+        return end(i, j_prime, o_prime) - i.I * (3 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][MACHINE_2_MODE_C])
+    else:
+        terms = []
+        for q in i.loop_jobs():
+            if (q != j) and (q != j_prime):
+                for x in range(i.operations_by_job[q]):
+                    term = (i.s.exe_before[j][q][o][x] + i.s.exe_before[q][j_prime][x][o_prime]) - i.s.exe_before[j][j_prime][o][o_prime]
+                    terms.append(i.needed_proc[q][x][MACHINE_1] * term)
+        return end(i, j_prime, o_prime) - i.I * (4 - i.s.exe_before[j][j_prime][o][o_prime] - i.s.exe_mode[j][o][MACHINE_1_PARALLEL_MODE_B] - i.s.exe_mode[j_prime][o_prime][MACHINE_2_MODE_C] 
+                                     - i.s.exe_parallel[j_prime][o_prime] + sum(terms))
 
 def solver_per_file(gantt_path: str, path: str, id: str, debug: bool=False):
     start_time = time.time()
@@ -308,11 +302,10 @@ def solver_per_file(gantt_path: str, path: str, id: str, debug: bool=False):
     solver             = cp_model.CpSolver()
     init_vars(model, i)
     init_objective_function(model, i)
-    for constraint in [c_end_and_free,c1_s,c1_p,c2,c3,c3_b,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21]:
+    for constraint in [C1, C2_3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21, C22, C23, C24]:
         model, i.s = constraint(model, i)
     solver.parameters.relative_gap_limit = 0.0
     solver.parameters.absolute_gap_limit = 0.0
-    # solver.parameters.maximize           = False
     if debug:
         solver.parameters.max_time_in_seconds     = 60.0 * 60.0   # 1 hour
         solver.parameters.max_memory_in_mb        = 12_000        # 12 giga RAM
