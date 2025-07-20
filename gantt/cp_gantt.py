@@ -41,6 +41,7 @@ def plot_gantt_chart(path: str, tasks, instance_file: str):
 def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_file: str):
     print("\n--- Simulation Gantt à partir du modèle mathématique ---")
     tasks      = []
+    job_ends = []
     for j, job in enumerate(instance.jobs):
         assigned_station = None
         for c in [STATION_1, STATION_2, STATION_3]:
@@ -61,7 +62,7 @@ def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_fi
             start_pos  = start
             start_weld = start_pos + pos_duration
             duration_weld = i.welding_time[j][o]
-            end_weld = start + duration_weld
+            end_weld = start_weld + duration_weld
             if op.type == MACHINE_2:
                 mode_str = "Mode C"
             else:
