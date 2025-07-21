@@ -88,7 +88,12 @@ class Agent:
         else:
             with torch.no_grad():
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
-                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1))
+                # print("Nb possible decisions:", len(possible_decisions))
+                # print("Q  mean:", Q_values.mean().item())
+                # print("Q  max:", Q_values.max().item())
+                # print("Q  min:", Q_values.min().item())
+                # print("Q  std :", Q_values.std().item())
+                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1), topk=min(5, len(possible_decisions)), temperature=0.5)
 
     def save(self):
         print(f"Saving policy_net and current loss...")

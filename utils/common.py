@@ -13,8 +13,7 @@ __license__ = "MIT"
 def to_bool(v: str) -> bool:
     return v.lower() in ['true', 't', 'yes', '1']
 
-def top_k_Q_to_probs(Q: Tensor, temperature: float = 0.5) -> int:
-    topk = 5                          
+def top_k_Q_to_probs(Q: Tensor, temperature: float = 0.5, topk: int = 5) -> int:                     
     vals, idx = torch.topk(Q, k=topk)                                  # largest-Q actions
     vals = torch.nan_to_num(vals, nan=-1e9, posinf=1e9, neginf=-1e9)   # finite
     vals = vals - vals.max()                                           # improves soft‑max stability

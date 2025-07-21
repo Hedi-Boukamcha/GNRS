@@ -100,11 +100,11 @@ def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_fi
                     "level"   : machine_level,        
                 })
             
-            load_start = solver.Value(i.s.entry_station_date[j][assigned_station])
+            load_end = solver.Value(i.s.entry_station_date[j][assigned_station])
             station_level = f"Station {assigned_station + 1}"
 
             # 3) Display L if t=0 (initial loads)
-            if load_start == 0:                      
+            if load_end == 0:                      
                 station_level = f"Station {assigned_station + 1}"
                 tasks.append({
                     "label"   : "L",                  
@@ -119,8 +119,8 @@ def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_fi
             # 4) Display L if t!=0
                 tasks.append({
                     "label"   : "L",               
-                    "start"   : load_start,
-                    "end"     : load_start + 0.01,      
+                    "start"   : load_end,
+                    "end"     : load_end - 0.01,      
                     "duration": L,
                     "color"   : JOB_COLORS[j % len(JOB_COLORS)],
                     "level"   : station_level,
