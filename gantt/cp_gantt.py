@@ -119,8 +119,8 @@ def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_fi
             # 4) Display L if t!=0
                 tasks.append({
                     "label"   : "L",               
-                    "start"   : load_end,
-                    "end"     : load_end - 0.01,      
+                    "start"   : load_end - 0.01,
+                    "end"     : load_end,      
                     "duration": L,
                     "color"   : JOB_COLORS[j % len(JOB_COLORS)],
                     "level"   : station_level,
