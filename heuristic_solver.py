@@ -11,22 +11,24 @@ from conf import *
 from models.instance import Instance, Job
 from heuristic.local_search import ls as LS
 from models.state import State, Decision
+from gantt.gnn_gantt import gnn_gantt
 
 @dataclass(frozen=True)
 class Indexed:
     idx: int
     job: Job
 
-def solve_all_test(path: str):
+def solve_all_test(path: str, gantt_path: str):
     for folder, _, _ in INSTANCES_SIZES:
         p: str = path+folder+"/"
         for i in os.listdir(p):
             if i.endswith('.json'):
                 idx = re.search(r"instance_(\d+)\.json", i)
                 for id in idx.groups():
-                    solve_one(path=path, size=folder, id=id)
+                    gp = gantt_path + "/LS_"+folder+"_"+id+".png"
+                    solve_one(path=path, gantt_path=gp, size=folder, id=id)
 
-def solve_one(path: str, size: str, id: str):
+def solve_one(path: str, gantt_path: str, size: str, id: str):
     i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time = time.time()
 
@@ -49,6 +51,7 @@ def solve_one(path: str, size: str, id: str):
     obj: int = state.total_delay + state.cmax
     results = pd.DataFrame({'id': [id], 'obj': [obj], 'delay': [state.total_delay], 'cmax': [state.cmax], 'computing_time': [computing_time]})
     results.to_csv(path+size+"/heuristic_solution_"+id+".csv", index=False)
+    gnn_gantt(path=gantt_path, state=state, instance=f"instance_{id}")
 
 # TEST ONE WITH: python heuristic_solver.py --mode=test_one --size=s --id=1 --path=./
 # SOLVE ALL WITH: python heuristic_solver.py --mode=test_all --path=.
@@ -61,7 +64,9 @@ if __name__ == "__main__":
     args               = parser.parse_args()
     base_path: str     = args.path
     path: str          = base_path + "/data/instances/test/"
+    gantt_path: str    = base_path + "/data/gantts"
     if args.mode == "test_all":
-        solve_all_test(path=path)
+        solve_all_test(path=path, gantt_path=gantt_path)
     else:
-        solve_one(path=path, size=args.size , id=args.id) 
+        gantt_path = gantt_path + "/LS_"+args.size+"_"+args.id+".png"
+        solve_one(path=path, gantt_path=gantt_path, size=args.size , id=args.id) 

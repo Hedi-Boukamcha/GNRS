@@ -1,6 +1,4 @@
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
-
 from matplotlib.patches import Rectangle
 
 from conf import *
