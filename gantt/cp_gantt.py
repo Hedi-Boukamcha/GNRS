@@ -64,14 +64,14 @@ def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_fi
             duration_weld = i.welding_time[j][o]
             end_weld = start_weld + duration_weld
             if op.type == MACHINE_2:
-                mode_str = "Mode C"
+                mode_str = "C"
             else:
-                mode_str = "Mode B" if modeB else "Mode A"
+                mode_str = "B" if modeB else "A"
             machine_level = "Machine 2" if op.type == MACHINE_2 else "Machine 1"
             
             #  0) Display processing time 
             tasks.append({
-                "label"   : f"J{j+1}_Op{o+1}_({mode_str})",
+                "label"   : f"J{j+1}_O{o+1}_({mode_str})",
                 "start"   : start_weld,
                 "end"     : end_weld,
                 "duration": duration_weld,
@@ -119,7 +119,7 @@ def cp_gantt(path: str, instance: Instance, i: MathInstance, solver, instance_fi
             # 4) Display L if t!=0
                 tasks.append({
                     "label"   : "L",               
-                    "start"   : load_end - 0.01,
+                    "start"   : load_end - 2,
                     "end"     : load_end,      
                     "duration": L,
                     "color"   : JOB_COLORS[j % len(JOB_COLORS)],
