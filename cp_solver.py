@@ -68,7 +68,7 @@ def C4(model: cp_model.CpModel, i: MathInstance):
                 for o_prime in i.loop_operations(j_prime):
                     if not is_same(j, j_prime, o, o_prime):
                         model.Add(1 == i.s.exe_before[j][j_prime][o][o_prime] + i.s.exe_before[j_prime][j][o_prime][o])
-    return model, i.s6
+    return model, i.s
 
 # An operation o starts after the end of the previous one o-1 of the same job (plus 1 to 4 robot moves in case of parallel)
 # Part 1/2
@@ -341,7 +341,7 @@ def solver_per_file(gantt_path: str, path: str, id: str, debug: bool=False):
         no_results = pd.DataFrame({'id': [id], 'status': ['infeasible'], 'obj': [-1], 'delay': [-1], 'cmax': [-1], 'computing_time': [computing_time], 'gap': [-1]})
         no_results.to_csv(path+"/exact_solution_"+id+".csv", index=False)
 
-# TEST WITH: python cp_solver.py --type=train --size=s --id=1 --path=./
+# TEST WITH: python cp_solver.py --type=test --size=s --id=1 --path=./
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
