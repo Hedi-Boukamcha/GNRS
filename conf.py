@@ -71,8 +71,8 @@ EPS_DECAY_RATE      = 4700   # controls the rate of exponential decay of epsilon
 NB_EPISODES         = 12_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
-LR_PATIENCE         = 1000   # patience for the learning rate scheduler
-LR_THRESHOLD        = 1e-3  # threshold for the learning rate scheduler
+LR_PATIENCE         = 1500   # patience for the learning rate scheduler
+LR_THRESHOLD        = 5e-4   # threshold for the learning rate scheduler
 REWARD_SCALE        = 2.     # scale factor for the reward
 BETA                = 0.15   # beta parameter for the Huber loss function
 
