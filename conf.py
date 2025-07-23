@@ -48,27 +48,33 @@ ATTENTION_HEADS: int  = 4
 JOB_DIM: int          = 16
 NODE_DIM: int         = 8
 GRAPH_DIM: int        = 32
+PB_SIZE_DIM: int      = 4
 
 # Nb raw features
 JOB_FEATURES: int     = 13
 STATION_FEATURES: int = 2
 MACHINE_FEATURES: int = 3
 ROBOT_FEATURES: int   = 4
+PB_SIZE_FEATURES: int = 8
 
 # Training configuration
 BATCH_SIZE          = 256
 CAPACITY            = 100_000
 SAVING_RATE         = 500
 SWITCH_RATE         = 10     # nb episodes before switching from an instance to another
-GAMMA               = 0.999  # discount factor
+GAMMA               = 0.9999 # discount factor
 TAU                 = 0.003  # update rate of the target network
 LR                  = 1e-3   # learning rate of AdamW 
 EPS_START           = 0.9    # starting value of epsilon
 EPS_END             = 0.005  # final value of epsilon
-EPS_DECAY_RATE      = 3500   # controls the rate of exponential decay of epsilon
+EPS_DECAY_RATE      = 4700   # controls the rate of exponential decay of epsilon
 NB_EPISODES         = 12_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
+LR_PATIENCE         = 1000   # patience for the learning rate scheduler
+LR_THRESHOLD        = 1e-3  # threshold for the learning rate scheduler
+REWARD_SCALE        = 2.     # scale factor for the reward
+BETA                = 0.15   # beta parameter for the Huber loss function
 
 # Gantt configuration
 JOB_COLORS        = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9']

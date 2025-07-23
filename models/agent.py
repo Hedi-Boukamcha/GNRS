@@ -73,6 +73,7 @@ class Agent:
             self.policy_net.train()
             self.target_net.eval()
             self.optimizer       = Adam(list(self.policy_net.parameters()), lr=LR)
+            self.scheduler       = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, cooldown=500, patience=LR_PATIENCE, threshold=LR_THRESHOLD)
             self.loss: Loss      = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
             self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
         else:
@@ -121,8 +122,9 @@ class Agent:
             local_id   = pa[:, 0].long()                 # Get the local id before offset
             global_id  = local_id + offset               # Build the global (batch-level) ids for every row needs shift
             pa_adj     = torch.stack([global_id.to(pa.dtype), # the final tensor would have the global id,
-                                    pa[:, 1],                 # the machine,
-                                    pa[:, 2]], dim=1)         # and the parallel option!
+                                    pa[:,1],                  # the machine,
+                                    pa[:,2],                  # the parallel option
+                                    pa[:,3], pa[:,4], pa[:,5], pa[:,6], pa[:,7], pa[:,8], pa[:,9], pa[:,10]], dim=1) # and the problem size features!
             decisions_with_batch_ids.append(pa_adj)      # Add the new "possible decision"
         out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3) 
         return out
@@ -170,11 +172,12 @@ class Agent:
         # ---------- 4. compute (and display) the huber loss & optimize ------------------------------------------
         y = rewards.clone()                                            # y = reward r (start with that)
         y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]
-        loss = F.smooth_l1_loss(q_sa_cur, y, beta=0.15)                # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
+        loss = F.smooth_l1_loss(q_sa_cur, y, beta=BETA)                # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
         self.optimizer.zero_grad()                                     # reset gradients ∇ℓ = 0
         loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
         clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients
         self.optimizer.step()                                          # Do a gradient step and update parameters -> θi+1 = θi - α∑∇ℓ(f(θi, x), y)
+        self.scheduler.step(loss.item())                               # Reduce the learning rate if the loss does not improve
         self.loss.update(loss.item())                                  # Display the loss in the chart!
         return loss.item()
                        

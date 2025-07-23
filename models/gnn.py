@@ -72,7 +72,7 @@ class OtherEmbedding(nn.Module):
 # Main Deep-Q Network: embedding stack + final MLP to output Q value
 class QNet(nn.Module):
     def __init__(self, job_in: int=JOB_FEATURES, robot_in: int=ROBOT_FEATURES, machine_in: int=MACHINE_FEATURES, station_in: int=STATION_FEATURES,
-                 d_job: int = JOB_DIM, d_other = NODE_DIM, heads = ATTENTION_HEADS, dropout: float=DROPOUT):
+                 d_job: int = JOB_DIM, d_other = NODE_DIM, heads = ATTENTION_HEADS, pb_size_in: int=PB_SIZE_FEATURES, d_pb_size: int=PB_SIZE_DIM, dropout: float=DROPOUT):
         super().__init__()
         self.d_job             = d_job
         self.d_other           = d_other
@@ -88,12 +88,16 @@ class QNet(nn.Module):
         self.global_lin        = Linear(graph_vector_size, GRAPH_DIM)
         self.job_pooling       = AttentionalAggregation(gate_nn=Linear(d_job, 1), nn = None)
         self.Q_mlp = nn.Sequential(
-            nn.Linear(d_job + GRAPH_DIM + 2, 32),   # +2 for [parallel, machine]
+            nn.Linear(d_job + GRAPH_DIM + 2 + d_pb_size, 64),   # +2 for [parallel, machine]
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 32),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(32, 16),
             nn.ReLU(),
             nn.Linear(16, 1))
+        self.pb_size_embedding = Linear(pb_size_in, d_pb_size)
 
     def _init_node_feats(self, data: HeteroData):
         x = {}
@@ -133,9 +137,11 @@ class QNet(nn.Module):
         job_ids        = actions[:,0].long()                        # GLOBAL job index inside its graph (for all actions in batch not only in graph)
         parallel       = actions[:,2].unsqueeze(1).float()          # (A,1) execute in parallel or not? (for all actions in batch not only in graph)
         machine        = actions[:,1].unsqueeze(1).float()          # (A,1) machine 1 or 2? (for all actions in batch not only in graph)
+        pb_size        = actions[:,3:11]                            # (A, pb_size_features)
         emb_jobs       = nodes["job"][job_ids]                      # (A, d_job)
         graph_ids      = batch_job[job_ids]                         # map to graph 0…B-1
+        d_pb_size      = self.pb_size_embedding(pb_size)            # (A, d_pb_size)
         h_globalA      = h_global[graph_ids]
-        action_feat = torch.cat([emb_jobs, h_globalA, machine, parallel], dim=1)
+        action_feat    = torch.cat([emb_jobs, h_globalA, d_pb_size, machine, parallel], dim=1)
         Q_values = self.Q_mlp(action_feat).squeeze(1)
         return Q_values

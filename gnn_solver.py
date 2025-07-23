@@ -41,29 +41,40 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 class Environment:
-    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0):
+    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0, ub_cmax: int=0, ub_delay: int=0, n: int=0):
         self.graph              = graph
         self.decisionsT         = decisionsT
         self.cmax               = cmax
         self.delay              = delay
         self.possible_decisions = possible_decisions
+        self.total_jobs         = n
+        self.ub_cmax            = ub_cmax
+        self.ub_delay           = ub_delay
+        self.rm_jobs: int       = n
+        self.m2_parallel: float = 0
+        self.action_time: int   = 0
 
-    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int):
+    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, m2_parallel: int, m2: int):
         self.graph              = graph
         self.decisionsT         = decisionsT
         self.cmax               = cmax
         self.delay              = delay
         self.possible_decisions = possible_decisions
+        n                       = graph['job'].x.shape[0] if graph['job'].x is not None else 0
+        pM2p                    = m2_parallel / m2 if m2 > 0 else 0
+        self.rm_jobs: int       = n
+        self.m2_parallel: float = pM2p
 
-def search_possible_decisions(state: State, device: str) -> list[Decision]:
+def search_possible_decisions(state: State, parallel: bool, device: str, env: Environment) -> list[Decision]:
     decisions: list[Decision] = []
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
+                if parallel or o.operation.type == MACHINE_1:
+                    decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
                 decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel)] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
 def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
@@ -81,44 +92,47 @@ def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
     ub_delay    = max(1, delays)
     return ub_cmax, ub_delay
 
-def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:
-    return torch.tensor([-1.0 * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
+def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:#
+    return torch.tensor([-REWARD_SCALE * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
-    i: Instance = Instance.load(path + size + "/instance_" +id+ ".json")
-    start_time = time.time()
-    ub_cmax: int = 0
-    ub_delay: int = 0
+    i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
+    start_time        = time.time()
     best_state: State = None
-    best_obj: int = -1
-    if train:
-        ub_cmax, ub_delay = compute_upper_bounds(i)
+    best_obj: int     = -1
+    m2: int           = 0
+    m2_parallel: int  = 0
     for retry in range(RETRIES):
         greedy: bool = (retry == 1)
         last_job_in_pos: int = -1
-        action_time: int = 0
         state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
-        graph: HeteroData = state.to_hyper_graph(last_job_in_pos, action_time, device)
-        poss_dess, dessT = search_possible_decisions(state=state, device=device)
-        env: Environment = Environment(graph=graph, possible_decisions=poss_dess, decisionsT=dessT)
+        graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
+        ub_cmax, ub_delay = compute_upper_bounds(i)
+        env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, ub_cmax=ub_cmax, ub_delay=ub_delay, n=len(i.jobs))
+        env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, parallel=(last_job_in_pos>=0), env=env, device=device)
         while env.possible_decisions:
             action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=greedy)
             d: Decision = env.possible_decisions[action_id]
             if d.parallel:
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
                     last_job_in_pos = d.job_id
+                else:
+                    m2_parallel += 1
+                    m2 += 1
             else:
+                if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_2:
+                    m2 += 1
                 last_job_in_pos = -1
             state = simulate(state, d=d, clone=False)
-            next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=action_time, device=device)
-            next_possible_decisions, next_decisionT = search_possible_decisions(state=state, device=device)
+            next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=env.action_time, device=device)
+            next_possible_decisions, next_decisionT = search_possible_decisions(state=state, parallel=(last_job_in_pos>=0), env=env, device=device)
             if train:
                 final: bool   = len(next_possible_decisions) == 0
                 duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
                 _r: Tensor    = reward(duration=duration, cmax_old=env.cmax, cmax_new=state.cmax, delay_old=env.delay, delay_new=state.total_delay, ub_cmax=ub_cmax, ub_delay=ub_delay, device=device)
                 agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
-            action_time = state.min_action_time()
-            env.update(next_graph, next_possible_decisions, next_decisionT, state.cmax, state.total_delay)
+            env.action_time = state.min_action_time()
+            env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, m2_parallel=m2_parallel, m2=m2)
         if improve:
             state = LS(i, state.decisions) # improve with local search
         obj: int = state.total_delay + state.cmax
@@ -151,30 +165,27 @@ def train(agent: Agent, path: str, device: str):
     complexity_limit: int = 1
     size: str             = "s"
     instance_id: str      = "1"
-    lr_decay_factor       = 0.5
     for episode in range(1, NB_EPISODES+1):
         if episode % SWITCH_RATE == 0:
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        solve_one(agent=agent, path=path, size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
+        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
-            for g in agent.optimizer.param_groups:
-                g['lr'] *= lr_decay_factor
         if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f}")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.6f}")
         else:
             print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
         if episode % SAVING_RATE == 0 or episode == NB_EPISODES:
             agent.save()
     print("End!")
 
-# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=./
+# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=.
 # TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=false --path=.
 # SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=.
 if __name__ == "__main__":
