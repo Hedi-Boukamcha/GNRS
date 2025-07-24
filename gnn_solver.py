@@ -50,9 +50,9 @@ class Environment:
         self.total_jobs         = n
         self.ub_cmax            = ub_cmax
         self.ub_delay           = ub_delay
-        self.rm_jobs: int       = n
-        self.m2_parallel: float = 0
-        self.action_time: int   = 0
+        self.rm_jobs            = n
+        self.m2_parallel        = 0
+        self.action_time        = 0
 
     def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, m2_parallel: int, m2: int):
         self.graph              = graph
@@ -74,10 +74,6 @@ def search_possible_decisions(state: State, possible_parallel: bool, needed_para
                     decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
-    for i in range(len(decisions)):
-        print(decisionsT[i, 0:3])
-        print(decisions[i])
-    print("-----")
     return decisions, decisionsT
 
 def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
@@ -98,7 +94,7 @@ def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
 def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:#
     return torch.tensor([-REWARD_SCALE * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
+def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
     i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
@@ -107,7 +103,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     m2: int           = 0
     m2_parallel: int  = 0
     for retry in range(retires):
-        greedy: bool = (retry == 1)
+        g: bool = (retry == 1) if not train else greedy
         last_job_in_pos: int = -1
         state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
         graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
@@ -115,7 +111,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, ub_cmax=ub_cmax, ub_delay=ub_delay, n=len(i.jobs))
         env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
         while env.possible_decisions:
-            action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=greedy)
+            action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
             d: Decision = env.possible_decisions[action_id]
             if d.parallel:
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
@@ -177,7 +173,8 @@ def train(agent: Agent, path: str, device: str):
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, eps_threshold=eps_threshold)
+        greedy = True if episode < (0.85 * NB_EPISODES) else random.random() > 0.7
+        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
