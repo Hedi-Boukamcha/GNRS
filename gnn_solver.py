@@ -65,14 +65,15 @@ class Environment:
         self.rm_jobs: int       = n
         self.m2_parallel: float = pM2p
 
-def search_possible_decisions(state: State, parallel: bool, device: str, env: Environment) -> list[Decision]:
+def search_possible_decisions(state: State, possible_parallel: bool, needed_parallel: bool, device: str, env: Environment) -> list[Decision]:
     decisions: list[Decision] = []
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                if parallel or o.operation.type == MACHINE_1:
+                if possible_parallel or o.operation.type == MACHINE_1:
                     decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
-                decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
+                if not needed_parallel or o.operation.type == MACHINE_1:
+                    decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
@@ -100,6 +101,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     start_time        = time.time()
     best_state: State = None
     best_obj: int     = -1
+    next_M2_parallel  = False
     m2: int           = 0
     m2_parallel: int  = 0
     for retry in range(RETRIES):
@@ -109,23 +111,26 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
         ub_cmax, ub_delay = compute_upper_bounds(i)
         env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, ub_cmax=ub_cmax, ub_delay=ub_delay, n=len(i.jobs))
-        env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, parallel=(last_job_in_pos>=0), env=env, device=device)
+        env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
         while env.possible_decisions:
             action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=greedy)
             d: Decision = env.possible_decisions[action_id]
             if d.parallel:
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
                     last_job_in_pos = d.job_id
+                    next_M2_parallel = True
                 else:
                     m2_parallel += 1
                     m2 += 1
+                    next_M2_parallel = False
             else:
+                next_M2_parallel = False
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_2:
                     m2 += 1
                 last_job_in_pos = -1
             state = simulate(state, d=d, clone=False)
             next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=env.action_time, device=device)
-            next_possible_decisions, next_decisionT = search_possible_decisions(state=state, parallel=(last_job_in_pos>=0), env=env, device=device)
+            next_possible_decisions, next_decisionT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
             if train:
                 final: bool   = len(next_possible_decisions) == 0
                 duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
