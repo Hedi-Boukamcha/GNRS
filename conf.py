@@ -59,16 +59,16 @@ PB_SIZE_FEATURES: int = 8
 
 # Training configuration
 BATCH_SIZE          = 256
-CAPACITY            = 100_000
+CAPACITY            = 200_000
 SAVING_RATE         = 500
-SWITCH_RATE         = 10     # nb episodes before switching from an instance to another
+SWITCH_RATE         = 30     # nb episodes before switching from an instance to another
 GAMMA               = 0.9999 # discount factor
 TAU                 = 0.003  # update rate of the target network
 LR                  = 1e-3   # learning rate of AdamW 
 EPS_START           = 0.9    # starting value of epsilon
 EPS_END             = 0.005  # final value of epsilon
-EPS_DECAY_RATE      = 4700   # controls the rate of exponential decay of epsilon
-NB_EPISODES         = 12_000 # 33 episodes per instances on average
+EPS_DECAY_RATE      = 5000   # controls the rate of exponential decay of epsilon
+NB_EPISODES         = 15_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
 LR_PATIENCE         = 1500   # patience for the learning rate scheduler

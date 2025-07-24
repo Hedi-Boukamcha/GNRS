@@ -135,8 +135,8 @@ class QNet(nn.Module):
 
         # 3. Build per-action tensors and final Q values (all in parrallel)
         job_ids        = actions[:,0].long()                        # GLOBAL job index inside its graph (for all actions in batch not only in graph)
-        parallel       = actions[:,2].unsqueeze(1).float()          # (A,1) execute in parallel or not? (for all actions in batch not only in graph)
         machine        = actions[:,1].unsqueeze(1).float()          # (A,1) machine 1 or 2? (for all actions in batch not only in graph)
+        parallel       = actions[:,2].unsqueeze(1).float()          # (A,1) execute in parallel or not? (for all actions in batch not only in graph)
         pb_size        = actions[:,3:11]                            # (A, pb_size_features)
         emb_jobs       = nodes["job"][job_ids]                      # (A, d_job)
         graph_ids      = batch_job[job_ids]                         # map to graph 0…B-1

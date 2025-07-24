@@ -60,10 +60,8 @@ class Environment:
         self.cmax               = cmax
         self.delay              = delay
         self.possible_decisions = possible_decisions
-        n                       = graph['job'].x.shape[0] if graph['job'].x is not None else 0
-        pM2p                    = m2_parallel / m2 if m2 > 0 else 0
-        self.rm_jobs: int       = n
-        self.m2_parallel: float = pM2p
+        self.rm_jobs            = graph['job'].x.shape[0] if graph['job'].x is not None else 0
+        self.m2_parallel        = m2_parallel / m2 if m2 > 0 else 0
 
 def search_possible_decisions(state: State, possible_parallel: bool, needed_parallel: bool, device: str, env: Environment) -> list[Decision]:
     decisions: list[Decision] = []
@@ -76,6 +74,10 @@ def search_possible_decisions(state: State, possible_parallel: bool, needed_para
                     decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
+    for i in range(len(decisions)):
+        print(decisionsT[i, 0:3])
+        print(decisions[i])
+    print("-----")
     return decisions, decisionsT
 
 def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
@@ -96,7 +98,7 @@ def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
 def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:#
     return torch.tensor([-REWARD_SCALE * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, eps_threshold: float=0.0):
+def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
     i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
@@ -104,7 +106,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     next_M2_parallel  = False
     m2: int           = 0
     m2_parallel: int  = 0
-    for retry in range(RETRIES):
+    for retry in range(retires):
         greedy: bool = (retry == 1)
         last_job_in_pos: int = -1
         state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
@@ -125,9 +127,9 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
                     next_M2_parallel = False
             else:
                 next_M2_parallel = False
+                last_job_in_pos = -1
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_2:
                     m2 += 1
-                last_job_in_pos = -1
             state = simulate(state, d=d, clone=False)
             next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=env.action_time, device=device)
             next_possible_decisions, next_decisionT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
@@ -161,7 +163,7 @@ def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, devic
             if i.endswith('.json'):
                 idx = re.search(r"instance_(\d+)\.json", i)
                 for id in idx.groups():
-                    solve_one(agent=agent, gantt_path=gantt_path+extension+"_"+folder+"_"+id+".png", path=path, size=folder, id=id, improve=improve, device=device, train=False, eps_threshold=0.0)
+                    solve_one(agent=agent, gantt_path=gantt_path+extension+"_"+folder+"_"+id+".png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES, train=False, eps_threshold=0.0)
 
 def train(agent: Agent, path: str, device: str):
     start_time = time.time()
@@ -175,7 +177,7 @@ def train(agent: Agent, path: str, device: str):
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, train=True, eps_threshold=eps_threshold)
+        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
@@ -191,7 +193,7 @@ def train(agent: Agent, path: str, device: str):
     print("End!")
 
 # TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=.
-# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=false --path=.
+# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=.
 # SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=.
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
@@ -220,4 +222,4 @@ if __name__ == "__main__":
     else:
         improve: bool = to_bool(args.improve)
         extension: str = "improved_gnn_" if improve else "gnn_"
-        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+"_"+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, device=device, train=False, eps_threshold=0.0) 
+        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+"_"+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
