@@ -45,24 +45,28 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     time = execute_operation(j, o, robot, machine, parallel, time)
 
     # 8. If the operation is the last of the job, we remove the job from the system
-    max_time = time
+    #max_time = time
     if o.is_last:
         time     = robot_move_job_to_station(state, robot, j, o, machine, M, time)
-        max_time = unload(state, j, o, L, time)
+        #max_time = unload(state, j, o, L, time)
+        unload(state, j, o, L, time)
     else:
-        max_time = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
+        #max_time = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
+        simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
 
     # 9. If a parallel job was waiting (to be unloaded) on the positioner, unload it
     if job_on_pos_to_unload is not None:
         if not o.is_last:
             time = robot_move_job_to_station(state, robot, j, o, machine, M, time)
         last_op: OperationState = job_on_pos_to_unload.operation_states[-1]
-        last_op.end    = time
+        last_op.end    = max(time, last_op.end)
+        time           = last_op.end
         time           = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.machine1, M, time)
         unloading_time = unload(state, job_on_pos_to_unload, last_op, L, time)
-        max_time       = max(max_time, unloading_time)
+        #max_time      = max(max_time, unloading_time)
+        time           = max(time, unloading_time)
 
-    state.compute_reward_values(max_time)
+    state.compute_reward_values(time)
     state.decisions.append(d)
     return state
 
@@ -73,7 +77,7 @@ def search_start_time(state: State, j: JobState, d: Decision, forbidden_station:
     if j.location == None:
         start = search_best_station_and_load_job(state, j, forbidden_station)
     if d.operation_id > 0:
-        start = j.calendar.get_last_event().end
+        start = max(start, j.calendar.get_last_event().end)
     return start
 
 def search_best_station_and_load_job(state: State, j: JobState, forbidden_station: StationState) -> int:
@@ -82,7 +86,7 @@ def search_best_station_and_load_job(state: State, j: JobState, forbidden_statio
     for s in state.all_stations.get_possible_stations(j.is_big()):
         if forbidden_station is None or s.id != forbidden_station.id:
             possible_loading_time = test_loading_time(state, s)
-            if min_possible_loaded_time < 0 or possible_loading_time < min_possible_loaded_time or (selected_station.accept_big and not s.accept_big and possible_loading_time <= (1.01 * min_possible_loaded_time)):
+            if min_possible_loaded_time < 0 or possible_loading_time < min_possible_loaded_time or (selected_station.accept_big and not s.accept_big and possible_loading_time <= (1.015 * min_possible_loaded_time)):
                 selected_station = s
                 min_possible_loaded_time = possible_loading_time
     time: int = get_loading_time_and_force_unloading_previous(state, selected_station)

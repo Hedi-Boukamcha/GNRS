@@ -138,9 +138,11 @@ class State:
         return time
 
     def compute_reward_values(self, end_time: int):
-        self.cmax = max(self.cmax, end_time)
+        self.cmax = max(self.cmax, end_time) # => TODO nope integrate here LB over next jobs for Cmax and Delays!
         self.total_delay = 0
         for j in self.job_states:
+            # TODO For jobs not done, we need to compute the minimum j.end before computing the delay! (Here only for jobs no started yet)
+            # TODO Repenser le retard dans le reward!
             j.delay = max(0, j.end - j.job.due_date) # real delay or minimal expected delay
             self.total_delay += j.delay
 
