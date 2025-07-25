@@ -94,7 +94,7 @@ def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
 def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:#
     return torch.tensor([-REWARD_SCALE * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
+def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, mimic_LS: bool=False, eps_threshold: float=0.0):
     i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
@@ -111,7 +111,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, ub_cmax=ub_cmax, ub_delay=ub_delay, n=len(i.jobs))
         env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
         while env.possible_decisions:
-            action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
+            action_id: int = agent.select_next_decision(state=state, graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g, mimic_LS=mimic_LS)
             d: Decision = env.possible_decisions[action_id]
             if d.parallel:
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
@@ -159,7 +159,7 @@ def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, devic
             if i.endswith('.json'):
                 idx = re.search(r"instance_(\d+)\.json", i)
                 for id in idx.groups():
-                    solve_one(agent=agent, gantt_path=gantt_path+extension+"_"+folder+"_"+id+".png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES, train=False, eps_threshold=0.0)
+                    solve_one(agent=agent, gantt_path=gantt_path+extension+"_"+folder+"_"+id+".png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES, train=False, mimic_LS=False, eps_threshold=0.0)
 
 def train(agent: Agent, path: str, device: str):
     start_time = time.time()
@@ -174,7 +174,7 @@ def train(agent: Agent, path: str, device: str):
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
         greedy = True if episode < (0.85 * NB_EPISODES) else random.random() > 0.7
-        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
+        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold, mimic_LS=(episode % SWITCH_RATE == 0))
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
@@ -219,4 +219,4 @@ if __name__ == "__main__":
     else:
         improve: bool = to_bool(args.improve)
         extension: str = "improved_gnn_" if improve else "gnn_"
-        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+"_"+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
+        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+"_"+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, mimic_LS=False, eps_threshold=0.0) 
