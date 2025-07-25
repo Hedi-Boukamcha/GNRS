@@ -137,14 +137,28 @@ class State:
         time: int = min(self.machine1.free_at, self.machine2.free_at, self.robot.free_at, min([s.free_at for s in self.all_stations.stations]))
         return time
 
-    def compute_reward_values(self, end_time: int):
-        self.cmax = max(self.cmax, end_time) # => TODO nope integrate here LB over next jobs for Cmax and Delays!
+    def compute_reward_values(self, unloading_time: int, current_time: int, pos_time: int):
+        self.cmax = max(self.cmax, unloading_time)
         self.total_delay = 0
+        max_remaining_time: int = 0
         for j in self.job_states:
-            # TODO For jobs not done, we need to compute the minimum j.end before computing the delay! (Here only for jobs no started yet)
-            # TODO Repenser le retard dans le reward!
-            j.delay = max(0, j.end - j.job.due_date) # real delay or minimal expected delay
-            self.total_delay += j.delay
+            if j.is_done(): # 1. Real delay
+                j.delay = max(0, j.end - j.job.due_date) 
+                self.total_delay += j.delay
+            else: # 2. Minimal expected delay and duration
+                process_time: int = 0
+                first_is_M2: int = False
+                first: bool = True
+                for o in j.operation_states:
+                    if o.remaining_time > 0:
+                        if first:
+                            first = False
+                            first_is_M2 = (o.operation.type == MACHINE_2)
+                        process_time += self.M + o.operation.processing_time
+                min_end: int = ((pos_time + self.M) if first_is_M2 else current_time) + process_time + self.M + self.L 
+                self.total_delay += max(0, min_end - j.job.due_date)
+                max_remaining_time = max(max_remaining_time, min_end)
+        self.cmax = self.cmax + max_remaining_time
 
     def display_calendars(self):
         self.machine1.calendar.display_calendar("MACHINE #1")
