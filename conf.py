@@ -76,6 +76,7 @@ LR_THRESHOLD        = 5e-4   # threshold for the learning rate scheduler
 REWARD_SCALE        = 1.     # scale factor for the reward
 BETA                = 0.15   # beta parameter for the Huber loss function
 TO_LB               = 2      # trade-off between the current-value-based reward and the lower-bound-based reward
+VALIDATE_RATE       = 100    # nb episodes before validating the model
 
 # Gantt configuration
 JOB_COLORS        = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9']

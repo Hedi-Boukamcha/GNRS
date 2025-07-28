@@ -106,7 +106,7 @@ def reward(duration: int, env: Environment, cmax_new: int, delay_new: int, lb_cm
     delta_delay: float = (delay_new - env.delay + TO_LB*(lb_delay_new - env.lb_delay))/ub_delay
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
+def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0) -> float:
     i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
@@ -163,6 +163,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
+    return best_obj
 
 def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
     extension: str = "improved_gnn" if improve else "gnn"
@@ -190,6 +191,10 @@ def train(agent: Agent, path: str, device: str):
         solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
+        if episode % VALIDATE_RATE == 0:
+            for vs in sizes[:complexity_limit]:
+                obj = solve_one(agent=agent, path=path, gantt_path="", size=vs, id="1", improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
+                agent.add_obj(size=vs, obj=obj)
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
         if len(agent.memory) > BATCH_SIZE:

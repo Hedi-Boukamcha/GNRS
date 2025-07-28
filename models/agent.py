@@ -77,6 +77,10 @@ class Agent:
             self.scheduler       = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, cooldown=500, patience=LR_PATIENCE, threshold=LR_THRESHOLD)
             self.loss: Loss      = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
             self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
+            self.l_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for L instances", color="orange", show=interactive)
+            self.s_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for S instances", color="orange", show=interactive)
+            self.m_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for M instances", color="orange", show=interactive)
+            self.xl_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for XL instances", color="orange", show=interactive)
         else:
             self.policy_net.eval()
 
@@ -97,11 +101,25 @@ class Agent:
                 # print("Q  std :", Q_values.std().item())
                 return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1), topk=min(5, len(possible_decisions)), temperature=0.5)
 
+    def add_obj(self, size: str, obj: int):
+        if size == "s":
+            self.s_obj.update(obj)
+        elif size == "m":
+            self.m_obj.update(obj)
+        elif size == "l":
+            self.l_obj.update(obj)
+        else:
+            self.xl_obj.update(obj)
+        
     def save(self):
         print(f"Saving policy_net and current loss...")
         torch.save(self.policy_net.state_dict(), f"{self.path}policy_net.pth")
         self.diversity.save(f"{self.path}epsilon")
         self.loss.save(f"{self.path}loss")
+        self.l_obj.save(f"{self.path}l_obj")
+        self.s_obj.save(f"{self.path}s_obj")
+        self.m_obj.save(f"{self.path}m_obj")
+        self.xl_obj.save(f"{self.path}xl_obj")  
 
     def load(self, device: str):
         print(f"Loading policy_net...")
