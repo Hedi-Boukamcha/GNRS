@@ -117,6 +117,8 @@ class State:
         self.M: int                    = M
         self.cmax: int                 = 0
         self.total_delay: int          = 0
+        self.lb_cmax: int              = 0
+        self.lb_delay: int             = 0
         self.reward: Tensor            = None
         self.decisions: list[Decision] = decisions
         self.machine1: Machine1        = None
@@ -137,28 +139,45 @@ class State:
         time: int = min(self.machine1.free_at, self.machine2.free_at, self.robot.free_at, min([s.free_at for s in self.all_stations.stations]))
         return time
 
-    def compute_reward_values(self, unloading_time: int, current_time: int, pos_time: int):
-        self.cmax = max(self.cmax, unloading_time)
+    def compute_values_for_reward(self, unloading_time: int, current_time: int) -> tuple[int, int]:
+        @dataclass(frozen=True)
+        class Indexed:
+            idx: int
+            job: JobState
+        
+        # 1. Real delay and Cmax
+        self.cmax        = max(self.cmax, unloading_time)
         self.total_delay = 0
-        max_remaining_time: int = 0
-        for j in self.job_states:
-            if j.is_done(): # 1. Real delay
-                j.delay = max(0, j.end - j.job.due_date) 
-                self.total_delay += j.delay
-            else: # 2. Minimal expected delay and duration
-                process_time: int = 0
-                first_is_M2: int = False
-                first: bool = True
-                for o in j.operation_states:
-                    if o.remaining_time > 0:
-                        if first:
-                            first = False
-                            first_is_M2 = (o.operation.type == MACHINE_2)
-                        process_time += self.M + o.operation.processing_time
-                min_end: int = ((pos_time + self.M) if first_is_M2 else current_time) + process_time + self.M + self.L 
-                self.total_delay += max(0, min_end - j.job.due_date)
-                max_remaining_time = max(max_remaining_time, min_end)
-        self.cmax = self.cmax + max_remaining_time
+        self.lb_cmax     = self.cmax
+        self.lb_delay    = 0
+        for js in self.job_states:  
+            if js.is_done(): 
+                js.delay           = max(0, js.end - js.job.due_date) 
+                self.total_delay += js.delay
+                self.lb_delay    += js.delay
+
+        # 2. Minimal expected delay and duration
+        last_is_M1: bool            = True
+        pos_time: int               = current_time
+        unfinished: list[Indexed]   = [Indexed(i, job) for i, job in enumerate(self.job_states) if not job.is_done()]
+        sorted_jobs: list[Indexed]  = sorted(unfinished, key=lambda i: i.job.job.due_date)
+        for idx, j in enumerate(sorted_jobs):
+            js: JobState = j.job
+            rem_ops       = [o for o in js.operation_states if o.remaining_time > 0]
+            first_is_M2   = (rem_ops[0].operation.type == MACHINE_2)
+            proc_time     = sum(o.operation.processing_time + M for o in rem_ops)
+            start         = pos_time if first_is_M2 else current_time
+            last_is_M1    = (rem_ops[-1].operation.type == MACHINE_1)
+            time_to_pos   = js.job.pos_time if idx < (len(sorted_jobs) - 1) and (last_is_M1 or len(rem_ops) > 1) else 0
+            current_time  = start + time_to_pos + proc_time + M * (3 if len(rem_ops) > 1 else 2)
+            if last_is_M1 and len(rem_ops) > 1:
+                pos_time = start + rem_ops[0].operation.processing_time + time_to_pos + 4*M
+            elif len(rem_ops) == 1 and not last_is_M1:
+                pos_time = last_is_M1
+            else:
+                pos_time   = start + time_to_pos + M * (3 if len(rem_ops) > 1 else 2)
+            self.lb_cmax   = max(self.lb_cmax, current_time + L)
+            self.lb_delay += max(0, current_time + L - js.job.due_date)
 
     def display_calendars(self):
         self.machine1.calendar.display_calendar("MACHINE #1")
@@ -175,11 +194,15 @@ class State:
         c.decisions    = [d.clone() for d in self.decisions]
         c.machine1     = self.machine1.clone()
         c.machine2     = self.machine2.clone()
-        c.machines   = [c.machine1, c.machine2]
+        c.machines     = [c.machine1, c.machine2]
         c.reward       = self.reward.clone() if self.reward is not None else None
         c.robot        = self.robot.clone()
-        c.job_states    = [j.clone() for j in self.job_states]
+        c.job_states   = [j.clone() for j in self.job_states]
         c.all_stations = self.all_stations.clone()
+        c.cmax         = self.cmax
+        c.total_delay  = self.total_delay
+        c.lb_cmax      = self.lb_cmax
+        c.lb_delay     = self.lb_delay
 
         # State 2: clone all OOP links
         self.robot.clone_calendar_and_current_job_and_location(c)

@@ -64,17 +64,18 @@ SAVING_RATE         = 500
 SWITCH_RATE         = 30     # nb episodes before switching from an instance to another
 GAMMA               = 1.0    # discount factor (none in our case)
 TAU                 = 0.003  # update rate of the target network
-LR                  = 1e-3   # learning rate of AdamW 
-EPS_START           = 0.9    # starting value of epsilon
+LR                  = 2e-3   # learning rate of AdamW 
+EPS_START           = 0.99   # starting value of epsilon
 EPS_END             = 0.005  # final value of epsilon
-EPS_DECAY_RATE      = 5000   # controls the rate of exponential decay of epsilon
-NB_EPISODES         = 15_000 # 33 episodes per instances on average
+EPS_DECAY_RATE      = 6500   # controls the rate of exponential decay of epsilon
+NB_EPISODES         = 22_000 # 33 episodes per instances on average
 COMPLEXITY_RATE     = 2000   # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0
 LR_PATIENCE         = 1500   # patience for the learning rate scheduler
 LR_THRESHOLD        = 5e-4   # threshold for the learning rate scheduler
-REWARD_SCALE        = 2.     # scale factor for the reward
+REWARD_SCALE        = 1.     # scale factor for the reward
 BETA                = 0.15   # beta parameter for the Huber loss function
+TO_LB               = 2      # trade-off between the current-value-based reward and the lower-bound-based reward
 
 # Gantt configuration
 JOB_COLORS        = ['#8dd3c7', '#80b1d3', '#fb8072', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9']

@@ -80,16 +80,8 @@ class Agent:
         else:
             self.policy_net.eval()
 
-    def select_next_decision(self, state: State, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool, greedy: bool, mimic_LS: bool=False) -> int:
-        if mimic_LS:
-            min_dd: int = -1
-            action_id: int = 0
-            for idx, d in enumerate(possible_decisions):
-                if min_dd == -1 or state.get_job_by_id(d.job_id).job.due_date < min_dd or (state.get_job_by_id(d.job_id).job.due_date == min_dd and d.parallel):
-                    min_dd = state.get_job_by_id(d.job_id).job.due_date
-                    action_id = idx
-            return action_id
-        elif train:
+    def select_next_decision(self, state: State, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool, greedy: bool) -> int:
+        if train:
             if random.random() > eps_threshold:
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
                 return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1), topk=min(5, len(possible_decisions)), temperature=0.5)

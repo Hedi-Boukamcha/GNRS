@@ -40,8 +40,6 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     if d.parallel and o.operation.type == MACHINE_1:
         pos_time = position_job(j, o, robot, machine, time)
         time     = pos_time
-    else:
-        pos_time = time
 
     # 7. Execute the operation
     parallel=(d.parallel and o.operation.type == MACHINE_1)
@@ -55,6 +53,7 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
         unloading_time_1 = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
 
     # 9. If a parallel job was waiting (to be unloaded) on the positioner, unload it
+    unloading_time_2: int = 0
     if job_on_pos_to_unload is not None:
         if not o.is_last:
             time = robot_move_job_to_station(state, robot, j, o, machine, M, time)
@@ -64,7 +63,10 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
         time             = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.machine1, M, time)
         unloading_time_2 = unload(state, job_on_pos_to_unload, last_op, L, time) 
 
-    state.compute_reward_values(unloading_time=max(unloading_time_1, unloading_time_2), current_time=time, pos_time=pos_time)
+    if not d.parallel or o.operation.type == MACHINE_2:
+        pos_time = time
+
+    state.compute_values_for_reward(unloading_time=max(unloading_time_1, unloading_time_2), current_time=pos_time)
     state.decisions.append(d)
     return state
 
