@@ -83,7 +83,7 @@ def search_possible_decisions(state: State, possible_parallel: bool, needed_para
                         M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
     decisions: list[Decision] = M2_decisions + (M1_decisions if (not needed_parallel or len(M2_decisions)==0) else [])
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.init_UB_cmax, env.init_UB_delay, env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time, state.M, state.L] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.init_UB_cmax, env.init_UB_delay, env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
 def reward(duration: int, env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
@@ -173,20 +173,28 @@ def train(agent: Agent, path: str, device: str):
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        greedy = True if episode < (0.85 * NB_EPISODES) else random.random() > 0.7
+        greedy = True if episode < (0.9 * NB_EPISODES) else random.random() > 0.7
         obj, ub = solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode == 1 or episode % VALIDATE_RATE == 0:
             for vs in sizes[:complexity_limit]:
-                val_obj, val_ub = solve_one(agent=agent, path=path, gantt_path="", size=vs, id="1", improve=False, device=device, retires=1, train=True, greedy=True, eps_threshold=0.0)
+                print(f"Validating size {vs}...")
+                val_obj = 0
+                for id in range(1, 60):
+                    v_id: str = str(id)
+                    vo,_ = solve_one(agent=agent, path=path, gantt_path="", size=vs, id=v_id, improve=False, device=device, retires=1, train=True, greedy=True, eps_threshold=0.0)
+                    val_obj += vo
+                val_obj /= 60.0
                 agent.add_obj(size=vs, obj=val_obj)
-                print(f"Valdation of size {vs}: OBJ={val_obj}, UB={int(val_ub)}...") 
+                print(f"Valdation of size {vs} = AVG = {val_obj}...") 
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
         if len(agent.memory) > BATCH_SIZE:
-            loss: float = agent.optimize_policy(adapt_lr=(episode>=WARMUP_EPISODES))
+            loss: float = agent.optimize_policy()
             agent.optimize_target()
+            if episode>=WARMUP_EPISODES and episode%LR_REDUCE_RATE==0 and agent.optimizer.param_groups[0]['lr']>1e-4:                    
+                agent.optimizer.param_groups[0]['lr'] *= 0.5
             print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.0e}")
         else:
             print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
