@@ -74,17 +74,17 @@ class Agent:
             self.policy_net.train()
             self.target_net.eval()
             self.optimizer       = Adam(list(self.policy_net.parameters()), lr=LR)
-            self.scheduler       = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, cooldown=500, patience=LR_PATIENCE, threshold=LR_THRESHOLD)
+            self.scheduler       = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, patience=LR_PATIENCE, threshold=LR_THRESHOLD)
             self.loss: Loss      = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
             self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
-            self.l_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for L instances", color="orange", show=interactive)
-            self.s_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for S instances", color="orange", show=interactive)
-            self.m_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for M instances", color="orange", show=interactive)
-            self.xl_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for XL instances", color="orange", show=interactive)
+            self.s_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for a validation instance of size S", color="orange", show=interactive)
+            self.m_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for a validation instance of size M", color="orange", show=interactive)
+            self.l_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for a validation instance of size L", color="orange", show=interactive)
+            self.xl_obj: Loss    = Loss(xlabel="Episode", ylabel="Objective value", title="Objective value (cmax + delay) for a validation instance of size XL", color="orange", show=interactive)
         else:
             self.policy_net.eval()
 
-    def select_next_decision(self, state: State, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool, greedy: bool) -> int:
+    def select_next_decision(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool, greedy: bool) -> int:
         if train:
             if random.random() > eps_threshold:
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
@@ -143,12 +143,12 @@ class Agent:
             pa_adj     = torch.stack([global_id.to(pa.dtype), # the final tensor would have the global id,
                                     pa[:,1],                  # the machine,
                                     pa[:,2],                  # the parallel option
-                                    pa[:,3], pa[:,4], pa[:,5], pa[:,6], pa[:,7], pa[:,8], pa[:,9], pa[:,10]], dim=1) # and the problem size features!
+                                    pa[:,3], pa[:,4], pa[:,5], pa[:,6], pa[:,7], pa[:,8], pa[:,9], pa[:,10], pa[:,11], pa[:,12], pa[:,13], pa[:,14]], dim=1) # and the problem size features!
             decisions_with_batch_ids.append(pa_adj)      # Add the new "possible decision"
         out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3) 
         return out
 
-    def optimize_policy(self) -> float:
+    def optimize_policy(self, adapt_lr: bool) -> float:
         """
             Update the policy network with a mini-batch from replay memory.
         """
@@ -196,7 +196,8 @@ class Agent:
         loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
         clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients
         self.optimizer.step()                                          # Do a gradient step and update parameters -> θi+1 = θi - α∑∇ℓ(f(θi, x), y)
-        self.scheduler.step(loss.item())                               # Reduce the learning rate if the loss does not improve
+        if adapt_lr:
+            self.scheduler.step(loss.item())                           # Reduce the learning rate if the loss does not improve
         self.loss.update(loss.item())                                  # Display the loss in the chart!
         return loss.item()
                        

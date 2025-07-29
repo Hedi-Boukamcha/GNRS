@@ -5,6 +5,7 @@ from conf import *
 from torch import Tensor
 from torch_geometric.data import HeteroData
 import torch
+import random
 
 # ######################################################
 # =*= GNN STATE: INSTANCE DATA AND PARTIAL SOLUTION =*=
@@ -116,9 +117,10 @@ class State:
         self.L: int                    = L
         self.M: int                    = M
         self.cmax: int                 = 0
+        self.start_time: int           = 0
         self.total_delay: int          = 0
-        self.lb_cmax: int              = 0
-        self.lb_delay: int             = 0
+        self.ub_cmax: int              = 0
+        self.ub_delay: int             = 0
         self.reward: Tensor            = None
         self.decisions: list[Decision] = decisions
         self.machine1: Machine1        = None
@@ -138,46 +140,41 @@ class State:
     def min_action_time(self) -> int:
         time: int = min(self.machine1.free_at, self.machine2.free_at, self.robot.free_at, min([s.free_at for s in self.all_stations.stations]))
         return time
-
-    def compute_values_for_reward(self, unloading_time: int, current_time: int) -> tuple[int, int]:
-        @dataclass(frozen=True)
-        class Indexed:
-            idx: int
-            job: JobState
-        
-        # 1. Real delay and Cmax
+    
+    def compute_obj_values_and_upper_bounds(self, unloading_time: int, current_time: int):
+        # 1. Real (minimal) delay and current Cmax
         self.cmax        = max(self.cmax, unloading_time)
+        self.start_time  = current_time
         self.total_delay = 0
-        self.lb_cmax     = self.cmax
-        self.lb_delay    = 0
+        self.ub_cmax     = max(current_time, 1)
+        self.ub_delay    = 1
         for js in self.job_states:  
             if js.is_done(): 
-                js.delay           = max(0, js.end - js.job.due_date) 
+                js.delay          = max(0, js.end - js.job.due_date) 
                 self.total_delay += js.delay
-                self.lb_delay    += js.delay
-
-        # 2. Minimal expected delay and duration
-        last_is_M1: bool            = True
-        pos_time: int               = current_time
-        unfinished: list[Indexed]   = [Indexed(i, job) for i, job in enumerate(self.job_states) if not job.is_done()]
-        sorted_jobs: list[Indexed]  = sorted(unfinished, key=lambda i: i.job.job.due_date)
-        for idx, j in enumerate(sorted_jobs):
-            js: JobState = j.job
-            rem_ops       = [o for o in js.operation_states if o.remaining_time > 0]
-            first_is_M2   = (rem_ops[0].operation.type == MACHINE_2)
-            proc_time     = sum(o.operation.processing_time + M for o in rem_ops)
-            start         = pos_time if first_is_M2 else current_time
-            last_is_M1    = (rem_ops[-1].operation.type == MACHINE_1)
-            time_to_pos   = js.job.pos_time if idx < (len(sorted_jobs) - 1) and (last_is_M1 or len(rem_ops) > 1) else 0
-            current_time  = start + time_to_pos + proc_time + M * (3 if len(rem_ops) > 1 else 2)
-            if last_is_M1 and len(rem_ops) > 1:
-                pos_time = start + rem_ops[0].operation.processing_time + time_to_pos + 4*M
-            elif len(rem_ops) == 1 and not last_is_M1:
-                pos_time = last_is_M1
+                self.ub_delay    += js.delay
             else:
-                pos_time   = start + time_to_pos + M * (3 if len(rem_ops) > 1 else 2)
-            self.lb_cmax   = max(self.lb_cmax, current_time + L)
-            self.lb_delay += max(0, current_time + L - js.job.due_date)
+                endJ: int = current_time + L
+                for o in js.operation_states:
+                    if o.remaining_time > 0:
+                        endJ += 2*M + o.operation.processing_time 
+                self.total_delay += max(0, endJ - js.job.due_date) 
+
+        # 2. Maximal remaining delays and production time (makespan)
+        sorted_jobs: list[JobState] = sorted(self.job_states, key=lambda j: j.job.due_date)
+        for js in reversed(sorted_jobs):
+            if not js.is_done():
+                has_one_done: bool = False
+                for o in js.operation_states:
+                    if o.remaining_time > 0:
+                        self.ub_cmax += 2*M + o.operation.processing_time 
+                        if o.operation.type == MACHINE_1:
+                            self.ub_cmax += js.job.pos_time + M
+                    else:
+                        has_one_done = True
+                self.ub_cmax += L * (1 if has_one_done else 2)
+                self.ub_delay += max(0, self.ub_cmax - js.job.due_date)
+        self.ub_cmax = max(self.cmax, self.ub_cmax)
 
     def display_calendars(self):
         self.machine1.calendar.display_calendar("MACHINE #1")
@@ -201,8 +198,9 @@ class State:
         c.all_stations = self.all_stations.clone()
         c.cmax         = self.cmax
         c.total_delay  = self.total_delay
-        c.lb_cmax      = self.lb_cmax
-        c.lb_delay     = self.lb_delay
+        c.ub_cmax      = self.ub_cmax
+        c.ub_delay     = self.ub_delay
+        c.start_time   = self.start_time
 
         # State 2: clone all OOP links
         self.robot.clone_calendar_and_current_job_and_location(c)

@@ -41,22 +41,22 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 class Environment:
-    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0, ub_cmax: int=0, ub_delay: int=0, n: int=0):
+    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0, init_UB_cmax: int=0, init_UB_delay: int=0, n: int=0):
         self.graph              = graph
         self.decisionsT         = decisionsT
         self.cmax               = cmax
         self.delay              = delay
         self.possible_decisions = possible_decisions
         self.total_jobs         = n
-        self.ub_cmax            = ub_cmax
-        self.ub_delay           = ub_delay
+        self.init_UB_cmax       = init_UB_cmax
+        self.init_UB_delay      = init_UB_delay
         self.rm_jobs            = n
         self.m2_parallel        = 0
         self.action_time        = 0
-        self.lb_cmax            = 0
-        self.lb_delay           = 0
+        self.ub_cmax            = init_UB_cmax
+        self.ub_delay           = init_UB_delay
 
-    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, lb_cmax: int, lb_delay: int, m2_parallel: int, m2: int):
+    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, ub_cmax: int, ub_delay: int, m2_parallel: int, m2: int):
         self.graph              = graph
         self.decisionsT         = decisionsT
         self.cmax               = cmax
@@ -64,8 +64,8 @@ class Environment:
         self.possible_decisions = possible_decisions
         self.rm_jobs            = graph['job'].x.shape[0] if graph['job'].x is not None else 0
         self.m2_parallel        = m2_parallel / m2 if m2 > 0 else 0
-        self.lb_cmax            = lb_cmax
-        self.lb_delay           = lb_delay
+        self.ub_cmax            = ub_cmax
+        self.ub_delay           = ub_delay
 
 def search_possible_decisions(state: State, possible_parallel: bool, needed_parallel: bool, device: str, env: Environment) -> list[Decision]:
     M1_decisions: list[Decision] = []
@@ -83,30 +83,15 @@ def search_possible_decisions(state: State, possible_parallel: bool, needed_para
                         M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
     decisions: list[Decision] = M2_decisions + (M1_decisions if (not needed_parallel or len(M2_decisions)==0) else [])
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.init_UB_cmax, env.init_UB_delay, env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time, state.M, state.L] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
-def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
-    jobs: List["Job"] = i.jobs
-    nb_jobs: int      = len(jobs)
-    per_j_term        = sum(j.pos_time for j in jobs)
-    per_op_term       = sum((2*M) + op.processing_time for j in jobs for op in j.operations)
-    ub_cmax           = 2 * L * nb_jobs + per_op_term + (per_j_term/2)
-    sorted_jobs       = sorted(jobs, key=lambda j: j.due_date)
-    delays: int       = 0
-    for idx, job in enumerate(sorted_jobs):
-        rank    = (idx * 0.9)/ nb_jobs if nb_jobs else 0.0
-        delay   = max(0, ub_cmax * (1 - rank) - job.due_date)
-        delays += delay
-    ub_delay    = max(1, delays)
-    return ub_cmax, ub_delay
-
-def reward(duration: int, env: Environment, cmax_new: int, delay_new: int, lb_cmax_new: int, lb_delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:#
-    delta_cmax: float  = (cmax_new - env.cmax - duration + TO_LB*(lb_cmax_new - env.lb_cmax))/ub_cmax
-    delta_delay: float = (delay_new - env.delay + TO_LB*(lb_delay_new - env.lb_delay))/ub_delay
+def reward(duration: int, env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
+    delta_cmax: float  = (cmax_new - env.cmax)/env.ub_cmax # - duration + TRADE_OFF*(ub_cmax_new - env.lb_cmax)) #/env.init_UB_cmax
+    delta_delay: float = (delay_new - env.delay)/env.ub_delay # + TRADE_OFF*(ub_delay_new - env.lb_delay)) #/env.init_UB_delay
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0) -> float:
+def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
     i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
@@ -118,13 +103,12 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         g: bool = (retry == 1) if not train else greedy
         last_job_in_pos: int = -1
         state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
-        state.compute_values_for_reward(unloading_time=0, current_time=0)
+        state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
         graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
-        ub_cmax, ub_delay = compute_upper_bounds(i)
-        env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, ub_cmax=ub_cmax, ub_delay=ub_delay, n=len(i.jobs))
+        env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, init_UB_cmax=state.ub_cmax, init_UB_delay=state.ub_delay, n=len(i.jobs))
         env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
         while env.possible_decisions:
-            action_id: int = agent.select_next_decision(state=state, graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
+            action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
             d: Decision = env.possible_decisions[action_id]
             if d.parallel:
                 if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
@@ -145,10 +129,10 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
             if train:
                 final: bool   = len(next_possible_decisions) == 0
                 duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-                _r: Tensor    = reward(duration=duration, env=env, cmax_new=state.cmax, delay_new=state.total_delay, lb_cmax_new=state.lb_cmax, lb_delay_new=state.lb_delay, ub_cmax=ub_cmax, ub_delay=ub_delay, device=device)
+                _r: Tensor    = reward(duration=duration, env=env, cmax_new=state.start_time, delay_new=state.total_delay, ub_cmax_new=state.ub_cmax, ub_delay_new=state.ub_delay, device=device)
                 agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
             env.action_time = state.min_action_time()
-            env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, lb_cmax=state.lb_cmax, lb_delay=state.lb_delay, m2_parallel=m2_parallel, m2=m2)
+            env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, ub_cmax=state.ub_cmax, ub_delay=state.ub_delay, m2_parallel=m2_parallel, m2=m2)
         if improve:
             state = LS(i, state.decisions) # improve with local search
         obj: int = state.total_delay + state.cmax
@@ -163,7 +147,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
-    return best_obj
+    return best_obj, (env.init_UB_cmax+env.init_UB_delay)
 
 def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
     extension: str = "improved_gnn" if improve else "gnn"
@@ -188,21 +172,22 @@ def train(agent: Agent, path: str, device: str):
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
         greedy = True if episode < (0.85 * NB_EPISODES) else random.random() > 0.7
-        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
+        obj, ub = solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
-        if episode % VALIDATE_RATE == 0:
+        if episode == 1 or episode % VALIDATE_RATE == 0:
             for vs in sizes[:complexity_limit]:
-                obj = solve_one(agent=agent, path=path, gantt_path="", size=vs, id="1", improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
-                agent.add_obj(size=vs, obj=obj)
+                val_obj, val_ub = solve_one(agent=agent, path=path, gantt_path="", size=vs, id="1", improve=False, device=device, retires=1, train=True, greedy=True, eps_threshold=0.0)
+                agent.add_obj(size=vs, obj=val_obj)
+                print(f"Valdation of size {vs}: OBJ={val_obj}, UB={int(val_ub)}...") 
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
         if len(agent.memory) > BATCH_SIZE:
-            loss: float = agent.optimize_policy()
+            loss: float = agent.optimize_policy(adapt_lr=(episode>=WARMUP_EPISODES))
             agent.optimize_target()
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.6f}")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.0e}")
         else:
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
         if episode % SAVING_RATE == 0 or episode == NB_EPISODES:
             agent.save()
     print("End!")

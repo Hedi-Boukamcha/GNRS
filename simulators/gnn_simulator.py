@@ -66,7 +66,7 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
     if not d.parallel or o.operation.type == MACHINE_2:
         pos_time = time
 
-    state.compute_values_for_reward(unloading_time=max(unloading_time_1, unloading_time_2), current_time=pos_time)
+    state.compute_obj_values_and_upper_bounds(unloading_time=max(unloading_time_1, unloading_time_2), current_time=pos_time)
     state.decisions.append(d)
     return state
 
