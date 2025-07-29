@@ -196,7 +196,7 @@ class Agent:
         loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
         clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients
         self.optimizer.step()                                          # Do a gradient step and update parameters -> θi+1 = θi - α∑∇ℓ(f(θi, x), y)
-        if adapt_lr:
+        if adapt_lr and self.optimizer.param_groups[0]['lr'] > 1e-5:
             self.scheduler.step(loss.item())                           # Reduce the learning rate if the loss does not improve
         self.loss.update(loss.item())                                  # Display the loss in the chart!
         return loss.item()

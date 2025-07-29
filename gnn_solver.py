@@ -87,8 +87,8 @@ def search_possible_decisions(state: State, possible_parallel: bool, needed_para
     return decisions, decisionsT
 
 def reward(duration: int, env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
-    delta_cmax: float  = (cmax_new - env.cmax)/env.ub_cmax # - duration + TRADE_OFF*(ub_cmax_new - env.lb_cmax)) #/env.init_UB_cmax
-    delta_delay: float = (delay_new - env.delay)/env.ub_delay # + TRADE_OFF*(ub_delay_new - env.lb_delay)) #/env.init_UB_delay
+    delta_cmax: float  = (TRADE_OFF * (ub_cmax_new - env.ub_cmax) + cmax_new - env.cmax)/(1 + TRADE_OFF) # + duration)/env.init_UB_cmax 
+    delta_delay: float = (TRADE_OFF * (ub_delay_new - env.ub_delay) + delay_new - env.delay)/(1 + TRADE_OFF) #/env.init_UB_delay
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
@@ -166,8 +166,10 @@ def train(agent: Agent, path: str, device: str):
     complexity_limit: int = 1
     size: str             = "s"
     instance_id: str      = "1"
+    sr: int               = SWITCH_RATE
     for episode in range(1, NB_EPISODES+1):
-        if episode % SWITCH_RATE == 0:
+        if episode % sr == 0:
+            sr              += 1000
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
