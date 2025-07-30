@@ -67,16 +67,16 @@ TAU                 = 0.003   # update rate of the target network
 LR                  = 1e-3    # learning rate of AdamW 
 EPS_START           = 0.99    # starting value of epsilon
 EPS_END             = 0.005   # final value of epsilon
-EPS_DECAY_RATE      = 8_000  # controls the rate of exponential decay of epsilon
-NB_EPISODES         = 30_000  # X (changes) episodes per instances on average
+EPS_DECAY_RATE      = 12_000  # controls the rate of exponential decay of epsilon
+NB_EPISODES         = 40_000  # X (changes) episodes per instances on average
 COMPLEXITY_RATE     = 6000    # curriculum learning rate: nb episodes before adding larger instances to the training set
 MAX_GRAD_NORM       = 30.0    # max norm for gradient clipping 
 LR_PATIENCE         = 800     # patience for the learning rate scheduler (in number of episodes)
 LR_REDUCE_RATE      = 3000    # threshold for the learning rate scheduler
 REWARD_SCALE        = 1.      # scale factor for the reward
-BETA                = 50      # beta parameter for the Huber loss function
+BETA                = 40      # beta parameter for the Huber loss function
 TRADE_OFF           = 0.85    # trade-off between the current-value-based reward and the lower-bound-based reward
-VALIDATE_RATE       = 100     # nb episodes before validating the model
+VALIDATE_RATE       = 200     # nb episodes before validating the model
 WARMUP_EPISODES     = 24_000  # nb episodes before starting to adapt (reduce) LR
 
 # Gantt configuration

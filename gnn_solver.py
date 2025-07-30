@@ -173,7 +173,7 @@ def train(agent: Agent, path: str, device: str):
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        greedy = True if episode < (0.9 * NB_EPISODES) else random.random() > 0.7
+        greedy = True if episode < (0.8 * NB_EPISODES) else random.random() > 0.7
         obj, ub = solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
@@ -181,11 +181,11 @@ def train(agent: Agent, path: str, device: str):
             for vs in sizes[:complexity_limit]:
                 print(f"Validating size {vs}...")
                 val_obj = 0
-                for id in range(1, 60):
+                for id in range(1, 100):
                     v_id: str = str(id)
                     vo,_ = solve_one(agent=agent, path=path, gantt_path="", size=vs, id=v_id, improve=False, device=device, retires=1, train=True, greedy=True, eps_threshold=0.0)
                     val_obj += vo
-                val_obj /= 60.0
+                val_obj /= 100.0
                 agent.add_obj(size=vs, obj=val_obj)
                 print(f"Valdation of size {vs} = AVG = {val_obj}...") 
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
@@ -193,7 +193,7 @@ def train(agent: Agent, path: str, device: str):
         if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
-            if episode>=WARMUP_EPISODES and episode%LR_REDUCE_RATE==0 and agent.optimizer.param_groups[0]['lr']>1e-4:                    
+            if episode>WARMUP_EPISODES and episode%LR_REDUCE_RATE==0 and agent.optimizer.param_groups[0]['lr']>5e-5:                    
                 agent.optimizer.param_groups[0]['lr'] *= 0.5
             print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.0e}")
         else:
