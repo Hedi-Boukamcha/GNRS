@@ -86,9 +86,9 @@ def search_possible_decisions(state: State, possible_parallel: bool, needed_para
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.init_UB_cmax, env.init_UB_delay, env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
-def reward(duration: int, env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
-    delta_cmax: float  = (TRADE_OFF * (ub_cmax_new - env.ub_cmax) + cmax_new - env.cmax)/(1 + TRADE_OFF) # + duration)/env.init_UB_cmax 
-    delta_delay: float = (TRADE_OFF * (ub_delay_new - env.ub_delay) + delay_new - env.delay)/(1 + TRADE_OFF) #/env.init_UB_delay
+def reward(env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
+    delta_cmax: float  = (TRADE_OFF * (ub_cmax_new - env.ub_cmax) + cmax_new - env.cmax)/(1 + TRADE_OFF)
+    delta_delay: float = (TRADE_OFF * (ub_delay_new - env.ub_delay) + delay_new - env.delay)/(1 + TRADE_OFF)
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
@@ -128,8 +128,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
             next_possible_decisions, next_decisionT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
             if train:
                 final: bool   = len(next_possible_decisions) == 0
-                duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-                _r: Tensor    = reward(duration=duration, env=env, cmax_new=state.start_time, delay_new=state.total_delay, ub_cmax_new=state.ub_cmax, ub_delay_new=state.ub_delay, device=device)
+                _r: Tensor    = reward(env=env, cmax_new=state.start_time, delay_new=state.total_delay, ub_cmax_new=state.ub_cmax, ub_delay_new=state.ub_delay, device=device)
                 agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
             env.action_time = state.min_action_time()
             env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, ub_cmax=state.ub_cmax, ub_delay=state.ub_delay, m2_parallel=m2_parallel, m2=m2)
