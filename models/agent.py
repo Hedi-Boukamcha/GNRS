@@ -70,12 +70,13 @@ class Loss():
         self.save(filepath)
 
 class Agent:
-    def __init__(self, device: str, interactive: bool, path: str, load: bool=False, train: bool=False):
+    def __init__(self, device: str, interactive: bool, path: str, load: bool, train: bool=False):
         self.policy_net: QNet     = QNet()
         self.memory: ReplayMemory = ReplayMemory()
         self.path: str            = path
         self.device: str          = device
         if load:
+            print(f"Loading agent' weights from {self.path}...")
             self.load(device=device)
         self.policy_net.to(device=device)
         if train:

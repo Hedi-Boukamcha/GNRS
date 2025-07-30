@@ -100,7 +100,8 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     m2: int           = 0
     m2_parallel: int  = 0
     for retry in range(retires):
-        g: bool = (retry == 1) if not train else greedy
+        g: bool = (retry == 0) if not train else greedy
+        print("Retrying with greedy:", g, "for instance:", id, "retry:", retry+1, "/", retires)
         last_job_in_pos: int = -1
         state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
         state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
