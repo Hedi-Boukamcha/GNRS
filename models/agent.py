@@ -58,6 +58,17 @@ class Loss():
         with open(filepath + '_y_data.pkl', 'wb') as f:
             pickle.dump(self.y_data, f)
 
+    def load_and_update(self, filepath: str):
+        with open(filepath + '_x_data.pkl', 'rb') as f:
+            self.x_data = pickle.load(f)
+        with open(filepath + '_y_data.pkl', 'rb') as f:
+            self.y_data = pickle.load(f)
+        self.line.set_xdata(self.x_data)
+        self.line.set_ydata(self.y_data)
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.save(filepath)
+
 class Agent:
     def __init__(self, device: str, interactive: bool, path: str, load: bool=False, train: bool=False):
         self.policy_net: QNet     = QNet()
