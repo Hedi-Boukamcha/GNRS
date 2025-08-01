@@ -17,8 +17,8 @@ if __name__ == "__main__":
     args               = parser.parse_args()
     path: str          = args.path +'/data/training/'   
     interactive: bool  = False
-    W: float           = 10.6
-    H: float           = 7.2
+    W: float           = 12.19
+    H: float           = 8.28
 
     # CREATE CURVES
     loss: Loss        = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive, width=W, height=H)
