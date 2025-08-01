@@ -166,6 +166,7 @@ class Agent:
         act_idx_local = torch.as_tensor(batch.action_id, device=self.device)               # Local ID of the action (one big tensor for the whole batch -> for now with a problem of wrong indices!!)
         rewards       = torch.as_tensor(batch.reward, device=self.device)                  # reward of each currentstate (one big tensor for the whole batch)
         finals        = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool) # boolean check if the graph is final (one big tensor for the whole batch)
+        weights       = torch.as_tensor(batch.weight, device=self.device, dtype=torch.float32).detach() # weights of each transition (one big tensor for the whole batch)
 
         # ---------- 1. build current action tensor (with batch-level indices) ------------------------------
         actions_cur   = self._shift_actions(pa_cur_list, graphs_cur)                       # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
@@ -196,8 +197,9 @@ class Agent:
 
         # ---------- 4. compute (and display) the huber loss & optimize ------------------------------------------
         y = rewards.clone()                                            # y = reward r (start with that)
-        y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]
-        loss = F.smooth_l1_loss(q_sa_cur, y, beta=BETA)                # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
+        y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]               
+        td_errors = F.smooth_l1_loss(q_sa_cur, y, beta=BETA, reduction='none') 
+        loss = (weights * td_errors).sum() / (weights.sum() + 1e-8)    # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
         self.optimizer.zero_grad()                                     # reset gradients ∇ℓ = 0
         loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
         clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients

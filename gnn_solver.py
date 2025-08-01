@@ -101,7 +101,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     m2_parallel: int  = 0
     for retry in range(retires):
         g: bool = (retry == 0) if not train else greedy
-        print("Retrying with greedy:", g, "for instance:", id, "retry:", retry+1, "/", retires)
+        # print("Retrying with greedy:", g, "for instance:", id, "retry:", retry+1, "/", retires)
         last_job_in_pos: int = -1
         state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
         state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
@@ -130,7 +130,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
             if train:
                 final: bool   = len(next_possible_decisions) == 0
                 _r: Tensor    = reward(env=env, cmax_new=state.start_time, delay_new=state.total_delay, ub_cmax_new=state.ub_cmax, ub_delay_new=state.ub_delay, device=device)
-                agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
+                agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions), weight=T_WEIGTHS[size]))
             env.action_time = state.min_action_time()
             env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, ub_cmax=state.ub_cmax, ub_delay=state.ub_delay, m2_parallel=m2_parallel, m2=m2)
         if improve:
@@ -193,7 +193,7 @@ def train(agent: Agent, path: str, device: str):
         if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
-            if episode>WARMUP_EPISODES and episode%LR_REDUCE_RATE==0 and agent.optimizer.param_groups[0]['lr']>5e-5:                    
+            if episode>WARMUP_EPISODES and episode%LR_REDUCE_RATE==0 and agent.optimizer.param_groups[0]['lr']>MIN_LR:                    
                 agent.optimizer.param_groups[0]['lr'] *= 0.5
             print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.0e}")
         else:
