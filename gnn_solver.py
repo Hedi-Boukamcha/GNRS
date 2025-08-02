@@ -92,21 +92,21 @@ def reward(env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
-    i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
     best_obj: int     = -1
-    next_M2_parallel  = False
-    m2: int           = 0
-    m2_parallel: int  = 0
     for retry in range(retires):
-        g: bool = (retry == 0) if not train else greedy
+        g: bool              = (retry == 0) if not train else greedy
         # print("Retrying with greedy:", g, "for instance:", id, "retry:", retry+1, "/", retires)
+        i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
+        next_M2_parallel     = False
+        m2: int              = 0
+        m2_parallel: int     = 0
         last_job_in_pos: int = -1
-        state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+        state: State         = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
         state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
-        graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
-        env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, init_UB_cmax=state.ub_cmax, init_UB_delay=state.ub_delay, n=len(i.jobs))
+        graph: HeteroData    = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
+        env: Environment     = Environment(graph=graph, possible_decisions=None, decisionsT=None, init_UB_cmax=state.ub_cmax, init_UB_delay=state.ub_delay, n=len(i.jobs))
         env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
         while env.possible_decisions:
             action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
