@@ -14,6 +14,7 @@ from models.memory import ReplayMemory, Transition
 from conf import *
 from models.state import Decision
 from utils.common import top_k_Q_to_probs
+from models.state import State
 
 # #################
 # =*= DQN Agent =*=
@@ -57,13 +58,25 @@ class Loss():
         with open(filepath + '_y_data.pkl', 'wb') as f:
             pickle.dump(self.y_data, f)
 
+    def load_and_update(self, filepath: str):
+        with open(filepath + '_x_data.pkl', 'rb') as f:
+            self.x_data = pickle.load(f)
+        with open(filepath + '_y_data.pkl', 'rb') as f:
+            self.y_data = pickle.load(f)
+        self.line.set_xdata(self.x_data)
+        self.line.set_ydata(self.y_data)
+        self.ax.relim()
+        self.ax.autoscale_view()
+        self.save(filepath)
+
 class Agent:
-    def __init__(self, device: str, interactive: bool, path: str, load: bool=False, train: bool=False):
+    def __init__(self, device: str, interactive: bool, path: str, load: bool, train: bool=False):
         self.policy_net: QNet     = QNet()
         self.memory: ReplayMemory = ReplayMemory()
         self.path: str            = path
         self.device: str          = device
         if load:
+            print(f"Loading agent' weights from {self.path}...")
             self.load(device=device)
         self.policy_net.to(device=device)
         if train:
@@ -73,9 +86,12 @@ class Agent:
             self.policy_net.train()
             self.target_net.eval()
             self.optimizer       = Adam(list(self.policy_net.parameters()), lr=LR)
-            self.scheduler       = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, factor=0.5, cooldown=500, patience=LR_PATIENCE, threshold=LR_THRESHOLD)
             self.loss: Loss      = Loss(xlabel="Episode", ylabel="Loss", title="Huber Loss (policy network)", color="blue", show=interactive)
             self.diversity: Loss = Loss(xlabel="Episode", ylabel="Diversity probability", title="Epsilon threshold", color="green", show=interactive)
+            self.s_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value (cmax + delay)", title="Avg objective value for S instances", color="orange", show=interactive)
+            self.m_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value (cmax + delay)", title="Avg objective value for M instances", color="orange", show=interactive)
+            self.l_obj: Loss     = Loss(xlabel="Episode", ylabel="Objective value (cmax + delay)", title="Avg objective value for L instances", color="orange", show=interactive)
+            self.xl_obj: Loss    = Loss(xlabel="Episode", ylabel="Objective value (cmax + delay)", title="Avg objective value for XL instances", color="orange", show=interactive)
         else:
             self.policy_net.eval()
 
@@ -89,18 +105,27 @@ class Agent:
         else:
             with torch.no_grad():
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
-                # print("Nb possible decisions:", len(possible_decisions))
-                # print("Q  mean:", Q_values.mean().item())
-                # print("Q  max:", Q_values.max().item())
-                # print("Q  min:", Q_values.min().item())
-                # print("Q  std :", Q_values.std().item())
                 return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1), topk=min(5, len(possible_decisions)), temperature=0.5)
 
+    def add_obj(self, size: str, obj: int):
+        if size == "s":
+            self.s_obj.update(obj)
+        elif size == "m":
+            self.m_obj.update(obj)
+        elif size == "l":
+            self.l_obj.update(obj)
+        else:
+            self.xl_obj.update(obj)
+        
     def save(self):
         print(f"Saving policy_net and current loss...")
         torch.save(self.policy_net.state_dict(), f"{self.path}policy_net.pth")
         self.diversity.save(f"{self.path}epsilon")
         self.loss.save(f"{self.path}loss")
+        self.l_obj.save(f"{self.path}l_obj")
+        self.s_obj.save(f"{self.path}s_obj")
+        self.m_obj.save(f"{self.path}m_obj")
+        self.xl_obj.save(f"{self.path}xl_obj")  
 
     def load(self, device: str):
         print(f"Loading policy_net...")
@@ -124,7 +149,7 @@ class Agent:
             pa_adj     = torch.stack([global_id.to(pa.dtype), # the final tensor would have the global id,
                                     pa[:,1],                  # the machine,
                                     pa[:,2],                  # the parallel option
-                                    pa[:,3], pa[:,4], pa[:,5], pa[:,6], pa[:,7], pa[:,8], pa[:,9], pa[:,10]], dim=1) # and the problem size features!
+                                    pa[:,3], pa[:,4], pa[:,5], pa[:,6], pa[:,7], pa[:,8], pa[:,9], pa[:,10], pa[:,11], pa[:,12]], dim=1) # and the problem size features!
             decisions_with_batch_ids.append(pa_adj)      # Add the new "possible decision"
         out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3) 
         return out
@@ -141,6 +166,7 @@ class Agent:
         act_idx_local = torch.as_tensor(batch.action_id, device=self.device)               # Local ID of the action (one big tensor for the whole batch -> for now with a problem of wrong indices!!)
         rewards       = torch.as_tensor(batch.reward, device=self.device)                  # reward of each currentstate (one big tensor for the whole batch)
         finals        = torch.as_tensor(batch.final, device=self.device, dtype=torch.bool) # boolean check if the graph is final (one big tensor for the whole batch)
+        weights       = torch.as_tensor(batch.weight, device=self.device, dtype=torch.float32).detach() # weights of each transition (one big tensor for the whole batch)
 
         # ---------- 1. build current action tensor (with batch-level indices) ------------------------------
         actions_cur   = self._shift_actions(pa_cur_list, graphs_cur)                       # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
@@ -171,13 +197,13 @@ class Agent:
 
         # ---------- 4. compute (and display) the huber loss & optimize ------------------------------------------
         y = rewards.clone()                                            # y = reward r (start with that)
-        y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]
-        loss = F.smooth_l1_loss(q_sa_cur, y, beta=BETA)                # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
+        y[non_final] += GAMMA * max_q_n                                # y = reward r + discounted factor γ x MAX_Q_VALUES(state s+1) predicted with Q_target [or 0 if final]               
+        td_errors = F.smooth_l1_loss(q_sa_cur, y, beta=BETA, reduction='none') 
+        loss = (weights * td_errors).sum() / (weights.sum() + 1e-8)    # L(x, y) = 1/2 (x-y)^2 for small errors (|x-y| ≤ δ) else δ|x-y| - 1/2 x δ^2 | here x (q_sa_cur) = predicted quality of (s, a) using the policy network
         self.optimizer.zero_grad()                                     # reset gradients ∇ℓ = 0
         loss.backward()                                                # Build gradients ∇ℓ(f(θi, x), y) with backprop
         clip_grad_norm_(self.policy_net.parameters(), MAX_GRAD_NORM)   # Normalize to avoid exploding gradients
         self.optimizer.step()                                          # Do a gradient step and update parameters -> θi+1 = θi - α∑∇ℓ(f(θi, x), y)
-        self.scheduler.step(loss.item())                               # Reduce the learning rate if the loss does not improve
         self.loss.update(loss.item())                                  # Display the loss in the chart!
         return loss.item()
                        

@@ -38,35 +38,35 @@ def simulate(previous_state: State, d: Decision, clone: bool=False) -> State:
 
     # 6. Job needs to be placed on the positioner
     if d.parallel and o.operation.type == MACHINE_1:
-        time = position_job(j, o, robot, machine, time)
+        pos_time = position_job(j, o, robot, machine, time)
+        time     = pos_time
 
     # 7. Execute the operation
     parallel=(d.parallel and o.operation.type == MACHINE_1)
     time = execute_operation(j, o, robot, machine, parallel, time)
 
     # 8. If the operation is the last of the job, we remove the job from the system
-    #max_time = time
     if o.is_last:
-        time     = robot_move_job_to_station(state, robot, j, o, machine, M, time)
-        #max_time = unload(state, j, o, L, time)
-        unload(state, j, o, L, time)
+        time             = robot_move_job_to_station(state, robot, j, o, machine, M, time)
+        unloading_time_1 = unload(state, j, o, L, time)
     else:
-        #max_time = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
-        simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
+        unloading_time_1 = simulate_station_min_free_at(state.robot, j, o, state.M, state.L, time)
 
     # 9. If a parallel job was waiting (to be unloaded) on the positioner, unload it
+    unloading_time_2: int = 0
     if job_on_pos_to_unload is not None:
         if not o.is_last:
             time = robot_move_job_to_station(state, robot, j, o, machine, M, time)
         last_op: OperationState = job_on_pos_to_unload.operation_states[-1]
-        last_op.end    = max(time, last_op.end)
-        time           = last_op.end
-        time           = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.machine1, M, time)
-        unloading_time = unload(state, job_on_pos_to_unload, last_op, L, time)
-        #max_time      = max(max_time, unloading_time)
-        time           = max(time, unloading_time)
+        last_op.end      = max(time, last_op.end)
+        time             = last_op.end
+        time             = robot_move_job_to_station(state, robot, job_on_pos_to_unload, last_op, state.machine1, M, time)
+        unloading_time_2 = unload(state, job_on_pos_to_unload, last_op, L, time) 
 
-    state.compute_reward_values(time)
+    if not d.parallel or o.operation.type == MACHINE_2:
+        pos_time = time
+
+    state.compute_obj_values_and_upper_bounds(unloading_time=max(unloading_time_1, unloading_time_2), current_time=pos_time)
     state.decisions.append(d)
     return state
 

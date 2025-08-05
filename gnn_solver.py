@@ -41,20 +41,22 @@ __version__ = "1.0.0"
 __license__ = "MIT"
 
 class Environment:
-    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0, ub_cmax: int=0, ub_delay: int=0, n: int=0):
+    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0, init_UB_cmax: int=0, init_UB_delay: int=0, n: int=0):
         self.graph              = graph
         self.decisionsT         = decisionsT
         self.cmax               = cmax
         self.delay              = delay
         self.possible_decisions = possible_decisions
         self.total_jobs         = n
-        self.ub_cmax            = ub_cmax
-        self.ub_delay           = ub_delay
+        self.init_UB_cmax       = init_UB_cmax
+        self.init_UB_delay      = init_UB_delay
         self.rm_jobs            = n
         self.m2_parallel        = 0
         self.action_time        = 0
+        self.ub_cmax            = init_UB_cmax
+        self.ub_delay           = init_UB_delay
 
-    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, m2_parallel: int, m2: int):
+    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, ub_cmax: int, ub_delay: int, m2_parallel: int, m2: int):
         self.graph              = graph
         self.decisionsT         = decisionsT
         self.cmax               = cmax
@@ -62,53 +64,49 @@ class Environment:
         self.possible_decisions = possible_decisions
         self.rm_jobs            = graph['job'].x.shape[0] if graph['job'].x is not None else 0
         self.m2_parallel        = m2_parallel / m2 if m2 > 0 else 0
+        self.ub_cmax            = ub_cmax
+        self.ub_delay           = ub_delay
 
 def search_possible_decisions(state: State, possible_parallel: bool, needed_parallel: bool, device: str, env: Environment) -> list[Decision]:
-    decisions: list[Decision] = []
+    M1_decisions: list[Decision] = []
+    M2_decisions: list[Decision] = []
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
-                if possible_parallel or o.operation.type == MACHINE_1:
-                    decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
-                if not needed_parallel or o.operation.type == MACHINE_1:
-                    decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
+                if o.operation.type == MACHINE_1:
+                    M1_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
+                    M1_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
+                else:
+                    if possible_parallel:
+                        M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True))
+                    if not needed_parallel :
+                        M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False))
                 break
-    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
+    decisions: list[Decision] = M2_decisions + (M1_decisions if (not needed_parallel or len(M2_decisions)==0) else [])
+    decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.init_UB_cmax, env.init_UB_delay, env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
-def compute_upper_bounds(i: Instance)-> Tuple[int, int]:
-    jobs: List["Job"] = i.jobs
-    nb_jobs: int      = len(jobs)
-    per_j_term        = sum(j.pos_time for j in jobs)
-    per_op_term       = sum((2*M) + op.processing_time for j in jobs for op in j.operations)
-    ub_cmax           = 2 * L * nb_jobs + per_op_term + (per_j_term/2)
-    sorted_jobs       = sorted(jobs, key=lambda j: j.due_date)
-    delays: int       = 0
-    for idx, job in enumerate(sorted_jobs):
-        rank    = (idx * 0.9)/ nb_jobs if nb_jobs else 0.0
-        delay   = max(0, ub_cmax * (1 - rank) - job.due_date)
-        delays += delay
-    ub_delay    = max(1, delays)
-    return ub_cmax, ub_delay
-
-def reward(duration: int, cmax_old: int, cmax_new: int, delay_old: int, delay_new: int, ub_cmax: int, ub_delay: int, device: str) -> Tensor:#
-    return torch.tensor([-REWARD_SCALE * ((cmax_new - cmax_old - duration)/ub_cmax + (delay_new - delay_old)/ub_delay)], dtype=torch.float32, device=device)
+def reward(env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
+    delta_cmax: float  = (TRADE_OFF * (ub_cmax_new - env.ub_cmax) + cmax_new - env.cmax)/(1 + TRADE_OFF)
+    delta_delay: float = (TRADE_OFF * (ub_delay_new - env.ub_delay) + delay_new - env.delay)/(1 + TRADE_OFF)
+    return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
 def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
-    i: Instance       = Instance.load(path + size + "/instance_" +id+ ".json")
     start_time        = time.time()
     best_state: State = None
     best_obj: int     = -1
-    next_M2_parallel  = False
-    m2: int           = 0
-    m2_parallel: int  = 0
     for retry in range(retires):
-        g: bool = (retry == 1) if not train else greedy
+        g: bool              = (retry == 0) if not train else greedy
+        # print("Retrying with greedy:", g, "for instance:", id, "retry:", retry+1, "/", retires)
+        i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
+        next_M2_parallel     = False
+        m2: int              = 0
+        m2_parallel: int     = 0
         last_job_in_pos: int = -1
-        state: State = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
-        graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
-        ub_cmax, ub_delay = compute_upper_bounds(i)
-        env: Environment = Environment(graph=graph, possible_decisions=None, decisionsT=None, ub_cmax=ub_cmax, ub_delay=ub_delay, n=len(i.jobs))
+        state: State         = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+        state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
+        graph: HeteroData    = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
+        env: Environment     = Environment(graph=graph, possible_decisions=None, decisionsT=None, init_UB_cmax=state.ub_cmax, init_UB_delay=state.ub_delay, n=len(i.jobs))
         env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
         while env.possible_decisions:
             action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
@@ -131,11 +129,10 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
             next_possible_decisions, next_decisionT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, device=device)
             if train:
                 final: bool   = len(next_possible_decisions) == 0
-                duration: int = state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.processing_time
-                _r: Tensor    = reward(duration=duration, cmax_old=env.cmax, cmax_new=state.cmax, delay_old=env.delay, delay_new=state.total_delay, ub_cmax=ub_cmax, ub_delay=ub_delay, device=device)
-                agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions)))
+                _r: Tensor    = reward(env=env, cmax_new=state.start_time, delay_new=state.total_delay, ub_cmax_new=state.ub_cmax, ub_delay_new=state.ub_delay, device=device)
+                agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions), weight=T_WEIGTHS[size]))
             env.action_time = state.min_action_time()
-            env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, m2_parallel=m2_parallel, m2=m2)
+            env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, ub_cmax=state.ub_cmax, ub_delay=state.ub_delay, m2_parallel=m2_parallel, m2=m2)
         if improve:
             state = LS(i, state.decisions) # improve with local search
         obj: int = state.total_delay + state.cmax
@@ -150,6 +147,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
         extension: str = "improved_" if improve else ""
         results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
+    return best_obj, (env.init_UB_cmax+env.init_UB_delay)
 
 def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
     extension: str = "improved_gnn" if improve else "gnn"
@@ -168,23 +166,38 @@ def train(agent: Agent, path: str, device: str):
     complexity_limit: int = 1
     size: str             = "s"
     instance_id: str      = "1"
+    sr: int               = SWITCH_RATE
     for episode in range(1, NB_EPISODES+1):
-        if episode % SWITCH_RATE == 0:
+        if episode % sr == 0:
+            sr              += 1000
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        greedy = True if episode < (0.85 * NB_EPISODES) else random.random() > 0.7
-        solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
+        greedy = True if episode < (0.8 * NB_EPISODES) else random.random() > 0.7
+        obj, ub = solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
+        if episode == 1 or episode % VALIDATE_RATE == 0:
+            for vs in sizes[:complexity_limit]:
+                print(f"Validating size {vs}...")
+                val_obj = 0
+                for id in range(1, 100):
+                    v_id: str = str(id)
+                    vo,_ = solve_one(agent=agent, path=path, gantt_path="", size=vs, id=v_id, improve=False, device=device, retires=1, train=True, greedy=True, eps_threshold=0.0)
+                    val_obj += vo
+                val_obj /= 100.0
+                agent.add_obj(size=vs, obj=val_obj)
+                print(f"Valdation of size {vs} = AVG = {val_obj}...") 
         if episode % COMPLEXITY_RATE == 0 and complexity_limit<len(sizes):
             complexity_limit += 1
         if len(agent.memory) > BATCH_SIZE:
             loss: float = agent.optimize_policy()
             agent.optimize_target()
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.6f}")
+            if episode>WARMUP_EPISODES and episode%LR_REDUCE_RATE==0 and agent.optimizer.param_groups[0]['lr']>MIN_LR:                    
+                agent.optimizer.param_groups[0]['lr'] *= 0.5
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- loss: {loss:.5f} -- LR: {agent.optimizer.param_groups[0]['lr']:.0e}")
         else:
-            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
+            print(f"Training episode: {episode} [time={computing_time:.2f}] -- instance: ({size}, {instance_id}) -- obj: ({obj} / {int(ub)}) -- diversity rate (epsilion): {eps_threshold:.3f} -- No optimization yet...")
         if episode % SAVING_RATE == 0 or episode == NB_EPISODES:
             agent.save()
     print("End!")

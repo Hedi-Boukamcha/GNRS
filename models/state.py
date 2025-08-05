@@ -5,6 +5,7 @@ from conf import *
 from torch import Tensor
 from torch_geometric.data import HeteroData
 import torch
+import random
 
 # ######################################################
 # =*= GNN STATE: INSTANCE DATA AND PARTIAL SOLUTION =*=
@@ -116,7 +117,10 @@ class State:
         self.L: int                    = L
         self.M: int                    = M
         self.cmax: int                 = 0
+        self.start_time: int           = 0
         self.total_delay: int          = 0
+        self.ub_cmax: int              = 0
+        self.ub_delay: int             = 0
         self.reward: Tensor            = None
         self.decisions: list[Decision] = decisions
         self.machine1: Machine1        = None
@@ -136,15 +140,41 @@ class State:
     def min_action_time(self) -> int:
         time: int = min(self.machine1.free_at, self.machine2.free_at, self.robot.free_at, min([s.free_at for s in self.all_stations.stations]))
         return time
-
-    def compute_reward_values(self, end_time: int):
-        self.cmax = max(self.cmax, end_time) # => TODO nope integrate here LB over next jobs for Cmax and Delays!
+    
+    def compute_obj_values_and_upper_bounds(self, unloading_time: int, current_time: int):
+        # 1. Real (minimal) delay and current Cmax
+        self.cmax        = max(self.cmax, unloading_time)
+        self.start_time  = current_time
         self.total_delay = 0
-        for j in self.job_states:
-            # TODO For jobs not done, we need to compute the minimum j.end before computing the delay! (Here only for jobs no started yet)
-            # TODO Repenser le retard dans le reward!
-            j.delay = max(0, j.end - j.job.due_date) # real delay or minimal expected delay
-            self.total_delay += j.delay
+        self.ub_cmax     = max(current_time, 1)
+        self.ub_delay    = 1
+        for js in self.job_states:  
+            if js.is_done(): 
+                js.delay          = max(0, js.end - js.job.due_date) 
+                self.total_delay += js.delay
+                self.ub_delay    += js.delay
+            else:
+                endJ: int = current_time + L
+                for o in js.operation_states:
+                    if o.remaining_time > 0:
+                        endJ += 2*M + o.operation.processing_time 
+                self.total_delay += max(0, endJ - js.job.due_date) 
+
+        # 2. Maximal remaining delays and production time (makespan)
+        sorted_jobs: list[JobState] = sorted(self.job_states, key=lambda j: j.job.due_date)
+        for js in reversed(sorted_jobs):
+            if not js.is_done():
+                has_one_done: bool = False
+                for o in js.operation_states:
+                    if o.remaining_time > 0:
+                        self.ub_cmax += 2*M + o.operation.processing_time 
+                        if o.operation.type == MACHINE_1:
+                            self.ub_cmax += js.job.pos_time + M
+                    else:
+                        has_one_done = True
+                self.ub_cmax += L * (1 if has_one_done else 2)
+                self.ub_delay += max(0, self.ub_cmax - js.job.due_date)
+        self.ub_cmax = max(self.cmax, self.ub_cmax)
 
     def display_calendars(self):
         self.machine1.calendar.display_calendar("MACHINE #1")
@@ -161,11 +191,16 @@ class State:
         c.decisions    = [d.clone() for d in self.decisions]
         c.machine1     = self.machine1.clone()
         c.machine2     = self.machine2.clone()
-        c.machines   = [c.machine1, c.machine2]
+        c.machines     = [c.machine1, c.machine2]
         c.reward       = self.reward.clone() if self.reward is not None else None
         c.robot        = self.robot.clone()
-        c.job_states    = [j.clone() for j in self.job_states]
+        c.job_states   = [j.clone() for j in self.job_states]
         c.all_stations = self.all_stations.clone()
+        c.cmax         = self.cmax
+        c.total_delay  = self.total_delay
+        c.ub_cmax      = self.ub_cmax
+        c.ub_delay     = self.ub_delay
+        c.start_time   = self.start_time
 
         # State 2: clone all OOP links
         self.robot.clone_calendar_and_current_job_and_location(c)
