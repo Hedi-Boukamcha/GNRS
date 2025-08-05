@@ -43,7 +43,7 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
                 op_id = e.operation.id + 1
                 para_text: str = " (S)"
                 for d in state.decisions:
-                    if d.job_id == e.job.job.id and d.operation_id == e.operation.operation.id and d.parallel:
+                    if d.job_id == e.job.id and d.operation_id == e.operation.id and d.parallel:
                         if d.machine == MACHINE_2:
                             para_text = " (P->J"+str(d.comp)+ ")"
                         else:
