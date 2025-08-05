@@ -232,4 +232,4 @@ if __name__ == "__main__":
     else:
         improve: bool = to_bool(args.improve)
         extension: str = "improved_gnn_" if improve else "gnn_"
-        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+"_"+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
+        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
