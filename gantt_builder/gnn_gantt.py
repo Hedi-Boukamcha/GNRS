@@ -129,7 +129,7 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
     ax.set_yticks(range(len(GNN_GANTT_LEVELS)))
     ax.set_yticklabels(GNN_GANTT_LEVELS, fontsize=8)
 
-    ax.set_title(f"Diagramme de Gantt – {instance}")
+    ax.set_title(f"Gantt diagramm: {instance}")
     ax.grid(axis="x", linestyle="--", alpha=0.3)
     fig.tight_layout()
     fig.savefig(path, dpi=700, bbox_inches="tight")
