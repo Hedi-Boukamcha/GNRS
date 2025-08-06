@@ -29,6 +29,68 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     ordered_columns = ['Instance ID'] + math_cols + ls_cols + gnn_cols + gnnls_cols
     df = df[ordered_columns]
 
+    # --- Format Status ---
+    if 'exact_Status' in df.columns:
+        df['exact_Status'] = df['exact_Status'].apply(lambda x: 'F' if str(x).lower().startswith('f') else 'O')
+
+    # --- Format Obj, Cmax, Delay (Exact) ---
+    def format_time(value):
+        try:
+            v = float(value)
+            if v >= 3600:
+                return f"{int(v // 3600)}h"
+            elif v >= 60:
+                return f"{int(v // 60)}m"
+            else:
+                return f"{int(v)}s"
+        except:
+            return value
+
+    for col in ['exact_Computing_time']:
+        if col in df.columns:
+            df[col] = df[col].apply(format_time)
+
+    # --- Format Gaps & Deviations ---
+    def format_percent(value):
+        try:
+            return f"{float(value)*100:.2f}"
+        except:
+            return value
+
+    deviation_cols = [
+        'exact_Gap',
+        'heuristic_dev_Cmax', 'heuristic_dev_Delay', 'heuristic_dev_Obj',
+        'gnn_dev_Cmax', 'gnn_dev_Delay', 'gnn_dev_Obj',
+        'gnn + ls_dev_Cmax', 'gnn + ls_dev_Delay', 'gnn + ls_dev_Obj'
+    ]
+    for col in deviation_cols:
+        if col in df.columns:
+            df[col] = df[col].apply(format_percent)
+
+    # --- Format entiere ---
+    def format_int(value):
+        try:
+            return str(int(float(value)))
+        except:
+            return value
+    
+    int_cols = ['exact_Obj', 'exact_Cmax', 'exact_Delay']
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = df[col].apply(format_int)
+
+    # --- Format  ---
+    def format(value):
+        try:
+            return f"{float(value):.2f}"
+        except:
+            return value
+        
+    format_cols = ['gnn_Computing_time', 'gnn + ls_Computing_time']
+    for col in format_cols:
+        if col in df.columns:
+            df[col] = df[col].apply(format)
+
     # En-têtes pour LaTeX
     col_labels = (
         ['Instance ID'] +
@@ -38,21 +100,10 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
         ['CT', 'Dev_Cmax', 'Dev_Delay', 'Dev_Obj'][:len(gnnls_cols)]
     )
 
-    # Niveau 1 (groupe)
-    top_headers = (
-        [''] +  # Instance ID
-        ['Math'] * len(math_cols) +
-        ['LS'] * len(ls_cols) +
-        ['GNN'] * len(gnn_cols) +
-        ['GNN+LS'] * len(gnnls_cols)
-    )
+    df.columns = col_labels
 
-    # Construction MultiIndex
-    multi_index = pd.MultiIndex.from_arrays([top_headers, col_labels])
-    df.columns = multi_index
-
-    # Export LaTeX
-    latex_code = df.to_latex(index=False, multicolumn=True, multicolumn_format='c', float_format="%.3f", escape=False)
+    # Export to LaTeX
+    latex_code = df.to_latex(index=False, float_format=float_format, escape=False)
 
     # Sauvegarde
     with open(output_tex, 'w') as f:
