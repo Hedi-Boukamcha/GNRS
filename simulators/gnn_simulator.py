@@ -146,12 +146,13 @@ def cancel_unloading_last_parallel_if_exist(state: State, needs_station_2: bool)
 
             # Rollback the station
             j.current_station.calendar.events.pop()
+            j.current_station.calendar.events.pop()
             j.current_station.current_job = j
             
             # Rollback the robot
             e: Event    = state.robot.calendar.events.pop()
             prev: Event = state.robot.calendar.events[-1]
-            if prev.event_type == MOVE : # if the robot was not already at station 1
+            if prev.event_type == MOVE: # if the robot was not already at machine 1
                 e = state.robot.calendar.events.pop()
             state.robot.location    = e.source
             state.robot.current_job = None
