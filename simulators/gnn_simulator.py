@@ -114,7 +114,6 @@ def get_loading_time_and_force_unloading_previous(state: State, j: JobState, sta
             robot_move_job_to_station(state, state.robot, current_job, last_op, state.machine1, state.M)
         elif current_job.location.position_type == POS_MACHINE_2:
             robot_move_job_to_station(state, state.robot, current_job, last_op, state.machine2, state.M)
-        print(f"UNLOAD PREVIOUS JOB J{current_job.id + 1} FROM STATION S{station.id +1} TO INSTEAD LOAD JOB J{j.id +1} AT TIME {current_job.calendar.events[-1].end}")
         prev_unload_time: int = unload(state, current_job, last_op, L, unloading_start=current_job.calendar.events[-1].end)
         return prev_unload_time
 
