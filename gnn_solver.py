@@ -30,7 +30,7 @@ from utils.common import to_bool
 from heuristic.local_search import ls as LS
 from models.agent import Agent
 from models.memory import Transition
-from gantt.gnn_gantt import gnn_gantt
+from gantt_builder.gnn_gantt import gnn_gantt
 
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
@@ -145,6 +145,12 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         with open(path+size+"/gnn_state_"+extension+id+'.pkl', 'wb') as f:
             pickle.dump(best_state, f)
         gnn_gantt(gantt_path, best_state, f"instance_{id}")
+
+        # START TO REMOVE
+        for d in best_state.decisions:
+            print(d)
+        # END TO REMOVE
+        
         results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
         results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
     return best_obj, (env.init_UB_cmax+env.init_UB_delay)

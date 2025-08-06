@@ -11,7 +11,7 @@ from conf import *
 from models.instance import Instance, Job
 from heuristic.local_search import ls as LS
 from models.state import State, Decision
-from gantt.gnn_gantt import gnn_gantt
+from gantt_builder.gnn_gantt import gnn_gantt
 
 @dataclass(frozen=True)
 class Indexed:

@@ -32,7 +32,7 @@ class Decision:
         return Decision(self.job_id, self.job_id_in_graph, self.operation_id, self.machine, self.parallel, self.comp)
     
     def __str__(self) -> str:
-        return f"Decision(job_id={self.job_id}, job_id_in_graph={self.job_id_in_graph}, operation_id={self.operation_id}, machine={self.machine}, parallel={self.parallel})"
+        return f"Decision(job_id={self.job_id +1}, job_id_in_graph={self.job_id_in_graph}, operation_id={self.operation_id +1}, machine={self.machine +1}, parallel={self.parallel})"
 
 @dataclass
 class Event:

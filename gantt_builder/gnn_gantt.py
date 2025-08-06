@@ -14,13 +14,13 @@ __license__ = "MIT"
 
 def resource_calendars(state: State):
     return {
-        "Station 1" : state.all_stations.get(STATION_1).calendar.events,
-        "Station 2" : state.all_stations.get(STATION_2).calendar.events,
-        "Station 3" : state.all_stations.get(STATION_3).calendar.events,
-        "Machine 1" : state.machine1.calendar.events,
-        "Machine 2" : state.machine2.calendar.events,
-        "Robot"     : state.robot.calendar.events,
-        "Positioner": [e for e in state.machine1.calendar.events if e.event_type == POS],
+        "Station 1": state.all_stations.get(STATION_1).calendar.events,
+        "Station 2": state.all_stations.get(STATION_2).calendar.events,
+        "Station 3": state.all_stations.get(STATION_3).calendar.events,
+        "Machine 1": state.machine1.calendar.events,
+        "Machine 2": state.machine2.calendar.events,
+        "Robot"    : state.robot.calendar.events,
+        # "Positioner": [e for e in state.machine1.calendar.events if e.event_type == POS],
     }
 
 def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_bar_for_text: float = 5):
@@ -48,7 +48,10 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
                             para_text = " (P || J"+str(d.comp+1)+ ")"
                         else:
                             para_text = " (P)"
-                label = f"{'execute'+para_text if e.event_type==EXECUTE else 'hold'} : J{job_id+1} ⇒ Op{op_id}"
+                label = f"{'execute'+para_text if e.event_type==EXECUTE else 'hold'}: J{job_id+1} ⇒ Op{op_id}"
+            elif e.event_type == AWAIT and job:
+                label = f"await: J{job_id+1}"
+                color = JOB_COLORS[job_id % len(JOB_COLORS)] + "44"
             else:
                 label = EVENT_NAMES[e.event_type]
 
@@ -62,14 +65,24 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
                 "color"     : color,
             })
 
-    if not tasks:
-        print("Aucun évènement à tracer.")
-        return
-
     # 3-b. Figure et barre de temps
     t_min   = min(t["start"] for t in tasks)
     t_max   = max(t["end"]   for t in tasks)
     fig, ax = plt.subplots(figsize=(max(12, (t_max - t_min) * .12), 6))
+    for i, (lvl, events) in enumerate(calendars.items()):
+        for e in events:
+            job    = getattr(e, "job", None)
+            job_id = job.id if job else -1
+            color  = JOB_COLORS[job_id % len(JOB_COLORS)] + "44"
+            if e.event_type == AWAIT:
+                ax.add_patch(Rectangle((e.start, i), e.end-e.start, bar_h, facecolor=color, edgecolor="#00000022", hatch="///", clip_on=False, zorder=3))
+            if lvl=="Robot" and e.event_type == MOVE:
+                ax.add_patch(Rectangle((e.start, 3), e.end-e.start, bar_h, facecolor=color, edgecolor="#FFFFFF1A", linewidth=0, hatch="xxx", clip_on=False, zorder=2))
+
+
+    if not tasks:
+        print("Aucun évènement à tracer.")
+        return
 
     # 3-c. Tracé des barres
     for t in tasks:
