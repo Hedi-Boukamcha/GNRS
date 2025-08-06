@@ -45,10 +45,10 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
                 for d in state.decisions:
                     if d.job_id == e.job.id and d.operation_id == e.operation.id and d.parallel:
                         if d.machine == MACHINE_2:
-                            para_text = " (P || J"+str(d.comp+1)+ ")"
+                            para_text = " (P||J"+str(d.comp+1)+")"
                         else:
                             para_text = " (P)"
-                label = f"{'execute'+para_text if e.event_type==EXECUTE else 'hold'}: J{job_id+1} ⇒ Op{op_id}"
+                label = f"{'weld'+para_text if e.event_type==EXECUTE else 'hold'}: J{job_id+1} ⇒ o{op_id}"
             elif e.event_type == AWAIT and job:
                 label = f"await: J{job_id+1}"
                 color = JOB_COLORS[job_id % len(JOB_COLORS)] + "44"
