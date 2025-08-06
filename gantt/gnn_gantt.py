@@ -7,9 +7,9 @@ from models.state import State
 # #########################
 # =*= DISPLAY GNN GANTT =*=
 # #########################
-__author__  = "Hedi Boukamcha"
-__email__   = "hedi.boukamcha.1@ulaval.ca"
-__version__ = "1.0.0" 
+__author__  = "Hedi Boukamcha; Anas Neumann"
+__email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
+__version__ = "1.0.0"
 __license__ = "MIT"
 
 def resource_calendars(state: State):
@@ -41,7 +41,14 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
 
             if e.event_type in {EXECUTE, HOLD} and job and e.operation:
                 op_id = e.operation.id + 1
-                label = f"{'execute' if e.event_type==EXECUTE else 'hold'} : J{job_id+1} ⇒ Op{op_id}"
+                para_text: str = " (S)"
+                for d in state.decisions:
+                    if d.job_id == e.job.id and d.operation_id == e.operation.id and d.parallel:
+                        if d.machine == MACHINE_2:
+                            para_text = " (P || J"+str(d.comp+1)+ ")"
+                        else:
+                            para_text = " (P)"
+                label = f"{'execute'+para_text if e.event_type==EXECUTE else 'hold'} : J{job_id+1} ⇒ Op{op_id}"
             else:
                 label = EVENT_NAMES[e.event_type]
 
@@ -78,7 +85,6 @@ def gnn_gantt(path: str, state: State, instance: str, bar_h: float = 0.8, min_ba
             x_text, ha = t["start"] + t["dur"]/2, "center"
         else:
             x_text, ha = t["end"] + 0.2, "left"
-
         ax.text(x_text, y + bar_h/2, t["label"], rotation=rot, ha=ha, va="center", fontsize=7, fontweight=fw)
 
     # 3-d. Lignes de niveau

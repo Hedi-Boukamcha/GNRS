@@ -20,15 +20,16 @@ Position = Union['Machine', 'Machine1', 'Machine2', 'Stations']
  
 @dataclass
 class Decision: 
-    def __init__(self, job_id: int, job_id_in_graph: int,  operation_id: int, machine: int, parallel: bool = False):
-        self.job_id: int          = job_id    # global id of the job in the instance
+    def __init__(self, job_id: int, job_id_in_graph: int,  operation_id: int, machine: int, parallel: bool = False, comp: int=None):
+        self.job_id: int          = job_id           # global id of the job in the instance
         self.machine: int         = machine
         self.job_id_in_graph: int = job_id_in_graph  # local id of the job in the graph/state (not all jobs appear in each graph)
         self.operation_id: int    = operation_id
         self.parallel: bool       = parallel
+        self.comp: int            = comp
 
     def clone(self) -> 'Decision':
-        return Decision(self.job_id, self.job_id_in_graph, self.operation_id, self.machine, self.parallel)
+        return Decision(self.job_id, self.job_id_in_graph, self.operation_id, self.machine, self.parallel, self.comp)
     
     def __str__(self) -> str:
         return f"Decision(job_id={self.job_id}, job_id_in_graph={self.job_id_in_graph}, operation_id={self.operation_id}, machine={self.machine}, parallel={self.parallel})"
