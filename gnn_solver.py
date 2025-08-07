@@ -97,7 +97,6 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     best_obj: int     = -1
     for retry in range(retires):
         g: bool              = (retry == 0) if not train else greedy
-        # print("Retrying with greedy:", g, "for instance:", id, "retry:", retry+1, "/", retires)
         i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
         next_M2_parallel     = False
         m2: int              = 0
@@ -136,6 +135,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         if improve:
             state = LS(i, state.decisions) # improve with local search
         obj: int = state.total_delay + state.cmax
+        print(f"Instance {size}.{id} (retry #{retry+1}/{retires}): OBJ={obj}...")
         if best_state is None or obj < best_obj:
             best_obj   = obj
             best_state = state
