@@ -142,8 +142,8 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
     if not train:
         extension: str = "improved_" if improve else ""
         computing_time = time.time() - start_time
-        with open(path+size+"/gnn_state_"+extension+id+'.pkl', 'wb') as f:
-            pickle.dump(best_state, f)
+        #with open(path+size+"/gnn_state_"+extension+id+'.pkl', 'wb') as f:
+        #    pickle.dump(best_state, f)
         gnn_gantt(gantt_path, best_state, f"instance {size}.{id}")
         results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
         results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
