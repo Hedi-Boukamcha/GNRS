@@ -99,13 +99,13 @@ class Agent:
         if train:
             if random.random() > eps_threshold:
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
-                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1))
+                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1), topk=min(5, len(possible_decisions)), temperature=0.5)
             else:
-                return random.randint(0, len(possible_decisions)-1)
+                return random.randint(0, len(possible_decisions)-1) 
         else:
             with torch.no_grad():
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
-                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1))
+                return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1), topk=min(5, len(possible_decisions)), temperature=0.5)
 
     def add_obj(self, size: str, obj: int):
         if size == "s":

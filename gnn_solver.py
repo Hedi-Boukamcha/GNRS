@@ -173,7 +173,7 @@ def train(agent: Agent, path: str, device: str):
             size             = random.choice(sizes[:complexity_limit])
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
-        greedy = True if episode < (0.75 * NB_EPISODES) else random.random() > 0.7
+        greedy = True if episode < (0.8 * NB_EPISODES) else random.random() > 0.7
         obj, ub = solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
