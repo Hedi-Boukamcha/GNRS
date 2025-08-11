@@ -53,7 +53,7 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     # --- Format Gaps & Deviations ---
     def format_percent(value):
         try:
-            return f"{float(value)*100:.2f}"
+            return f"{float(value)*100:.2f}\\%"
         except:
             return value
 
