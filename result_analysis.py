@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 
 # ##############################
@@ -9,13 +10,14 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
+
+
 def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     df = pd.read_csv(input_csv)
 
-    # Colonnes exactes (Math)
-    math_cols = ['exact_Status', 'exact_Obj', 'exact_Computing_time', 'exact_Cmax', 'exact_Delay', 'exact_Gap']
-    ls_cols   = ['heuristic_Computing_time', 'heuristic_dev_Cmax', 'heuristic_dev_Delay', 'heuristic_dev_Obj']
-    gnn_cols  = ['gnn_Computing_time', 'gnn_dev_Cmax', 'gnn_dev_Delay', 'gnn_dev_Obj']
+    math_cols  = ['exact_Status', 'exact_Computing_time', 'exact_Cmax', 'exact_Delay', 'exact_Obj', 'exact_Gap']
+    ls_cols    = ['heuristic_Computing_time', 'heuristic_dev_Cmax', 'heuristic_dev_Delay', 'heuristic_dev_Obj']
+    gnn_cols   = ['gnn_Computing_time', 'gnn_dev_Cmax', 'gnn_dev_Delay', 'gnn_dev_Obj']
     gnnls_cols = ['gnn + ls_Computing_time', 'gnn + ls_dev_Cmax', 'gnn + ls_dev_Delay', 'gnn + ls_dev_Obj']
 
     # Vérifie la présence des colonnes pour éviter les erreurs
@@ -82,11 +84,11 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     # --- Format  ---
     def format(value):
         try:
-            return f"{float(value):.2f}"
+            return f"{float(value):.2f}s"
         except:
             return value
         
-    format_cols = ['gnn_Computing_time', 'gnn + ls_Computing_time']
+    format_cols = ['gnn_Computing_time', 'gnn + ls_Computing_time', 'heuristic_Computing_time']
     for col in format_cols:
         if col in df.columns:
             df[col] = df[col].apply(format)
@@ -152,7 +154,7 @@ def results_tables(result_type: str, output_file: str):
         columns.append('Status')
     if gap_exists_globally and 'Gap' in df_result.columns:
         columns.append('Gap')
-    columns += ['Obj', 'Delay', 'Cmax', 'Computing_time']
+    columns += ['Computing_time', 'Obj', 'Cmax', 'Delay']
     df_result = df_result[columns]
     df_result.to_csv(results_path + output_file, index=False)
 
@@ -198,7 +200,7 @@ def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=(
                 if var in df_method.columns and f'exact_{var}' in df_result.columns:
                     diff = df_result['Instance ID'].map(df_method[var])
                     base = df_result[f'exact_{var}']
-                    deviation = (diff - base) / base
+                    deviation = (diff - base) / (base + 1e-8)
                     df_result[f'{method}_dev_{var}'] = deviation
 
             if 'Computing_time' in df_method.columns:
@@ -213,17 +215,19 @@ def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=(
             csv_to_latex_table(input_csv, output_tex)
 
 def construire_tableau_latex_agrégé(
+        
     method: dict,
-    variable: str,
     output_path: str,
-    sizes=('s', 'm', 'l', 'xl'),
-    colonnes_source=('Size', 'Delay', 'Cmax', 'Computing_time', 'Gap')
+    sizes = ('s', 'm', 'l', 'xl'),
+    variables=('Delay', 'Cmax', 'Computing_time', 'Gap'),
     ):
-    """
-    Construit un tableau LaTeX où les lignes sont les méthodes,
-    et les colonnes sont les tailles avec min, avg, max pour la variable donnée.
-    """
+
     lignes_tableau = []
+
+    math_agg_cols  = ['s', 'm', 'l', 'xl']
+    ls_agg_cols    = ['s', 'm', 'l', 'xl']
+    gnn_agg_cols   = ['s', 'm', 'l', 'xl']
+    gnnls_agg_cols = ['s', 'm', 'l', 'xl']
 
     for methode, chemin_csv in method.items():
         df = pd.read_csv(chemin_csv)
@@ -237,9 +241,9 @@ def construire_tableau_latex_agrégé(
                 ligne[f'{size}_avg'] = ''
                 ligne[f'{size}_max'] = ''
             else:
-                ligne[f'{size}_min'] = sous_df[variable].min()
-                ligne[f'{size}_avg'] = sous_df[variable].mean()
-                ligne[f'{size}_max'] = sous_df[variable].max()
+                ligne[f'{size}_min'] = sous_df[variables].min()
+                ligne[f'{size}_avg'] = sous_df[variables].mean()
+                ligne[f'{size}_max'] = sous_df[variables].max()
         lignes_tableau.append(ligne)
 
     df_latex = pd.DataFrame(lignes_tableau)
@@ -272,11 +276,11 @@ if __name__ == "__main__":
         'gnn + ls': './data/results/gnn_solution_improved_results.csv'
     }
 
-    # Exemple pour delay :
     construire_tableau_latex_agrégé(
         method=result_files,
-        variable='Delay',
-        output_path='./data/results/table_delay_aggregated.tex'
+        variables=variables,
+        sizes=('s', 'm', 'l', 'xl'),
+        output_path='./data/results/aggregated_results.tex'
     )
 
     detailed_results_per_method(
