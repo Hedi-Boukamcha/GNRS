@@ -224,11 +224,6 @@ def construire_tableau_latex_agrégé(
 
     lignes_tableau = []
 
-    math_agg_cols  = ['s', 'm', 'l', 'xl']
-    ls_agg_cols    = ['s', 'm', 'l', 'xl']
-    gnn_agg_cols   = ['s', 'm', 'l', 'xl']
-    gnnls_agg_cols = ['s', 'm', 'l', 'xl']
-
     for methode, chemin_csv in method.items():
         df = pd.read_csv(chemin_csv)
         df = df[df['Size'].isin(sizes)]
@@ -261,6 +256,124 @@ def construire_tableau_latex_agrégé(
     with open(output_path, 'w') as f:
         f.write(latex_code)
 
+
+
+def _safe_num(s): return pd.to_numeric(s, errors="coerce")
+def _q(x, p): return np.nanpercentile(x, p) if len(x) else np.nan
+
+def fmt_int(x):
+    try: return str(int(round(float(x))))
+    except: return ""
+
+def fmt_hours(x):
+    try: return f"{(float(x)/3600):.2f}h"
+    except: return ""
+
+def six_stats(series):
+    if series is None or len(series)==0:
+        return [np.nan]*6
+    s = _safe_num(series).dropna()
+    if s.empty:
+        return [np.nan]*6
+    return [s.min(), _q(s,25), _q(s,50), s.mean(), _q(s,75), s.max()]
+
+# ---------- coeur ----------
+def generate_latex_from_size_files(size_files: dict, output_tex: str):
+    """
+    size_files: dict comme {"S":"s.csv", "M":"m.csv", "L":"l.csv", "XL":"xl.csv"}
+    Produit le tableau LaTeX au format demandé.
+    """
+    # Charger tous les CSV par taille (insensible à la casse des clés)
+    sizes_order = ["S","M","L","XL"]
+    dfs_by_size = {}
+    for k in sizes_order:
+        path = size_files.get(k) or size_files.get(k.lower())
+        if path:
+            dfs_by_size[k] = pd.read_csv(path)
+        else:
+            dfs_by_size[k] = None  # pas de fichier pour cette taille
+
+    # Méthodes + libellés
+    methods = ["exact", "gnn", "heuristic", "gnn + ls"]
+    method_labels = ["Math model", "GNN", "LS", "Improved GNN"]  # seulement pour l'entête
+
+    # Colonnes attendues par méthode
+    delay_cols = {
+        "exact":"exact_Delay", "gnn":"gnn_Delay",
+        "heuristic":"heuristic_Delay", "gnn + ls":"gnn + ls_Delay"
+    }
+    cmax_cols = {
+        "exact":"exact_Cmax", "gnn":"gnn_Cmax",
+        "heuristic":"heuristic_Cmax", "gnn + ls":"gnn + ls_Cmax"
+    }
+    obj_cols = {
+        "exact":"exact_Obj", "gnn":"gnn_Obj",
+        "heuristic":"heuristic_Obj", "gnn + ls":"gnn + ls_Obj"
+    }
+    ct_cols = {
+        "exact":"exact_Computing_time", "gnn":"gnn_Computing_time",
+        "heuristic":"heuristic_Computing_time", "gnn + ls":"gnn + ls_Computing_time"
+    }
+
+    def block_rows(colmap, formatter, label_prefix):
+        """
+        Retourne 6 lignes LaTeX (Min/Q1/MEDIAN/Avg/Q3/Max) pour un bloc (Delay/Cmax/Obj/CT).
+        Ordre des 16 cellules : 4 méthodes x 4 tailles.
+        """
+        # Construire les 16 séries (methode, taille)
+        grid = []
+        for m in methods:
+            for sz in sizes_order:
+                df = dfs_by_size[sz]
+                col = colmap[m]
+                series = None
+                if df is not None and col in df.columns:
+                    series = df[col]
+                grid.append(series)
+
+        # Calculer stats (6) pour chaque cellule (16) puis pivoter en 6 lignes
+        stats_per_cell = [six_stats(s) for s in grid]  # liste de 16 x [6]
+        # pivoter: pour chaque rang 0..5, prendre toutes les cellules et formatter
+        labels = [
+            f"Min {label_prefix}",
+            "Q1",
+            "MEDIAN",
+            f"Avg {label_prefix}",
+            "Q3",
+            f"Max {label_prefix}",
+        ]
+        lines = []
+        for stat_idx, lbl in enumerate(labels):
+            vals = []
+            for cell in stats_per_cell:
+                v = cell[stat_idx]
+                vals.append("" if pd.isna(v) else formatter(v))
+            line = "            \\textbf{" + lbl + "} & " + " & ".join(vals) + r" \\"
+            lines.append(line)
+        return lines
+
+    # Header (méthodes/tailles)
+    class_line = (
+        "            \\textbf{Class}: & "
+        + " & ".join(sizes_order)
+        + " & " + " & ".join(sizes_order)
+        + " & " + " & ".join(sizes_order)
+        + " & " + " & ".join(sizes_order)
+        + r" \\"
+        "\n            \\hline"
+    )
+
+    # Construire les 4 blocs
+    delay_block = "\n".join(block_rows(delay_cols, fmt_int, "delay")) + "\n            \\hline"
+    cmax_block  = "\n".join(block_rows(cmax_cols,  fmt_int, "Cmax")) + "\n            \\hline"
+    obj_block   = "\n".join(block_rows(obj_cols,   fmt_int, "objective")) + "\n            \\hline"
+    ct_block    = "\n".join(block_rows(ct_cols,    fmt_hours, "comp. time")) + "\n            \\hline"
+
+    latex = delay_block + cmax_block + obj_block + ct_block
+    with open(output_tex, "w", encoding="utf-8") as f:
+        f.write(latex)
+
+
 # python3 result_analysis.py
 if __name__ == "__main__":
     variables = ['Delay', 'Cmax', 'Obj', 'Computing_time']
@@ -288,3 +401,12 @@ if __name__ == "__main__":
     variables =variables,
     output='./data/results/'
     )
+    
+    size_files = {
+        "S": "./data/results/detailed_results_s.csv",
+        "M": "./data/results/detailed_results_m.csv",
+        "L": "./data/results/detailed_results_l.csv",
+        "XL":"./data/results/detailed_results_xl.csv",
+    }
+
+    generate_latex_from_size_files(size_files, output_tex="./data/results/table_results.tex")
