@@ -59,12 +59,6 @@ def _stats_6(series: pd.Series):
     ]
 
 def _place_block(df_final, col_name, var_prefix, values_as_list, formatter=lambda x: x, exact=False):
-    """
-    Place un bloc de 6 stats dans df_final pour un préfixe (delay/cmax/obj/comp_time).
-    values_as_list: [min, Q1, median, avg, Q3, max]
-    formatter: fonction de formatage à appliquer (ignorée si exact=True)
-    exact: si True, aucune mise en forme (valeur brute -> str), sinon appliquer formatter.
-    """
     rows = [f"min_{var_prefix}", f"Q1_{var_prefix}", f"median_{var_prefix}",
             f"avg_{var_prefix}", f"Q3_{var_prefix}", f"max_{var_prefix}"]
     for row, v in zip(rows, values_as_list):
