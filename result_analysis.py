@@ -10,7 +10,69 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
+# --- Format  ---
+def format_seconds(value):
+    try:
+        return f"{float(value):.2f}s"
+    except:
+        return value
 
+# --- Format Obj, Cmax, Delay (Exact) ---
+def format_time(value):
+    try:
+        v = float(value)
+        if v >= 3600:
+            return f"{int(v // 3600)}h"
+        elif v >= 60:
+            return f"{int(v // 60)}m"
+        else:
+            return f"{int(v)}s"
+    except:
+        return value
+
+# --- Format Gaps & Deviations ---
+def format_percent(value):
+    try:
+        return f"{float(value)*100:.2f}\\%"
+    except:
+        return value
+
+# --- Format entiere ---
+def format_int(value):
+    try:
+        return str(int(float(value)))
+    except:
+        return value
+
+def _stats_6(series: pd.Series):
+    """min, Q1, median, mean, Q3, max sur une série numérique (ignore NaN)."""
+    s = pd.to_numeric(series, errors="coerce").dropna()
+    if s.empty:
+        return [np.nan]*6
+    return [
+        s.min(),
+        s.quantile(0.25),
+        s.median(),
+        s.mean(),
+        s.quantile(0.75),
+        s.max(),
+    ]
+
+def _place_block(df_final, col_name, var_prefix, values_as_list, formatter=lambda x: x, exact=False):
+    """
+    Place un bloc de 6 stats dans df_final pour un préfixe (delay/cmax/obj/comp_time).
+    values_as_list: [min, Q1, median, avg, Q3, max]
+    formatter: fonction de formatage à appliquer (ignorée si exact=True)
+    exact: si True, aucune mise en forme (valeur brute -> str), sinon appliquer formatter.
+    """
+    rows = [f"min_{var_prefix}", f"Q1_{var_prefix}", f"median_{var_prefix}",
+            f"avg_{var_prefix}", f"Q3_{var_prefix}", f"max_{var_prefix}"]
+    for row, v in zip(rows, values_as_list):
+        if exact:
+            df_final.loc[row, col_name] = "" if (v is None or (isinstance(v, float) and np.isnan(v))) else str(v)
+        else:
+            df_final.loc[row, col_name] = formatter(v)
+    
 
 def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     df = pd.read_csv(input_csv)
@@ -35,29 +97,9 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     if 'exact_Status' in df.columns:
         df['exact_Status'] = df['exact_Status'].apply(lambda x: 'F' if str(x).lower().startswith('f') else 'O')
 
-    # --- Format Obj, Cmax, Delay (Exact) ---
-    def format_time(value):
-        try:
-            v = float(value)
-            if v >= 3600:
-                return f"{int(v // 3600)}h"
-            elif v >= 60:
-                return f"{int(v // 60)}m"
-            else:
-                return f"{int(v)}s"
-        except:
-            return value
-
     for col in ['exact_Computing_time']:
         if col in df.columns:
             df[col] = df[col].apply(format_time)
-
-    # --- Format Gaps & Deviations ---
-    def format_percent(value):
-        try:
-            return f"{float(value)*100:.2f}\\%"
-        except:
-            return value
 
     deviation_cols = [
         'exact_Gap',
@@ -68,30 +110,17 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     for col in deviation_cols:
         if col in df.columns:
             df[col] = df[col].apply(format_percent)
-
-    # --- Format entiere ---
-    def format_int(value):
-        try:
-            return str(int(float(value)))
-        except:
-            return value
     
     int_cols = ['exact_Obj', 'exact_Cmax', 'exact_Delay']
     for col in int_cols:
         if col in df.columns:
             df[col] = df[col].apply(format_int)
 
-    # --- Format  ---
-    def format(value):
-        try:
-            return f"{float(value):.2f}s"
-        except:
-            return value
         
     format_cols = ['gnn_Computing_time', 'gnn + ls_Computing_time', 'heuristic_Computing_time']
     for col in format_cols:
         if col in df.columns:
-            df[col] = df[col].apply(format)
+            df[col] = df[col].apply(format_seconds)
 
     # En-têtes pour LaTeX
     col_labels = (
@@ -214,164 +243,158 @@ def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=(
             output_tex = f'./data/results/detailed_results_{size}.tex'
             csv_to_latex_table(input_csv, output_tex)
 
-def construire_tableau_latex_agrégé(
-        
-    method: dict,
-    output_path: str,
-    sizes = ('s', 'm', 'l', 'xl'),
-    variables=('Delay', 'Cmax', 'Computing_time', 'Gap'),
-    ):
+def aggregated_results_table(
+    file_per_method: dict,
+    output_tex_path: str,
+    sizes=('s','m','l','xl'),
+    output_path='./data/results/',
+    methods_order=None 
+):
+    # Déterminer l’ordre des méthodes
+    if methods_order is None:
+        # exact d'abord, puis les autres dans l'ordre fourni par file_per_method
+        keys = list(file_per_method.keys())
+        methods_order = (['exact'] if 'exact' in keys else []) + [m for m in keys if m != 'exact']
 
-    lignes_tableau = []
+    # Lignes (index)
+    row_labels = [
+        "min_delay", "Q1_delay", "median_delay", "avg_delay", "Q3_delay", "max_delay",
+        "min_cmax",  "Q1_cmax",  "median_cmax",  "avg_cmax",  "Q3_cmax",  "max_cmax",
+        "min_obj",   "Q1_obj",   "median_obj",   "avg_obj",   "Q3_obj",   "max_obj",
+        "min_comp_time", "Q1_comp_time", "median_comp_time", "avg_comp_time", "Q3_comp_time", "max_comp_time",
+        "nbr_best_solutions", "nbr_optimal_solutions"
+    ]
+    df_final = pd.DataFrame(index=row_labels)
 
-    for methode, chemin_csv in method.items():
-        df = pd.read_csv(chemin_csv)
-        df = df[df['Size'].isin(sizes)]
+    # Déterminer l’ordre des méthodes (par défaut: exact puis les autres dans l'ordre fourni)
+    if methods_order is None:
+        keys = list(file_per_method.keys())
+        methods_order = (['exact'] if 'exact' in keys else []) + [m for m in keys if m != 'exact']
 
-        ligne = {'Méthode': methode}
-        for size in sizes:
-            sous_df = df[df['Size'] == size]
-            if sous_df.empty:
-                ligne[f'{size}_min'] = ''
-                ligne[f'{size}_avg'] = ''
-                ligne[f'{size}_max'] = ''
-            else:
-                ligne[f'{size}_min'] = sous_df[variables].min()
-                ligne[f'{size}_avg'] = sous_df[variables].mean()
-                ligne[f'{size}_max'] = sous_df[variables].max()
-        lignes_tableau.append(ligne)
-
-    df_latex = pd.DataFrame(lignes_tableau)
-
-    # Ordre des colonnes
-    colonnes = ['Méthode']
+    # Charger les detailed_results_{size}.csv
+    detailed_by_size = {}
     for size in sizes:
-        for suffix in ['min', 'avg', 'max']:
-            colonnes.append(f'{size}_{suffix}')
-    df_latex = df_latex[colonnes]
+        path = os.path.join(output_path, f'detailed_results_{size}.csv')
+        detailed_by_size[size] = pd.read_csv(path) if os.path.exists(path) else pd.DataFrame()
 
-    # Génération du LaTeX
-    latex_code = df_latex.to_latex(index=False, column_format='l' + 'c' * (len(colonnes) - 1), float_format="%.2f")
+    # Agrégation par méthode et taille
+    for method in methods_order:
+        for size in sizes:
+            col = f"{size}_{method}"
+            df = detailed_by_size.get(size, pd.DataFrame())
 
-    with open(output_path, 'w') as f:
-        f.write(latex_code)
+            if df.empty:
+                df_final[col] = [""] * len(row_labels)
+                continue
+
+            # --------- EXact ----------
+            if method == 'exact':
+                delay_col = 'exact_Delay' if 'exact_Delay' in df.columns else None
+                cmax_col  = 'exact_Cmax'  if 'exact_Cmax'  in df.columns else None
+                obj_col   = 'exact_Obj'   if 'exact_Obj'   in df.columns else None
+                time_col  = 'exact_Computing_time' if 'exact_Computing_time' in df.columns else None
+
+                # Delay
+                delay_stats = _stats_6(df[delay_col]) if delay_col else [np.nan]*6
+                # Cmax
+                cmax_stats = _stats_6(df[cmax_col])  if cmax_col  else [np.nan]*6
+                # Obj
+                obj_stats = _stats_6(df[obj_col])   if obj_col   else [np.nan]*6
+                # Computing time (6 stats)
+                time_stats = _stats_6(df[time_col])  if time_col  else [np.nan]*6
+
+                _place_block(df_final, col, "delay",     delay_stats, exact=True)
+                _place_block(df_final, col, "cmax",      cmax_stats,  exact=True)
+                _place_block(df_final, col, "obj",       obj_stats,   exact=True)
+                _place_block(df_final, col, "comp_time", time_stats,  exact=True)
+
+                for var_prefix in ["delay", "cmax", "obj", "comp_time"]:
+                    for row in [f"min_{var_prefix}", f"max_{var_prefix}"]:
+                        val = df_final.loc[row, col]
+                        df_final.loc[row, col] = format_int(val)
+                
+                for var_prefix in ["comp_time"]:
+                    for row in row_labels:
+                        val = df_final.loc[row, col]
+                        df_final.loc[row, col] = format_time(val)
+
+                # Comptages exact
+                if 'exact_Gap' in df.columns:
+                    best_count = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0).sum()
+                elif 'exact_Status' in df.columns:
+                    best_count = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL').sum()
+                else:
+                    best_count = 0
+
+                opt_count = 0
+                if 'exact_Status' in df.columns:
+                    opt_count = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL').sum()
+                
+                df_final.loc["nbr_best_solutions", col]   = str(best_count)
+                df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
+
+            # --------- Méthodes approchées (heuristic/gnn/gnnls/...) ----------
+            else:
+                delay_dev = f'{method}_dev_Delay'
+                cmax_dev  = f'{method}_dev_Cmax'
+                obj_dev   = f'{method}_dev_Obj'
+                time_col  = f'{method}_Computing_time'
+
+                delay_stats = _stats_6(df[delay_dev]) if delay_dev in df.columns else [np.nan]*6
+                cmax_stats  = _stats_6(df[cmax_dev])  if cmax_dev  in df.columns else [np.nan]*6
+                obj_stats   = _stats_6(df[obj_dev])   if obj_dev   in df.columns else [np.nan]*6
+                time_stats  = _stats_6(df[time_col])  if time_col  in df.columns else [np.nan]*6
+
+                # Placement explicite (formatages adaptés)
+                _place_block(df_final, col, "delay",     delay_stats, formatter=format_percent)
+                _place_block(df_final, col, "cmax",      cmax_stats,  formatter=format_percent)
+                _place_block(df_final, col, "obj",       obj_stats,   formatter=format_percent)
+                _place_block(df_final, col, "comp_time", time_stats,  formatter=format_seconds)
 
 
+                # Comptages
+                tol = 1e-12
+                # best: dev_Obj == 0
+                if obj_dev in df.columns:
+                    s_obj_dev = pd.to_numeric(df[obj_dev], errors="coerce")
+                    best_count = (s_obj_dev.abs() <= tol).sum()
+                else:
+                    best_count = 0
 
-def _safe_num(s): return pd.to_numeric(s, errors="coerce")
-def _q(x, p): return np.nanpercentile(x, p) if len(x) else np.nan
+                # optimal: dev_Obj==0 ET exact optimal
+                have_exact_opt = False
+                if 'exact_Status' in df.columns:
+                    exact_opt_mask = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL')
+                    have_exact_opt = True
+                elif 'exact_Gap' in df.columns:
+                    exact_opt_mask = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0)
+                    have_exact_opt = True
+                else:
+                    exact_opt_mask = pd.Series([False]*len(df))
 
-def fmt_int(x):
-    try: return str(int(round(float(x))))
-    except: return ""
+                if have_exact_opt and obj_dev in df.columns:
+                    s = pd.to_numeric(df[obj_dev], errors="coerce")
+                    opt_count = ((s.abs() <= tol) & exact_opt_mask).sum()
+                else:
+                    opt_count = 0
 
-def fmt_hours(x):
-    try: return f"{(float(x)/3600):.2f}h"
-    except: return ""
+                df_final.loc["nbr_best_solutions", col]   = format_int(best_count)
+                df_final.loc["nbr_optimal_solutions", col] = format_int(opt_count)
 
-def six_stats(series):
-    if series is None or len(series)==0:
-        return [np.nan]*6
-    s = _safe_num(series).dropna()
-    if s.empty:
-        return [np.nan]*6
-    return [s.min(), _q(s,25), _q(s,50), s.mean(), _q(s,75), s.max()]
+    # Ordonner les colonnes: tailles x méthodes (exact d'abord)
+    ordered_cols = []
+    for method in methods_order:
+        for size in sizes:
+            ordered_cols.append(f"{size}_{method}")
+    df_final = df_final[ordered_cols]
 
-# ---------- coeur ----------
-def generate_latex_from_size_files(size_files: dict, output_tex: str):
-    """
-    size_files: dict comme {"S":"s.csv", "M":"m.csv", "L":"l.csv", "XL":"xl.csv"}
-    Produit le tableau LaTeX au format demandé.
-    """
-    # Charger tous les CSV par taille (insensible à la casse des clés)
-    sizes_order = ["S","M","L","XL"]
-    dfs_by_size = {}
-    for k in sizes_order:
-        path = size_files.get(k) or size_files.get(k.lower())
-        if path:
-            dfs_by_size[k] = pd.read_csv(path)
-        else:
-            dfs_by_size[k] = None  # pas de fichier pour cette taille
-
-    # Méthodes + libellés
-    methods = ["exact", "gnn", "heuristic", "gnn + ls"]
-    method_labels = ["Math model", "GNN", "LS", "Improved GNN"]  # seulement pour l'entête
-
-    # Colonnes attendues par méthode
-    delay_cols = {
-        "exact":"exact_Delay", "gnn":"gnn_Delay",
-        "heuristic":"heuristic_Delay", "gnn + ls":"gnn + ls_Delay"
-    }
-    cmax_cols = {
-        "exact":"exact_Cmax", "gnn":"gnn_Cmax",
-        "heuristic":"heuristic_Cmax", "gnn + ls":"gnn + ls_Cmax"
-    }
-    obj_cols = {
-        "exact":"exact_Obj", "gnn":"gnn_Obj",
-        "heuristic":"heuristic_Obj", "gnn + ls":"gnn + ls_Obj"
-    }
-    ct_cols = {
-        "exact":"exact_Computing_time", "gnn":"gnn_Computing_time",
-        "heuristic":"heuristic_Computing_time", "gnn + ls":"gnn + ls_Computing_time"
-    }
-
-    def block_rows(colmap, formatter, label_prefix):
-        """
-        Retourne 6 lignes LaTeX (Min/Q1/MEDIAN/Avg/Q3/Max) pour un bloc (Delay/Cmax/Obj/CT).
-        Ordre des 16 cellules : 4 méthodes x 4 tailles.
-        """
-        # Construire les 16 séries (methode, taille)
-        grid = []
-        for m in methods:
-            for sz in sizes_order:
-                df = dfs_by_size[sz]
-                col = colmap[m]
-                series = None
-                if df is not None and col in df.columns:
-                    series = df[col]
-                grid.append(series)
-
-        # Calculer stats (6) pour chaque cellule (16) puis pivoter en 6 lignes
-        stats_per_cell = [six_stats(s) for s in grid]  # liste de 16 x [6]
-        # pivoter: pour chaque rang 0..5, prendre toutes les cellules et formatter
-        labels = [
-            f"Min {label_prefix}",
-            "Q1",
-            "MEDIAN",
-            f"Avg {label_prefix}",
-            "Q3",
-            f"Max {label_prefix}",
-        ]
-        lines = []
-        for stat_idx, lbl in enumerate(labels):
-            vals = []
-            for cell in stats_per_cell:
-                v = cell[stat_idx]
-                vals.append("" if pd.isna(v) else formatter(v))
-            line = "            \\textbf{" + lbl + "} & " + " & ".join(vals) + r" \\"
-            lines.append(line)
-        return lines
-
-    # Header (méthodes/tailles)
-    class_line = (
-        "            \\textbf{Class}: & "
-        + " & ".join(sizes_order)
-        + " & " + " & ".join(sizes_order)
-        + " & " + " & ".join(sizes_order)
-        + " & " + " & ".join(sizes_order)
-        + r" \\"
-        "\n            \\hline"
-    )
-
-    # Construire les 4 blocs
-    delay_block = "\n".join(block_rows(delay_cols, fmt_int, "delay")) + "\n            \\hline"
-    cmax_block  = "\n".join(block_rows(cmax_cols,  fmt_int, "Cmax")) + "\n            \\hline"
-    obj_block   = "\n".join(block_rows(obj_cols,   fmt_int, "objective")) + "\n            \\hline"
-    ct_block    = "\n".join(block_rows(ct_cols,    fmt_hours, "comp. time")) + "\n            \\hline"
-
-    latex = delay_block + cmax_block + obj_block + ct_block
-    with open(output_tex, "w", encoding="utf-8") as f:
+    # Export LaTeX
+    latex = df_final.to_latex(escape=False, na_rep="", column_format='l' + 'c'*len(df_final.columns))
+    os.makedirs(os.path.dirname(output_tex_path), exist_ok=True)
+    with open(output_tex_path, 'w') as f:
         f.write(latex)
+
+    return df_final      
 
 
 # python3 result_analysis.py
@@ -389,11 +412,12 @@ if __name__ == "__main__":
         'gnn + ls': './data/results/gnn_solution_improved_results.csv'
     }
 
-    construire_tableau_latex_agrégé(
-        method=result_files,
-        variables=variables,
+    df_agg = aggregated_results_table(
+        file_per_method=result_files,
         sizes=('s', 'm', 'l', 'xl'),
-        output_path='./data/results/aggregated_results.tex'
+        output_path='./data/results/',
+        output_tex_path = './data/results/aggregated_results.tex',
+        methods_order= ['exact', 'gnn', 'heuristic', 'gnn + ls']
     )
 
     detailed_results_per_method(
@@ -401,12 +425,3 @@ if __name__ == "__main__":
     variables =variables,
     output='./data/results/'
     )
-    
-    size_files = {
-        "S": "./data/results/detailed_results_s.csv",
-        "M": "./data/results/detailed_results_m.csv",
-        "L": "./data/results/detailed_results_l.csv",
-        "XL":"./data/results/detailed_results_xl.csv",
-    }
-
-    generate_latex_from_size_files(size_files, output_tex="./data/results/table_results.tex")

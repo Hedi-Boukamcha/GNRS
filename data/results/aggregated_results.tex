@@ -1,202 +1,32 @@
-\begin{tabular}{lcccccccccccc}
+\begin{tabular}{lcccccccccccccccc}
 \toprule
-Méthode & s_min & s_avg & s_max & m_min & m_avg & m_max & l_min & l_avg & l_max & xl_min & xl_avg & xl_max \\
+ & s_exact & m_exact & l_exact & xl_exact & s_gnn & m_gnn & l_gnn & xl_gnn & s_heuristic & m_heuristic & l_heuristic & xl_heuristic & s_gnn + ls & m_gnn + ls & l_gnn + ls & xl_gnn + ls \\
 \midrule
-exact & Delay               0.000000
-Cmax               86.000000
-Obj               104.000000
-Computing_time      0.097689
-dtype: float64 & Delay             151.440000
-Cmax              197.600000
-Obj               349.040000
-Computing_time      0.335916
-dtype: float64 & Delay             457.000000
-Cmax              346.000000
-Obj               803.000000
-Computing_time      2.002707
-dtype: float64 & Delay             234.000000
-Cmax              285.000000
-Obj               533.000000
-Computing_time      2.722862
-dtype: float64 & Delay               847.900000
-Cmax                424.400000
-Obj                1272.300000
-Computing_time    11628.001391
-dtype: float64 & Delay              1815.000000
-Cmax                641.000000
-Obj                2456.000000
-Computing_time    86405.948911
-dtype: float64 & Delay              2024.00000
-Cmax                619.00000
-Obj                2648.00000
-Computing_time    86411.52124
-dtype: float64 & Delay              3430.860000
-Cmax                802.120000
-Obj                4232.980000
-Computing_time    86432.023714
-dtype: float64 & Delay              5981.000000
-Cmax               1099.000000
-Obj                7080.000000
-Computing_time    86475.254452
-dtype: float64 & Delay              9645.000000
-Cmax               1256.000000
-Obj               10901.000000
-Computing_time    86574.288727
-dtype: float64 & Delay             21154.760000
-Cmax               1769.460000
-Obj               22924.220000
-Computing_time    87237.426082
-dtype: float64 & Delay             40429.000000
-Cmax               2406.000000
-Obj               42835.000000
-Computing_time    88636.024869
-dtype: float64 \\
-gnn & Delay               0.000000
-Cmax               86.000000
-Obj               104.000000
-Computing_time      0.043541
-dtype: float64 & Delay             193.560000
-Cmax              207.980000
-Obj               401.540000
-Computing_time      0.101462
-dtype: float64 & Delay              760.000000
-Cmax               360.000000
-Obj               1120.000000
-Computing_time       0.190838
-dtype: float64 & Delay             259.000000
-Cmax              303.000000
-Obj               562.000000
-Computing_time      0.128263
-dtype: float64 & Delay              992.020000
-Cmax               456.640000
-Obj               1448.660000
-Computing_time       0.217909
-dtype: float64 & Delay             1929.000000
-Cmax               692.000000
-Obj               2621.000000
-Computing_time       0.303276
-dtype: float64 & Delay             2229.000000
-Cmax               648.000000
-Obj               2877.000000
-Computing_time       0.333358
-dtype: float64 & Delay             3903.700000
-Cmax               866.380000
-Obj               4770.080000
-Computing_time       0.438932
-dtype: float64 & Delay             6517.000000
-Cmax              1173.000000
-Obj               7690.000000
-Computing_time       0.556222
-dtype: float64 & Delay             10088.000000
-Cmax               1360.000000
-Obj               11522.000000
-Computing_time        0.736492
-dtype: float64 & Delay             20390.320000
-Cmax               1925.140000
-Obj               22315.460000
-Computing_time        1.028427
-dtype: float64 & Delay             36145.000000
-Cmax               2534.000000
-Obj               38635.000000
-Computing_time        1.392105
-dtype: float64 \\
-heuristic & Delay               0.000000
-Cmax               96.000000
-Obj               114.000000
-Computing_time      0.000088
-dtype: float64 & Delay             215.320000
-Cmax              229.600000
-Obj               444.920000
-Computing_time      0.000299
-dtype: float64 & Delay              674.000000
-Cmax               487.000000
-Obj               1161.000000
-Computing_time       0.000878
-dtype: float64 & Delay             345.000000
-Cmax              322.000000
-Obj               667.000000
-Computing_time      0.000476
-dtype: float64 & Delay             1325.780000
-Cmax               510.760000
-Obj               1836.540000
-Computing_time       0.006956
-dtype: float64 & Delay             2617.000000
-Cmax               702.000000
-Obj               3306.000000
-Computing_time       0.268741
-dtype: float64 & Delay             3208.000000
-Cmax               741.000000
-Obj               3960.000000
-Computing_time       0.002775
-dtype: float64 & Delay             5914.080000
-Cmax              1000.660000
-Obj               6914.740000
-Computing_time       0.012208
-dtype: float64 & Delay              8839.00000
-Cmax               1354.00000
-Obj               10171.00000
-Computing_time        0.29866
-dtype: float64 & Delay             15013.000000
-Cmax               1644.000000
-Obj               16657.000000
-Computing_time        0.020364
-dtype: float64 & Delay             33000.000000
-Cmax               2238.260000
-Obj               35238.260000
-Computing_time        0.072413
-dtype: float64 & Delay             62123.000000
-Cmax               3186.000000
-Obj               65226.000000
-Computing_time        0.291438
-dtype: float64 \\
-gnn + ls & Delay               0.000000
-Cmax               86.000000
-Obj               104.000000
-Computing_time      0.042885
-dtype: float64 & Delay             190.28000
-Cmax              206.92000
-Obj               397.20000
-Computing_time      0.10912
-dtype: float64 & Delay              788.00000
-Cmax               395.00000
-Obj               1183.00000
-Computing_time       0.27773
-dtype: float64 & Delay             249.000000
-Cmax              298.000000
-Obj               547.000000
-Computing_time      0.133602
-dtype: float64 & Delay              977.040000
-Cmax               447.300000
-Obj               1424.340000
-Computing_time       0.252956
-dtype: float64 & Delay             1929.000000
-Cmax               692.000000
-Obj               2621.000000
-Computing_time       0.470552
-dtype: float64 & Delay             2236.000000
-Cmax               633.000000
-Obj               2869.000000
-Computing_time       0.360334
-dtype: float64 & Delay             3864.180000
-Cmax               855.780000
-Obj               4719.960000
-Computing_time       0.527496
-dtype: float64 & Delay             6398.000000
-Cmax              1127.000000
-Obj               7525.000000
-Computing_time       0.835555
-dtype: float64 & Delay              9904.000000
-Cmax               1426.000000
-Obj               11330.000000
-Computing_time        0.931007
-dtype: float64 & Delay             20216.72000
-Cmax               1904.96000
-Obj               22121.68000
-Computing_time        1.54629
-dtype: float64 & Delay             35939.000000
-Cmax               2523.000000
-Obj               38415.000000
-Computing_time        2.354683
-dtype: float64 \\
+min_delay & 0s & 3m & 33m & 2h & -21.00\% & 0.00\% & -1.18\% & -20.91\% & -23.00\% & 16.17\% & 28.53\% & 24.16\% & -21.00\% & -2.25\% & -4.03\% & -20.23\% \\
+Q1_delay & 1m & 8m & 46m & 4h & 2.71\% & 9.84\% & 8.79\% & -6.92\% & 2.58\% & 41.28\% & 57.33\% & 48.19\% & 1.29\% & 7.27\% & 8.11\% & -8.11\% \\
+median_delay & 2m & 14m & 54m & 5h & 15.71\% & 13.89\% & 12.96\% & -3.52\% & 31.07\% & 53.29\% & 72.71\% & 57.85\% & 13.00\% & 12.91\% & 11.90\% & -3.66\% \\
+avg_delay & 2m & 14m & 57m & 5h & 32.30\% & 19.42\% & 14.39\% & -2.67\% & 38.30\% & 56.40\% & 73.30\% & 57.42\% & 26.76\% & 17.71\% & 13.20\% & -3.46\% \\
+Q3_delay & 3m & 18m & 1h & 7h & 56.56\% & 21.20\% & 18.65\% & 0.79\% & 61.48\% & 65.62\% & 87.91\% & 66.99\% & 35.51\% & 21.19\% & 17.66\% & -0.18\% \\
+max_delay & 7m & 30m & 1h & 11h & 208.11\% & 100.50\% & 42.49\% & 15.11\% & 133.33\% & 131.49\% & 142.37\% & 99.61\% & 181.08\% & 93.22\% & 31.77\% & 15.00\% \\
+min_cmax & 1m & 4m & 10m & 20m & -13.33\% & -0.79\% & -0.94\% & 1.91\% & 0.00\% & 6.52\% & 5.44\% & 14.00\% & -13.33\% & -2.23\% & -1.52\% & 2.21\% \\
+Q1_cmax & 2m & 6m & 12m & 25m & 0.00\% & 2.96\% & 5.53\% & 6.77\% & 5.74\% & 14.70\% & 20.82\% & 23.44\% & 0.00\% & 1.30\% & 3.84\% & 5.47\% \\
+median_cmax & 3m & 7m & 13m & 29m & 1.88\% & 6.08\% & 8.12\% & 8.29\% & 17.20\% & 19.49\% & 25.23\% & 27.45\% & 1.25\% & 3.85\% & 6.98\% & 7.64\% \\
+avg_cmax & 3m & 7m & 13m & 29m & 5.42\% & 7.62\% & 8.11\% & 8.91\% & 15.49\% & 20.71\% & 24.92\% & 26.54\% & 4.60\% & 5.48\% & 6.79\% & 7.82\% \\
+Q3_cmax & 3m & 8m & 14m & 32m & 9.95\% & 11.56\% & 10.49\% & 11.01\% & 22.31\% & 26.84\% & 29.95\% & 29.37\% & 10.28\% & 9.19\% & 9.05\% & 9.46\% \\
+max_cmax & 5m & 10m & 18m & 40m & 32.87\% & 23.51\% & 17.44\% & 19.85\% & 46.03\% & 39.47\% & 39.91\% & 35.27\% & 26.36\% & 21.94\% & 16.60\% & 15.04\% \\
+min_obj & 1m & 8m & 44m & 3h & 0.00\% & 0.00\% & 0.79\% & -18.89\% & 0.00\% & 13.86\% & 23.65\% & 23.89\% & 0.00\% & 0.00\% & -2.38\% & -18.10\% \\
+Q1_obj & 4m & 14m & 59m & 4h & 1.89\% & 7.21\% & 8.66\% & -5.84\% & 8.97\% & 32.82\% & 48.42\% & 46.53\% & 1.35\% & 5.76\% & 8.00\% & -6.71\% \\
+median_obj & 5m & 21m & 1h & 5h & 7.53\% & 11.82\% & 11.95\% & -2.73\% & 24.76\% & 42.88\% & 63.02\% & 54.73\% & 6.64\% & 11.41\% & 11.16\% & -2.82\% \\
+avg_obj & 5m & 21m & 1h & 6h & 14.65\% & 14.78\% & 13.12\% & -1.76\% & 25.00\% & 43.78\% & 63.88\% & 54.82\% & 12.53\% & 12.93\% & 11.91\% & -2.57\% \\
+Q3_obj & 7m & 26m & 1h & 7h & 23.72\% & 17.53\% & 16.46\% & 1.55\% & 39.60\% & 52.09\% & 77.59\% & 63.66\% & 20.67\% & 15.55\% & 15.40\% & 0.56\% \\
+max_obj & 13m & 40m & 1h & 11h & 76.51\% & 64.61\% & 36.94\% & 14.69\% & 74.14\% & 88.67\% & 118.58\% & 92.19\% & 65.84\% & 56.18\% & 28.42\% & 14.59\% \\
+min_comp_time & 0s & 2s & 24h & 24h & 0.04s & 0.13s & 0.33s & 0.74s & 0.00s & 0.00s & 0.00s & 0.02s & 0.04s & 0.13s & 0.36s & 0.93s \\
+Q1_comp_time & 0s & 25s & 24h & 24h & 0.07s & 0.18s & 0.40s & 0.89s & 0.00s & 0.00s & 0.00s & 0.03s & 0.08s & 0.19s & 0.46s & 1.25s \\
+median_comp_time & 0s & 2m & 24h & 24h & 0.11s & 0.22s & 0.43s & 1.03s & 0.00s & 0.00s & 0.01s & 0.05s & 0.11s & 0.25s & 0.52s & 1.52s \\
+avg_comp_time & 0s & 3h & 24h & 24h & 0.10s & 0.22s & 0.44s & 1.03s & 0.00s & 0.01s & 0.01s & 0.07s & 0.11s & 0.25s & 0.53s & 1.55s \\
+Q3_comp_time & 0s & 52m & 24h & 24h & 0.12s & 0.25s & 0.47s & 1.16s & 0.00s & 0.00s & 0.01s & 0.07s & 0.13s & 0.28s & 0.58s & 1.85s \\
+max_comp_time & 2s & 24h & 24h & 24h & 0.19s & 0.30s & 0.56s & 1.39s & 0.00s & 0.27s & 0.30s & 0.29s & 0.28s & 0.47s & 0.84s & 2.35s \\
+nbr_best_solutions & 50 & 45 & 0 & 0 & 9 & 1 & 0 & 0 & 7 & 0 & 0 & 0 & 10 & 1 & 0 & 0 \\
+nbr_optimal_solutions & 50 & 45 & 0 & 0 & 9 & 1 & 0 & 0 & 7 & 0 & 0 & 0 & 10 & 1 & 0 & 0 \\
 \bottomrule
 \end{tabular}
