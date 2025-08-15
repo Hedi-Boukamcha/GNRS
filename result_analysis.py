@@ -298,10 +298,55 @@ def aggregated_results_table(
     df_final = pd.DataFrame(index=row_labels)
 
     # 3) charger les detailed_results_{size}.csv
+    df_final = pd.DataFrame(index=row_labels)
+
+    # charger les detailed_results_{size}.csv
     detailed_by_size = {}
     for size in sizes:
         path = os.path.join(output_path, f'detailed_results_{size}.csv')
         detailed_by_size[size] = pd.read_csv(path) if os.path.exists(path) else pd.DataFrame()
+
+    tol = 1e-12
+
+    # ---- Pré-calcul: pour chaque taille, construire les séries Obj "de base" par méthode ----
+    # objs_by_size[size] = dict {method -> pd.Series des Obj (float) ou None}
+    objs_by_size = {}
+    min_obj_by_size = {}
+
+    for size in sizes:
+        df = detailed_by_size.get(size, pd.DataFrame())
+        objs = {}
+
+        # exact
+        if 'exact_Obj' in df.columns:
+            objs['exact'] = pd.to_numeric(df['exact_Obj'], errors='coerce')
+        else:
+            objs['exact'] = None
+
+        # autres méthodes
+        for m in methods_order:
+            if m == 'exact':
+                continue
+            col_obj = f'{m}_Obj'         # si ta pipeline a déjà les Obj bruts
+            col_dev = f'{m}_dev_Obj'     # sinon on reconstruit avec dev
+            s_obj = None
+            if col_obj in df.columns:
+                s_obj = pd.to_numeric(df[col_obj], errors='coerce')
+            elif (col_dev in df.columns) and (objs.get('exact') is not None):
+                s_dev = pd.to_numeric(df[col_dev], errors='coerce')
+                s_obj = (1.0 + s_dev) * objs['exact']   # reconstruction
+            # sinon s_obj reste None
+            if s_obj is not None:
+                objs[m] = s_obj
+
+        # construire DataFrame des Obj exploitables pour le min
+        if any(s is not None for s in objs.values()):
+            obj_df = pd.DataFrame({k: v for k, v in objs.items() if v is not None})
+            min_obj_by_size[size] = obj_df.min(axis=1, skipna=True)
+        else:
+            min_obj_by_size[size] = pd.Series(np.nan, index=df.index)
+
+        objs_by_size[size] = objs
 
     # 4) agrégation
     for method in methods_order:
@@ -375,12 +420,16 @@ def aggregated_results_table(
 
                 # Comptages
                 tol = 1e-12
-                if obj_dev in df.columns:
-                    s_obj_dev = pd.to_numeric(df[obj_dev], errors="coerce")
-                    best_count = int((s_obj_dev < -tol).sum())
+                s_method = objs_by_size[size].get(method)
+                if s_method is not None:
+                    min_obj = min_obj_by_size[size]
+                    best_mask = (s_method - min_obj).abs() <= tol
+                    best_count = int(best_mask.sum())
                 else:
                     best_count = 0
+                df_final.loc["nbr_best_solutions", col] = format_int(best_count)
 
+                    
                 if 'exact_Status' in df.columns:
                     exact_opt_mask = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL')
                     have_exact_opt = True
@@ -397,8 +446,12 @@ def aggregated_results_table(
                 else:
                     opt_count = 0
 
-                df_final.loc["nbr_best_solutions", col]    = format_int(best_count)
-                df_final.loc["nbr_optimal_solutions", col] = format_int(opt_count)
+                if len(df) > 0:
+                    pct = round(opt_count * 100 / len(df))
+                    df_final.loc["nbr_optimal_solutions", col] = "inc" if pct == 0 else f"{opt_count}({pct}\\%)"
+                else:
+                    df_final.loc["nbr_optimal_solutions", col] = ""
+                df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
 
     # 5) ordre des colonnes: tailles x méthodes
     ordered_cols = [f"{size}_{method}" for method in methods_order for size in sizes]
