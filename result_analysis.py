@@ -304,6 +304,7 @@ def detailed_results_per_method(file_per_methode: dict, variables: list, sizes=(
         out_tex = os.path.join(output, f'detailed_results_{size}.tex')
         csv_to_latex_table(out_csv, out_tex)
 
+
 def aggregated_results_table(
     file_per_method: dict,
     output_tex_path: str,
@@ -347,7 +348,7 @@ def aggregated_results_table(
             objs = pd.DataFrame(index=df.index)
             if 'exact_Obj' in df.columns:
                 objs['exact'] = pd.to_numeric(df['exact_Obj'], errors="coerce")
-            for m in ['gnn','ls','gnnls']:
+            for m in ['gnn','heuristic','gnn + ls']:
                 obj_col = f'{m}_Obj'
                 dev_col = f'{m}_dev_Obj'
                 if obj_col in df.columns:
@@ -355,8 +356,8 @@ def aggregated_results_table(
                 elif dev_col in df.columns and 'exact_Obj' in df.columns:
                     objs[m] = (1.0 + pd.to_numeric(df[dev_col], errors="coerce")) * pd.to_numeric(df['exact_Obj'], errors="coerce")
 
-            # best solutions
-            best_counts = {m: 0 for m in ['exact','gnn','ls','gnnls']}
+
+            best_counts = {m: 0 for m in ['exact','gnn','heuristic','gnn + ls']}
             for idx, row in objs.iterrows():
                 row = row.dropna()
                 if not row.empty:
