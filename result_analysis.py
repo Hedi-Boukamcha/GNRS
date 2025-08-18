@@ -74,6 +74,35 @@ def _place_block(df_final, col_name, var_prefix, values_as_list, formatter=lambd
         else:
             df_final.loc[row, col_name] = formatter(v)
     
+def count_best_by_instance(df: pd.DataFrame, methods_order, tol=1e-12):
+
+    counts = {m: 0 for m in methods_order}
+    # colonnes attendues par méthode
+    col_for_method = { 'exact': 'exact_Obj', **{m: f'{m}_Obj' for m in methods_order if m != 'exact'} }
+
+    # itère sur chaque instance (ligne)
+    for _, row in df.iterrows():
+        # collecte des valeurs Obj dispo pour cette instance
+        vals = []
+        for m in methods_order:
+            col = col_for_method.get(m)
+            if col in df.columns:
+                v = row[col]
+                if pd.notna(v):
+                    vals.append((m, float(v)))
+
+        if not vals:
+            continue
+
+        # min de la ligne
+        min_val = min(v for _, v in vals)
+
+        # incrémente +1 pour chaque méthode à min (ex æquo inclus)
+        for m, v in vals:
+            if abs(v - min_val) <= tol:
+                counts[m] += 1
+
+    return counts
 
 def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     df = pd.read_csv(input_csv)
@@ -287,7 +316,7 @@ def aggregated_results_table(
         keys = list(file_per_method.keys())
         methods_order = (['exact'] if 'exact' in keys else []) + [m for m in keys if m != 'exact']
 
-    # 2) lignes (index)
+    # 2) lignes (index) -> on supprime "nbr_best_solutions"
     row_labels = [
         "min_delay", "Q1_delay", "median_delay", "avg_delay", "Q3_delay", "max_delay",
         "min_cmax",  "Q1_cmax",  "median_cmax",  "avg_cmax",  "Q3_cmax",  "max_cmax",
@@ -297,58 +326,13 @@ def aggregated_results_table(
     ]
     df_final = pd.DataFrame(index=row_labels)
 
-    # 3) charger les detailed_results_{size}.csv
-    df_final = pd.DataFrame(index=row_labels)
-
     # charger les detailed_results_{size}.csv
     detailed_by_size = {}
     for size in sizes:
         path = os.path.join(output_path, f'detailed_results_{size}.csv')
         detailed_by_size[size] = pd.read_csv(path) if os.path.exists(path) else pd.DataFrame()
 
-    tol = 1e-12
-
-    # ---- Pré-calcul: pour chaque taille, construire les séries Obj "de base" par méthode ----
-    # objs_by_size[size] = dict {method -> pd.Series des Obj (float) ou None}
-    objs_by_size = {}
-    min_obj_by_size = {}
-
-    for size in sizes:
-        df = detailed_by_size.get(size, pd.DataFrame())
-        objs = {}
-
-        # exact
-        if 'exact_Obj' in df.columns:
-            objs['exact'] = pd.to_numeric(df['exact_Obj'], errors='coerce')
-        else:
-            objs['exact'] = None
-
-        # autres méthodes
-        for m in methods_order:
-            if m == 'exact':
-                continue
-            col_obj = f'{m}_Obj'         # si ta pipeline a déjà les Obj bruts
-            col_dev = f'{m}_dev_Obj'     # sinon on reconstruit avec dev
-            s_obj = None
-            if col_obj in df.columns:
-                s_obj = pd.to_numeric(df[col_obj], errors='coerce')
-            elif (col_dev in df.columns) and (objs.get('exact') is not None):
-                s_dev = pd.to_numeric(df[col_dev], errors='coerce')
-                s_obj = (1.0 + s_dev) * objs['exact']   # reconstruction
-            # sinon s_obj reste None
-            if s_obj is not None:
-                objs[m] = s_obj
-
-        # construire DataFrame des Obj exploitables pour le min
-        if any(s is not None for s in objs.values()):
-            obj_df = pd.DataFrame({k: v for k, v in objs.items() if v is not None})
-            min_obj_by_size[size] = obj_df.min(axis=1, skipna=True)
-        else:
-            min_obj_by_size[size] = pd.Series(np.nan, index=df.index)
-
-        objs_by_size[size] = objs
-
-    # 4) agrégation
+    # ---- 4) agrégation ----
     for method in methods_order:
         for size in sizes:
             col = f"{size}_{method}"
@@ -372,34 +356,29 @@ def aggregated_results_table(
                 obj_stats   = _stats_6(df[obj_col])   if obj_col   else [np.nan]*6
                 time_stats  = _stats_6(df[time_col])  if time_col  else [np.nan]*6
 
-                # placer les blocs SANS format (valeurs brutes sous forme de str)
+                # placer les blocs
                 _place_block(df_final, col, "delay",     delay_stats, exact=True)
                 _place_block(df_final, col, "cmax",      cmax_stats,  exact=True)
                 _place_block(df_final, col, "obj",       obj_stats,   exact=True)
                 _place_block(df_final, col, "comp_time", time_stats,  exact=True)
 
-                # min/max en entier uniquement (ta demande récente)
+                # min/max en entier uniquement
                 for var_prefix in ["delay", "cmax", "obj", "comp_time"]:
                     for row in (f"min_{var_prefix}", f"max_{var_prefix}"):
                         df_final.loc[row, col] = format_int(df_final.loc[row, col])
                 
-                for var_prefix in ["comp_time"]:
-                    for row in (f"min_{var_prefix}", f"Q1_{var_prefix}", f"median_{var_prefix}", f"avg_{var_prefix}", f"Q3_{var_prefix}", f"max_{var_prefix}"):
-                        df_final.loc[row, col] = format_time(df_final.loc[row, col])
+                # temps formaté
+                for row in (f"min_comp_time", f"Q1_comp_time", f"median_comp_time", 
+                            f"avg_comp_time", f"Q3_comp_time", f"max_comp_time"):
+                    df_final.loc[row, col] = format_time(df_final.loc[row, col])
 
-                # Comptages exact
-                if 'exact_Gap' in df.columns:
-                    best_count = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0).sum()
-                elif 'exact_Status' in df.columns:
-                    best_count = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL').sum()
-                else:
-                    best_count = 0
-
+                # Comptage optimal uniquement
                 opt_count = 0
                 if 'exact_Status' in df.columns:
                     opt_count = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL').sum()
+                elif 'exact_Gap' in df.columns:
+                    opt_count = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0).sum()
 
-                df_final.loc["nbr_best_solutions", col]   = str(best_count)
                 df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
 
             else:
@@ -418,39 +397,14 @@ def aggregated_results_table(
                 _place_block(df_final, col, "obj",       obj_stats,   formatter=format_percent)
                 _place_block(df_final, col, "comp_time", time_stats,  formatter=format_seconds)
 
-                # Comptages
-                tol = 1e-12
-                s_method = objs_by_size[size].get(method)
-                if s_method is not None:
-                    min_obj = min_obj_by_size[size]
-                    best_mask = (s_method - min_obj).abs() <= tol
-                    best_count = int(best_mask.sum())
-                else:
-                    best_count = 0
-                df_final.loc["nbr_best_solutions", col] = format_int(best_count)
-
-                    
-                if 'exact_Status' in df.columns:
+                # Comptage optimal uniquement
+                opt_count = 0
+                if 'exact_Status' in df.columns and obj_dev in df.columns:
                     exact_opt_mask = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL')
-                    have_exact_opt = True
-                elif 'exact_Gap' in df.columns:
-                    exact_opt_mask = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0)
-                    have_exact_opt = True
-                else:
-                    exact_opt_mask = pd.Series([False]*len(df))
-                    have_exact_opt = False
-
-                if have_exact_opt and obj_dev in df.columns:
                     s = pd.to_numeric(df[obj_dev], errors="coerce")
+                    tol = 1e-12
                     opt_count = ((s.abs() <= tol) & exact_opt_mask).sum()
-                else:
-                    opt_count = 0
 
-                if len(df) > 0:
-                    pct = round(opt_count * 100 / len(df))
-                    df_final.loc["nbr_optimal_solutions", col] = "inc" if pct == 0 else f"{opt_count}({pct}\\%)"
-                else:
-                    df_final.loc["nbr_optimal_solutions", col] = ""
                 df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
 
     # 5) ordre des colonnes: tailles x méthodes
