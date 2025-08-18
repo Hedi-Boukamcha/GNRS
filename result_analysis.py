@@ -326,13 +326,12 @@ def aggregated_results_table(
     ]
     df_final = pd.DataFrame(index=row_labels)
 
-    # charger les detailed_results_{size}.csv
     detailed_by_size = {}
     for size in sizes:
         path = os.path.join(output_path, f'detailed_results_{size}.csv')
         detailed_by_size[size] = pd.read_csv(path) if os.path.exists(path) else pd.DataFrame()
 
-    # ---- 4) agrégation ----
+    # agregation ----
     for method in methods_order:
         for size in sizes:
             col = f"{size}_{method}"
@@ -343,6 +342,29 @@ def aggregated_results_table(
                 continue
             if col not in df_final.columns:
                 df_final[col] = ""
+
+            # dev reconstruction
+            objs = pd.DataFrame(index=df.index)
+            if 'exact_Obj' in df.columns:
+                objs['exact'] = pd.to_numeric(df['exact_Obj'], errors="coerce")
+            for m in ['gnn','ls','gnnls']:
+                obj_col = f'{m}_Obj'
+                dev_col = f'{m}_dev_Obj'
+                if obj_col in df.columns:
+                    objs[m] = pd.to_numeric(df[obj_col], errors="coerce")
+                elif dev_col in df.columns and 'exact_Obj' in df.columns:
+                    objs[m] = (1.0 + pd.to_numeric(df[dev_col], errors="coerce")) * pd.to_numeric(df['exact_Obj'], errors="coerce")
+
+            # best solutions
+            best_counts = {m: 0 for m in ['exact','gnn','ls','gnnls']}
+            for idx, row in objs.iterrows():
+                row = row.dropna()
+                if not row.empty:
+                    min_val = row.min()
+                    winners = row[row == min_val].index
+                    for w in winners:
+                        best_counts[w] += 1
+            print(best_counts)
 
             if method == 'exact':
                 # colonnes attendues dans detailed_results_*.csv
@@ -380,6 +402,7 @@ def aggregated_results_table(
                     opt_count = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0).sum()
 
                 df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
+                df_final.loc["nbr_best_solutions", col] = format_int(best_counts.get(method, 0))
 
             else:
                 delay_dev = f'{method}_dev_Delay'
@@ -406,12 +429,13 @@ def aggregated_results_table(
                     opt_count = ((s.abs() <= tol) & exact_opt_mask).sum()
 
                 df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
+                df_final.loc["nbr_best_solutions", col] = format_int(best_counts.get(method, 0))
 
-    # 5) ordre des colonnes: tailles x méthodes
+
     ordered_cols = [f"{size}_{method}" for method in methods_order for size in sizes]
     df_final = df_final[ordered_cols]
 
-    # 6) export LaTeX
+
     os.makedirs(os.path.dirname(output_tex_path), exist_ok=True)
     latex = df_final.to_latex(escape=False, na_rep="", column_format='l' + 'c'*len(df_final.columns))
     with open(output_tex_path, 'w') as f:
