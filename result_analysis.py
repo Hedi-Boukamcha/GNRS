@@ -361,10 +361,9 @@ def aggregated_results_table(
                 row = row.dropna()
                 if not row.empty:
                     min_val = row.min()
-                    winners = row[row == min_val].index
-                    for w in winners:
-                        best_counts[w] += 1
-            print(best_counts)
+                    bests = row[row == min_val].index
+                    for best in bests:
+                        best_counts[best] += 1
 
             if method == 'exact':
                 # colonnes attendues dans detailed_results_*.csv
