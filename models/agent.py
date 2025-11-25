@@ -170,10 +170,8 @@ class Agent:
 
         # ---------- 1. build current action tensor (with batch-level indices) ------------------------------
         actions_cur   = self._shift_actions(pa_cur_list, graphs_cur)                       # Create a new tensor with action but this time with global (batch-level) indices to replace pa_cur_list
-        lengths_cur   = torch.as_tensor([pa.size(0) for pa in pa_cur_list],    
-                                        device=self.device, dtype=torch.long)              # Get the number of possible actions for each current state
-        offsets_cur   = torch.cat((torch.zeros(1, device=self.device, dtype=torch.long), 
-                                        torch.cumsum(lengths_cur, dim=0)[:-1]))            # The the offset of possible actions by graph (increase with the number of possible actions from the previous graph)
+        lengths_cur   = torch.as_tensor([pa.size(0) for pa in pa_cur_list], device=self.device, dtype=torch.long)                # Get the number of possible actions for each current state
+        offsets_cur   = torch.cat((torch.zeros(1, device=self.device, dtype=torch.long), torch.cumsum(lengths_cur, dim=0)[:-1])) # The the offset of possible actions by graph (increase with the number of possible actions from the previous graph)
         
         # ---------- 2. Q(s,·) ------------------------------------------------------------------------------
         q_all_cur = self.policy_net(graphs_cur, actions_cur)                               # Use the policy_net to get the Q-value of all possible actions of all state [used once for the whole batch and all possible actions]
@@ -206,4 +204,3 @@ class Agent:
         self.optimizer.step()                                          # Do a gradient step and update parameters -> θi+1 = θi - α∑∇ℓ(f(θi, x), y)
         self.loss.update(loss.item())                                  # Display the loss in the chart!
         return loss.item()
-                       
