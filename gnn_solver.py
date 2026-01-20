@@ -3,9 +3,6 @@ import os
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["PYTORCH_MPS_ENABLE_INCOMPLETE_DYNAMIC_SHAPES"] = "1"
 import math
-import glob
-import pathlib
-import pickle
 import re
 import argparse
 import random
@@ -19,7 +16,6 @@ warnings.filterwarnings(
     category=UserWarning,
     module=r"torch_geometric\.nn\.conv\.hetero_conv",
 )
-from typing import Tuple, List
 
 from models.instance import Instance
 from simulators.gnn_simulator import *

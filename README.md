@@ -26,8 +26,8 @@
     * Test one problem (DRL): `python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=.`
     * Solve all instances (DRL): `python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=.`
     
-    * Test one problem (Heuristic): `python heuristic_solver.py --mode=test_one --size=s --id=1 --path=./`
-    * Solve all instances (Heuristic):  `python heuristic_solver.py --mode=test_all --path=.`
+    * Test one problem (Heuristic, with or without Tabu search): `python heuristic_solver.py --mode=test_one --size=s --id=1 --tabu=true --path=./`
+    * Solve all instances (Heuristic, with or without Tabu search):  `python heuristic_solver.py --mode=test_all --tabu=true --path=.`
 
     * Solve one problem (OR): `python cp_solver.py --type=test --size=s --id=1 --path=./`
 

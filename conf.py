@@ -97,3 +97,9 @@ STATIONS          = {"Station 1", "Station 2", "Station 3"}
 EVENT_COLORS      = { EXECUTE: "#8dd3c7", LOAD:    "#80b1d3", UNLOAD:  "#fb8072", MOVE:    "#fdb462", HOLD:    "#b3de69", POS:     "#fccde5"}
 MIN_REAL_DURATION = 1e-6
 BOLD_EVENTS       = {EXECUTE, HOLD, LOAD, UNLOAD, MOVE, POS, AWAIT}
+
+# Tabu search configuration
+TABU_TENURE: int          = 15
+MAX_NO_IMPROVEMENT: int   = 100
+MAX_ITERATIONS: int       = 1000
+NEIGHBOR_SAMPLE_SIZE: int = 20
