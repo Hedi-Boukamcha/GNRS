@@ -1,24 +1,24 @@
 import pickle
 import random
 import torch
-from torch import Tensor
+from torch                import Tensor
 import torch.nn.functional as F
-from torch.optim import Adam
-from torch.nn.utils        import clip_grad_norm_
+from torch.optim          import Adam
+from torch.nn.utils       import clip_grad_norm_
 from torch_geometric.data import Batch, HeteroData
 
 import matplotlib.pyplot as plt
 
-from models.gnn import QNet
-from models.memory import ReplayMemory, Transition
-from conf import *
-from models.state import Decision
-from utils.common import top_k_Q_to_probs
-from models.state import State
+from models.gnn.custom import QNet as CustomQNet
+from models.gnn.basic  import QNet as BasicQNet
+from models.memory     import ReplayMemory, Transition
+from conf              import *
+from models.state      import Decision
+from utils.common      import top_k_Q_to_probs
 
-# #################
-# =*= DQN Agent =*=
-# #################
+# ##########################################################
+# =*= DQN Agent [using either bastic or custom GNN Q-net]=*=
+# ##########################################################
 __author__  = "Hedi Boukamcha; Anas Neumann"
 __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
@@ -70,17 +70,25 @@ class Loss():
         self.save(filepath)
 
 class Agent:
-    def __init__(self, device: str, interactive: bool, path: str, load: bool, train: bool=False):
-        self.policy_net: QNet     = QNet()
+    def __init__(self, device: str, interactive: bool, path: str, load: bool, train: bool=False, custom: bool=False):
         self.memory: ReplayMemory = ReplayMemory()
         self.path: str            = path
+        self.custom: bool         = custom
         self.device: str          = device
+        self.prefix: str          = "" if self.custom else "basic_"
+        if self.custom:
+            self.policy_net: CustomQNet = CustomQNet()
+        else:   
+            self.policy_net: BasicQNet = BasicQNet()
         if load:
             print(f"Loading agent' weights from {self.path}...")
             self.load(device=device)
         self.policy_net.to(device=device)
         if train:
-            self.target_net: QNet     = QNet()
+            if self.custom:
+                self.target_net: CustomQNet = CustomQNet()
+            else:   
+                self.target_net: BasicQNet = BasicQNet()
             self.target_net.to(device=device)
             self.target_net.load_state_dict(self.policy_net.state_dict())
             self.policy_net.train()
@@ -118,18 +126,18 @@ class Agent:
             self.xl_obj.update(obj)
         
     def save(self):
-        print(f"Saving policy_net and current loss...")
-        torch.save(self.policy_net.state_dict(), f"{self.path}policy_net.pth")
-        self.diversity.save(f"{self.path}epsilon")
-        self.loss.save(f"{self.path}loss")
-        self.l_obj.save(f"{self.path}l_obj")
-        self.s_obj.save(f"{self.path}s_obj")
-        self.m_obj.save(f"{self.path}m_obj")
-        self.xl_obj.save(f"{self.path}xl_obj")  
+        print(f"Saving {self.prefix}policy_net and current loss...")
+        torch.save(self.policy_net.state_dict(), f"{self.path}{self.prefix}policy_net.pth")
+        self.diversity.save(f"{self.path}{self.prefix}epsilon")
+        self.loss.save(f"{self.path}{self.prefix}loss")
+        self.l_obj.save(f"{self.path}{self.prefix}l_obj")
+        self.s_obj.save(f"{self.path}{self.prefix}s_obj")
+        self.m_obj.save(f"{self.path}{self.prefix}m_obj")
+        self.xl_obj.save(f"{self.path}{self.prefix}xl_obj")  
 
     def load(self, device: str):
-        print(f"Loading policy_net...")
-        self.policy_net.load_state_dict(torch.load(f"{self.path}policy_net.pth", map_location=torch.device(device), weights_only=True))
+        print(f"Loading {self.prefix}policy_net...")
+        self.policy_net.load_state_dict(torch.load(f"{self.path}{self.prefix}policy_net.pth", map_location=torch.device(device), weights_only=True))
 
     def optimize_target(self):
         for target_p, policy_p in zip(self.target_net.parameters(), self.policy_net.parameters()):
@@ -151,7 +159,7 @@ class Agent:
                                     pa[:,2],                  # the parallel option
                                     pa[:,3], pa[:,4], pa[:,5], pa[:,6], pa[:,7], pa[:,8], pa[:,9], pa[:,10], pa[:,11], pa[:,12]], dim=1) # and the problem size features!
             decisions_with_batch_ids.append(pa_adj)      # Add the new "possible decision"
-        out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3) 
+        out = torch.cat(decisions_with_batch_ids, dim=0) # Translate into tensor (Σ|Aᵢ|, 3)
         return out
 
     def optimize_policy(self) -> float:

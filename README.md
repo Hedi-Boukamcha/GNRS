@@ -22,9 +22,9 @@
     * For the DRL and heuristic agents `pip3 install -r requirements/drl.txt`
     * For the OR solver: `pip3 install -r requirements/or.txt`
 5. Several possible modes:
-    * Training stage: `python gnn_solver.py --mode=train --interactive=true --load=false --path=.`
-    * Test one problem (DRL): `python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=.`
-    * Solve all instances (DRL): `python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=.`
+    * Training stage: `python gnn_solver.py --mode=train --interactive=true --load=false --custom=true --path=.`
+    * Test one problem (DRL): `python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --custom=true --path=.`
+    * Solve all instances (DRL): `python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --custom=true --path=.`
     
     * Test one problem (Heuristic, with or without Tabu search): `python heuristic_solver.py --mode=test_one --size=s --id=1 --tabu=true --path=./`
     * Solve all instances (Heuristic, with or without Tabu search):  `python heuristic_solver.py --mode=test_all --tabu=true --path=.`

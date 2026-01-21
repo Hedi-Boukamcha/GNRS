@@ -142,7 +142,7 @@ def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, impr
         #    pickle.dump(best_state, f)
         gnn_gantt(gantt_path, best_state, f"instance {size}.{id}")
         results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
-        results.to_csv(path+size+"/gnn_solution_"+extension+id+".csv", index=False)
+        results.to_csv(f"{path}{size}/{agent.prefix}gnn_solution_{extension}{id}.csv", index=False)
     return best_obj, (env.init_UB_cmax+env.init_UB_delay)
 
 def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
@@ -153,7 +153,7 @@ def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, devic
             if i.endswith('.json'):
                 idx = re.search(r"instance_(\d+)\.json", i)
                 for id in idx.groups():
-                    solve_one(agent=agent, gantt_path=gantt_path+extension+"_"+folder+"_"+id+".png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES, train=False, eps_threshold=0.0)
+                    solve_one(agent=agent, gantt_path=f"{gantt_path}{agent.prefix}{extension}_{folder}_{id}.png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES, train=False, eps_threshold=0.0)
 
 def train(agent: Agent, path: str, device: str):
     start_time = time.time()
@@ -198,9 +198,9 @@ def train(agent: Agent, path: str, device: str):
             agent.save()
     print("End!")
 
-# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=.
-# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=.
-# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=.
+# TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=. --custom=true
+# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=. --custom=true
+# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=. --custom=true
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
@@ -209,6 +209,7 @@ if __name__ == "__main__":
     parser.add_argument("--size", help="size of the instance, either s, m, l or xl", required=False)
     parser.add_argument("--id", help="id of the instance to solve", required=False)
     parser.add_argument("--load", help="do we load the weights of policy_net", required=True)
+    parser.add_argument("--custom", help="use the custom Q-net instead of a basic one", required=True)
     parser.add_argument("--improve", help="improve the solution using local improvement operator", required=False)
     args               = parser.parse_args()
     base_path: str     = args.path
@@ -216,11 +217,12 @@ if __name__ == "__main__":
     path: str          = base_path + "/data/instances/" + instance_type
     gantt_path: str    = base_path + "/data/gantts/"
     load_weights: bool = to_bool(args.load)
+    custom: bool       = to_bool(args.custom)
     interactive: bool  = to_bool(args.interactive)
     # device: str      = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     device: str        = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Current computing device is: {device}...")
-    agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/', train=(args.mode == "train"))
+    agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/', train=(args.mode == "train"), custom=custom)
     if args.mode == "train":
         train(agent=agent, path=path, device=device)
     elif args.mode == "test_all":

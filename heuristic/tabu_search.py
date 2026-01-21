@@ -74,7 +74,7 @@ def _get_possible_neighbors(decisions: List[Decision], sample_size: int) -> List
     return moves
 
 def _apply_move(decisions: List[Decision], move: SmartMove) -> List[Decision]:
-    new_decisions = decisions.copy() # Shallow copy is enough for list structure
+    new_decisions = decisions.copy()
     actions = []
     if move.op1_move: actions.append(move.op1_move)
     if move.op2_move: actions.append(move.op2_move)
