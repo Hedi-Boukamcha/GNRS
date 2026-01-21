@@ -3,6 +3,7 @@ import copy
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict
 
+from models import instance
 from models.state import State, Decision
 from models.instance import Instance
 from conf import *
@@ -89,12 +90,13 @@ def _apply_move(decisions: List[Decision], move: SmartMove) -> List[Decision]:
         new_decisions.insert(new_idx, d)
     return new_decisions
 
-def _run_ls_and_evaluate(instance: Instance, decisions: List[Decision]) -> Tuple[List[Decision], int, bool]:
-    improved_state: State             = LS(instance, decisions)
-    opt_decisions, opt_obj, feasible  = _simulate_one(instance, improved_state.decisions)
-    return opt_decisions, opt_obj, feasible
+def _run_ls_and_evaluate(instance: Instance, decisions: List[Decision]) -> Tuple[State, int, bool]:
+    if _check_if_all_possible(instance, decisions):
+        improved_state: State = LS(instance, decisions)
+        return improved_state, (improved_state.total_delay + improved_state.cmax), True
+    return None, float('inf'), False
 
-def _check_if_possible(state: State, d: Decision) -> bool:
+def _check_if_one_possible(state: State, d: Decision) -> bool:
     for j in state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
@@ -103,20 +105,17 @@ def _check_if_possible(state: State, d: Decision) -> bool:
                 break
     return False
 
-def _simulate_one(instance: Instance, decisions: list[Decision]) -> Tuple[State, int, bool]:
+def _check_if_all_possible(instance: Instance, decisions: list[Decision]) -> bool:
     state: State = State(instance, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     for d in decisions:
-        if _check_if_possible(state, d):
-            state = simulate(state, d=d, clone=False) 
-        else:
-            return state, -1, False
-    obj: int = state.total_delay + state.cmax
-    return state, obj, True
+        if not _check_if_one_possible(state, d):
+            return False
+        state = simulate(state, d=d, clone=False) 
+    return True
 
-def tabu_search(instance: Instance, init_decisions: list[Decision]):
-    current_decisions: list[Decision] = [d.clone() for d in init_decisions]
-    best_decisions: list[Decision]    = [d.clone() for d in current_decisions]
-    current_decisions, current_obj, feasible = _run_ls_and_evaluate(instance, current_decisions)
+def tabu_search(instance: Instance, init_decisions: list[Decision]) -> State:
+    best_decisions: list[Decision]       = [d.clone() for d in init_decisions]
+    current_state, current_obj, feasible = _run_ls_and_evaluate(instance, init_decisions)
     best_obj: int = current_obj
     tabu_list: Dict[Tuple[int, int], int] = {} # Tabu Memory: Map (job_id, operation_id) -> iteration_index where it becomes free
     iter_count = 0
@@ -124,7 +123,7 @@ def tabu_search(instance: Instance, init_decisions: list[Decision]):
     print(f"Start Tabu Search. Initial Obj: {best_obj}")
     while iter_count < MAX_ITERATIONS and no_improvement_count < MAX_NO_IMPROVEMENT:
         iter_count += 1
-        possible_moves: List[SmartMove]         = _get_possible_neighbors(current_decisions, NEIGHBOR_SAMPLE_SIZE)
+        possible_moves: List[SmartMove]         = _get_possible_neighbors(current_state.decisions, NEIGHBOR_SAMPLE_SIZE)
         best_neighbor_decisions: List[Decision] = None
         best_neighbor_obj: float                = float('inf')
         best_move_ref: Optional[SmartMove]      = None
@@ -141,7 +140,7 @@ def tabu_search(instance: Instance, init_decisions: list[Decision]):
                     is_tabu = True
             if is_tabu:
                 continue
-            candidate_decisions: list[Decision] = _apply_move(current_decisions, move)
+            candidate_decisions: list[Decision] = _apply_move(current_state.decisions, move)
             opt_candidate, candidate_obj, feasible = _run_ls_and_evaluate(instance, candidate_decisions)
             if not feasible:
                 continue
@@ -151,15 +150,15 @@ def tabu_search(instance: Instance, init_decisions: list[Decision]):
                 best_move_ref           = move
                 found_valid_move        = True
         if found_valid_move:
-            current_decisions = best_neighbor_decisions
-            current_obj       = best_neighbor_obj
+            current_state.decisions = best_neighbor_decisions
+            current_obj             = best_neighbor_obj
             if best_move_ref.op1_move:
                 tabu_list[(best_move_ref.job_id, 0)] = iter_count + TABU_TENURE
             if best_move_ref.op2_move:
                 tabu_list[(best_move_ref.job_id, 1)] = iter_count + TABU_TENURE
             if current_obj < best_obj:
                 best_obj             = current_obj
-                best_decisions       = [d.clone() for d in current_decisions]
+                best_decisions       = [d.clone() for d in current_state.decisions]
                 no_improvement_count = 0
                 print(f"Iter {iter_count}: New Best found {best_obj}")
             else:
@@ -167,4 +166,5 @@ def tabu_search(instance: Instance, init_decisions: list[Decision]):
         else:
             no_improvement_count += 1    
     print(f"Tabu Search Finished. Best Obj: {best_obj}")
-    return best_decisions
+    final_state, _, _ = _run_ls_and_evaluate(instance, best_decisions)
+    return final_state
