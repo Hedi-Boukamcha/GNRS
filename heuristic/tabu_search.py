@@ -15,7 +15,7 @@ from heuristic.local_search import ls as LS
 # ##################################
 __author__  = "Hedi Boukamcha; Anas Neumann"
 __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __license__ = "MIT"
 
 @dataclass

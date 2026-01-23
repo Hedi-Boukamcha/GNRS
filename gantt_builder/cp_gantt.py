@@ -8,7 +8,7 @@ from conf import *
 # #########################
 __author__  = "Hedi Boukamcha"
 __email__   = "hedi.boukamcha.1@ulaval.ca"
-__version__ = "1.0.0" 
+__version__ = "2.0.0" 
 __license__ = "MIT"
 
 def plot_gantt_chart(path: str, tasks, instance_file: str):
