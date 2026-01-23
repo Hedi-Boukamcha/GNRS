@@ -53,7 +53,7 @@ def ls(instance: Instance, decisions: list[Decision]):
                     state     = new_state
                     obj       = new_obj
                     idx      += 1    
-        else: 
+        else:
             idx += 1
     return state
 

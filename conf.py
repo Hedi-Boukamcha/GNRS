@@ -66,6 +66,8 @@ T_WEIGTHS: dict = {
     'xl': 0.7,
 }
 
+BEAM_WIDTH: int = 10
+
 # Training configuration
 BATCH_SIZE          = 256     # batch size for training
 CAPACITY            = 300_000 # replay memory capacity

@@ -75,6 +75,7 @@ class Agent:
         self.path: str            = path
         self.custom: bool         = custom
         self.device: str          = device
+        self.train: bool          = train
         self.prefix: str          = "" if self.custom else "basic_"
         if self.custom:
             self.policy_net: CustomQNet = CustomQNet()
@@ -103,8 +104,8 @@ class Agent:
         else:
             self.policy_net.eval()
 
-    def select_next_decision(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, eps_threshold: float, train: bool, greedy: bool) -> int:
-        if train:
+    def select_next_decision(self, graph: HeteroData, decisionsT: Tensor, possible_decisions: list[Decision]=[], eps_threshold: float=0.0, greedy: bool=False) -> int:
+        if self.train:
             if random.random() > eps_threshold:
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
                 return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1))
@@ -114,6 +115,11 @@ class Agent:
             with torch.no_grad():
                 Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
                 return torch.argmax(Q_values.view(-1)).item() if greedy else top_k_Q_to_probs(Q=Q_values.view(-1))
+            
+    def get_all_q_values(self, graph: HeteroData, decisionsT: Tensor) -> Tensor:
+        with torch.no_grad():
+            Q_values: Tensor = self.policy_net(Batch.from_data_list([graph]).to(self.device), decisionsT)
+            return Q_values.view(-1)
 
     def add_obj(self, size: str, obj: int):
         if size == "s":

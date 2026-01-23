@@ -1,5 +1,6 @@
 
 import os
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 os.environ["PYTORCH_MPS_ENABLE_INCOMPLETE_DYNAMIC_SHAPES"] = "1"
 import math
@@ -16,6 +17,8 @@ warnings.filterwarnings(
     category=UserWarning,
     module=r"torch_geometric\.nn\.conv\.hetero_conv",
 )
+import ray
+from ray import ObjectRef
 
 from models.instance import Instance
 from simulators.gnn_simulator import *
@@ -27,6 +30,7 @@ from heuristic.local_search import ls as LS
 from models.agent import Agent
 from models.memory import Transition
 from gantt_builder.gnn_gantt import gnn_gantt
+from models.environment import Candidate, Environment
 
 # #################################
 # =*= GNN + e-greedy DQN SOLVER =*=
@@ -36,124 +40,169 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "1.0.0"
 __license__ = "MIT"
 
-class Environment:
-    def __init__(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int=0, delay: int=0, init_UB_cmax: int=0, init_UB_delay: int=0, n: int=0):
-        self.graph              = graph
-        self.decisionsT         = decisionsT
-        self.cmax               = cmax
-        self.delay              = delay
-        self.possible_decisions = possible_decisions
-        self.total_jobs         = n
-        self.init_UB_cmax       = init_UB_cmax
-        self.init_UB_delay      = init_UB_delay
-        self.rm_jobs            = n
-        self.m2_parallel        = 0
-        self.action_time        = 0
-        self.ub_cmax            = init_UB_cmax
-        self.ub_delay           = init_UB_delay
-
-    def update(self, graph: HeteroData, possible_decisions: list[Decision], decisionsT: Tensor, cmax: int, delay: int, ub_cmax: int, ub_delay: int, m2_parallel: int, m2: int):
-        self.graph              = graph
-        self.decisionsT         = decisionsT
-        self.cmax               = cmax
-        self.delay              = delay
-        self.possible_decisions = possible_decisions
-        self.rm_jobs            = graph['job'].x.shape[0] if graph['job'].x is not None else 0
-        self.m2_parallel        = m2_parallel / m2 if m2 > 0 else 0
-        self.ub_cmax            = ub_cmax
-        self.ub_delay           = ub_delay
-
-def search_possible_decisions(state: State, possible_parallel: bool, needed_parallel: bool, device: str, env: Environment, comp: int=None) -> list[Decision]:
+def search_possible_decisions(env: Environment, device: str) -> list[Decision]:
     M1_decisions: list[Decision] = []
     M2_decisions: list[Decision] = []
-    for j in state.job_states:
+    for j in env.state.job_states:
         for o in j.operation_states:
             if o.remaining_time > 0:
                 if o.operation.type == MACHINE_1:
                     M1_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True, comp=-1))
                     M1_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False, comp=-1))
                 else:
-                    if possible_parallel:
-                        M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True, comp=comp))
-                    if not needed_parallel :
+                    if env.last_job_in_pos>=0:
+                        M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=True, comp=env.last_job_in_pos))
+                    if not env.next_M2_parallel:
                         M2_decisions.append(Decision(job_id=j.id, job_id_in_graph=j.graph_id, operation_id=o.id, machine=o.operation.type, parallel=False, comp=-1))
                 break
-    decisions: list[Decision] = M2_decisions + (M1_decisions if (not needed_parallel or len(M2_decisions)==0) else [])
+    decisions: list[Decision] = M2_decisions + (M1_decisions if (not env.next_M2_parallel or len(M2_decisions)==0) else [])
     decisionsT: Tensor = torch.tensor([[d.job_id_in_graph, d.machine, float(d.parallel), env.init_UB_cmax, env.init_UB_delay, env.ub_cmax, env.ub_delay, env.cmax, env.delay, env.total_jobs, env.rm_jobs, env.m2_parallel, env.action_time] for d in decisions], dtype=torch.float32, device=device)
     return decisions, decisionsT
 
-def reward(env: Environment, cmax_new: int, delay_new: int, ub_cmax_new: int, ub_delay_new: int, device: str) -> Tensor:
-    delta_cmax: float  = (TRADE_OFF * (ub_cmax_new - env.ub_cmax) + cmax_new - env.cmax)/(1 + TRADE_OFF)
-    delta_delay: float = (TRADE_OFF * (ub_delay_new - env.ub_delay) + delay_new - env.delay)/(1 + TRADE_OFF)
+def reward(env: Environment, device: str) -> Tensor:
+    delta_cmax: float  = (TRADE_OFF * (env.state.ub_cmax - env.ub_cmax) + env.state.start_time - env.cmax)/(1 + TRADE_OFF)
+    delta_delay: float = (TRADE_OFF * (env.state.ub_delay - env.ub_delay) + env.state.total_delay - env.delay)/(1 + TRADE_OFF)
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
-def solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, train: bool=False, greedy: bool=False, retires: int=RETRIES, eps_threshold: float=0.0):
+@ray.remote
+def take_one_step(agent: Agent, last_env: Environment, action_id: int, device: str, clone: bool=False, train: bool=False, pb_size: int=0) -> Environment:
+    next_env: Environment = last_env.clone() if clone else last_env
+    d: Decision           = next_env.possible_decisions[action_id]
+    if d.parallel:
+        if next_env.state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
+            next_env.last_job_in_pos  = d.job_id
+            next_env.next_M2_parallel = True
+        else:
+            next_env.total_m2_parallel += 1
+            next_env.m2                += 1
+            next_env.next_M2_parallel   = False
+    else:
+        next_env.next_M2_parallel = False
+        next_env.last_job_in_pos  = -1
+        if next_env.state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_2:
+            next_env.m2 += 1
+    next_env.state         = simulate(next_env.state, d=d, clone=False)
+    next_graph: HeteroData = next_env.state.to_hyper_graph(last_job_in_pos=next_env.last_job_in_pos, current_time=next_env.action_time, device=device)
+    next_possible_decisions, next_decisionT = search_possible_decisions(env=next_env, device=device)
+    if train:
+        final: bool   = len(next_possible_decisions) == 0
+        _r: Tensor    = reward(env=next_env, device=device)
+        agent.memory.push(Transition(graph=next_env.graph, action_id=action_id, possible_actions=next_env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(next_env.possible_decisions), weight=T_WEIGTHS[pb_size]))
+    next_env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT)
+    return next_env
+
+def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, beam_width: int=BEAM_WIDTH):
+    start_time                  = time.time()
+    i: Instance                 = Instance.load(path + size + "/instance_" +id+ ".json")
+    init_state: State           = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+    init_state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
+    graph: HeteroData           = init_state.to_hyper_graph(last_job_in_pos=-1, current_time=0, device=device)
+    env: Environment            = Environment(graph=graph, state=init_state, possible_decisions=None, 
+                                              decisionsT=None, init_UB_cmax=init_state.ub_cmax, 
+                                              init_UB_delay=init_state.ub_delay, n=len(i.jobs))
+    env.possible_decisions, env.decisionsT = search_possible_decisions(env=env, device=device)
+    beam: list[Environment]     = [env]
+    finished: list[Environment] = []
+    step: int                   = 0
+    print(f"🚀 Starting Beam Search (k={beam_width}) for {size}.{id}...")
+    while beam:
+        step += 1
+        candidates: list[Candidate] = []
+        for p_idx, parent_env in enumerate(beam): # 1. expansion
+            q_values: Tensor = agent.get_all_q_values(parent_env.graph, parent_env.decisionsT)
+            for a_idx, q_val in enumerate(q_values.tolist()):
+                candidates.append(Candidate(parent_idx=p_idx, action_idx=a_idx, Q_value=q_val))
+        candidates.sort(key=lambda x: x.Q_value, reverse=True) # 2. selection and prunning
+        top_k: list[Candidate] = candidates[:beam_width]
+        futures: list[ObjectRef] = []
+        for _, p_idx, a_idx in top_k:
+            parent_env = beam[p_idx]
+            futures.append(take_one_step.remote(agent=agent, last_env=parent_env, action_id=a_idx, clone=True, device='cpu')) # 3. simulations in parallel
+        new_environments = ray.get(futures) # 4. wait for all simulations
+        next_beam: list[Environment] = []
+        for next_env in new_environments:
+            if next_env.graph: 
+                next_env.graph = next_env.graph.to(device)
+            if next_env.decisionsT is not None:
+                next_env.decisionsT = next_env.decisionsT.to(device)
+            if not next_env.possible_decisions:
+                finished.append(next_env)
+            else:
+                next_beam.append(next_env)
+        beam = next_beam
+        if step > 200: break # Safety break to prevent infinite loops in broken instances
+    if not finished:
+        print("Warning: No finished solution found. Using last active beam.")
+        best_env = new_environments[0]
+    else:
+        best_env = min(finished, key=lambda e: e.state.total_delay + e.state.cmax) # 5. select best among finished
+    if improve:
+        best_env.state = LS(i, best_env.state.decisions) # improve with local search
+    obj: int = best_env.state.total_delay + best_env.state.cmax
+    print(f"Instance {size}.{id}: OBJ={obj}...")
+    extension: str = "improved_" if improve else ""
+    computing_time = time.time() - start_time
+    gnn_gantt(gantt_path, best_env.state, f"instance {size}.{id}")
+    results = pd.DataFrame({'id': [id], 
+                            'obj': [obj], 
+                            'delay': [best_env.state.total_delay], 
+                            'cmax': [best_env.state.cmax], 
+                            'computing_time': [computing_time]})
+    results.to_csv(f"{path}{size}/{agent.prefix}gnn_solution_{extension}{id}.csv", index=False)
+
+def repeated_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, retires: int=RETRIES):
     start_time        = time.time()
     best_state: State = None
     best_obj: int     = -1
     for retry in range(retires):
-        g: bool              = (retry == 0) if not train else greedy
+        g: bool              = (retry == 0)
         i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
-        next_M2_parallel     = False
-        m2: int              = 0
-        m2_parallel: int     = 0
-        last_job_in_pos: int = -1
-        state: State         = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
-        state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
-        graph: HeteroData    = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=0, device=device)
-        env: Environment     = Environment(graph=graph, possible_decisions=None, decisionsT=None, init_UB_cmax=state.ub_cmax, init_UB_delay=state.ub_delay, n=len(i.jobs))
-        env.possible_decisions, env.decisionsT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, comp=-1, device=device)
+        init_state: State    = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+        init_state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
+        graph: HeteroData    = init_state.to_hyper_graph(last_job_in_pos=-1, current_time=0, device=device)
+        env: Environment     = Environment(graph=graph, state=init_state, n=len(i.jobs))
+        env.possible_decisions, env.decisionsT = search_possible_decisions(env=env, device=device)
         while env.possible_decisions:
-            action_id: int = agent.select_next_decision(graph=env.graph, possible_decisions=env.possible_decisions, decisionsT=env.decisionsT, eps_threshold=eps_threshold, train=train, greedy=g)
-            d: Decision = env.possible_decisions[action_id]
-            if d.parallel:
-                if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_1:
-                    last_job_in_pos = d.job_id
-                    next_M2_parallel = True
-                else:
-                    m2_parallel += 1
-                    m2 += 1
-                    next_M2_parallel = False
-            else:
-                next_M2_parallel = False
-                last_job_in_pos = -1
-                if state.get_job_by_id(d.job_id).operation_states[d.operation_id].operation.type == MACHINE_2:
-                    m2 += 1
-            state = simulate(state, d=d, clone=False)
-            next_graph: HeteroData = state.to_hyper_graph(last_job_in_pos=last_job_in_pos, current_time=env.action_time, device=device)
-            next_possible_decisions, next_decisionT = search_possible_decisions(state=state, possible_parallel=(last_job_in_pos>=0), needed_parallel=next_M2_parallel, env=env, comp=last_job_in_pos, device=device)
-            if train:
-                final: bool   = len(next_possible_decisions) == 0
-                _r: Tensor    = reward(env=env, cmax_new=state.start_time, delay_new=state.total_delay, ub_cmax_new=state.ub_cmax, ub_delay_new=state.ub_delay, device=device)
-                agent.memory.push(Transition(graph=env.graph, action_id=action_id, possible_actions=env.decisionsT, next_graph=next_graph, next_possible_actions=next_decisionT, reward=_r, final=final, nb_actions=len(env.possible_decisions), weight=T_WEIGTHS[size]))
-            env.action_time = state.min_action_time()
-            env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT, cmax=state.cmax, delay=state.total_delay, ub_cmax=state.ub_cmax, ub_delay=state.ub_delay, m2_parallel=m2_parallel, m2=m2)
+            action_id: int = agent.select_next_decision(graph=env.graph, decisionsT=env.decisionsT)
+            env            = take_one_step(agent=agent, last_env=env, action_id=action_id, device=device)
         if improve:
-            state = LS(i, state.decisions) # improve with local search
-        obj: int = state.total_delay + state.cmax
+            env.state = LS(i, env.state.decisions) # improve with local search
+        obj: int = env.state.total_delay + env.state.cmax
         print(f"Instance {size}.{id} (retry #{retry+1}/{retires}): OBJ={obj}...")
         if best_state is None or obj < best_obj:
             best_obj   = obj
-            best_state = state
-    if not train:
-        extension: str = "improved_" if improve else ""
-        computing_time = time.time() - start_time
-        #with open(path+size+"/gnn_state_"+extension+id+'.pkl', 'wb') as f:
-        #    pickle.dump(best_state, f)
-        gnn_gantt(gantt_path, best_state, f"instance {size}.{id}")
-        results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
-        results.to_csv(f"{path}{size}/{agent.prefix}gnn_solution_{extension}{id}.csv", index=False)
-    return best_obj, (env.init_UB_cmax+env.init_UB_delay)
+            best_state = env.state
+    extension: str = "improved_" if improve else ""
+    computing_time = time.time() - start_time
+    gnn_gantt(gantt_path, best_state, f"instance {size}.{id}")
+    results = pd.DataFrame({'id': [id], 'obj': [best_obj], 'delay': [best_state.total_delay], 'cmax': [best_state.cmax], 'computing_time': [computing_time]})
+    results.to_csv(f"{path}{size}/{agent.prefix}gnn_solution_{extension}{id}.csv", index=False)
 
-def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, device: str):
-    extension: str = "improved_gnn" if improve else "gnn"
+def solve_one_for_training(agent: Agent, path: str, size: str, id: str, device: str, greedy: bool=False, eps_threshold: float=0.0) -> tuple[int, int]:
+    i: Instance          = Instance.load(path + size + "/instance_" +id+ ".json")
+    init_state: State    = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
+    init_state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
+    graph: HeteroData    = init_state.to_hyper_graph(last_job_in_pos=-1, current_time=0, device=device)
+    env: Environment     = Environment(graph=graph, state=init_state, n=len(i.jobs))
+    env.possible_decisions, env.decisionsT = search_possible_decisions(env=env, device=device)
+    while env.possible_decisions:
+        action_id: int = agent.select_next_decision(graph=env.graph, decisionsT=env.decisionsT, possible_decisions=env.possible_decisions, greedy=greedy, eps_threshold=eps_threshold)
+        env = take_one_step(agent=agent, last_env=env, action_id=action_id, pb_size=size, device=device, train=True)
+    obj: int = env.state.total_delay + env.state.cmax
+    return obj, (env.init_UB_cmax + env.init_UB_delay)
+
+def solve_all_test(agent: Agent, gantt_path:str, path: str, improve: bool, beam: bool, device: str):
+    extension: str = "beam_gnn" if beam else "improved_gnn" if improve else "gnn"
     for folder, _, _ in INSTANCES_SIZES:
         p: str = path+folder+"/"
         for i in os.listdir(p):
             if i.endswith('.json'):
                 idx = re.search(r"instance_(\d+)\.json", i)
                 for id in idx.groups():
-                    solve_one(agent=agent, gantt_path=f"{gantt_path}{agent.prefix}{extension}_{folder}_{id}.png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES, train=False, eps_threshold=0.0)
+                    if beam:
+                        beam_solve_one(agent=agent, gantt_path=f"{gantt_path}{extension}_{folder}_{id}.png", path=path, size=folder, id=id, improve=improve, device=device) 
+                    else:   
+                        repeated_solve_one(agent=agent, gantt_path=f"{gantt_path}{agent.prefix}{extension}_{folder}_{id}.png", path=path, size=folder, id=id, improve=improve, device=device, retires=RETRIES)
 
 def train(agent: Agent, path: str, device: str):
     start_time = time.time()
@@ -170,7 +219,7 @@ def train(agent: Agent, path: str, device: str):
             instance_id: str = str(random.randint(1, 150))
         eps_threshold: float = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * episode / EPS_DECAY_RATE)
         greedy = True if episode < (0.8 * NB_EPISODES) else random.random() > 0.7
-        obj, ub = solve_one(agent=agent, path=path, gantt_path="", size=size, id=instance_id, improve=False, device=device, retires=1, train=True, greedy=greedy, eps_threshold=eps_threshold)
+        obj, ub = solve_one_for_training(agent=agent, path=path, size=size, id=instance_id, device=device, greedy=greedy, eps_threshold=eps_threshold)
         computing_time = time.time() - start_time
         agent.diversity.update(eps_threshold)
         if episode == 1 or episode % VALIDATE_RATE == 0:
@@ -179,7 +228,7 @@ def train(agent: Agent, path: str, device: str):
                 val_obj = 0
                 for id in range(1, 100):
                     v_id: str = str(id)
-                    vo,_ = solve_one(agent=agent, path=path, gantt_path="", size=vs, id=v_id, improve=False, device=device, retires=1, train=True, greedy=True, eps_threshold=0.0)
+                    vo,_ = solve_one_for_training(agent=agent, path=path, size=vs, id=v_id, device=device, greedy=True, eps_threshold=0.0)
                     val_obj += vo
                 val_obj /= 100.0
                 agent.add_obj(size=vs, obj=val_obj)
@@ -210,6 +259,7 @@ if __name__ == "__main__":
     parser.add_argument("--id", help="id of the instance to solve", required=False)
     parser.add_argument("--load", help="do we load the weights of policy_net", required=True)
     parser.add_argument("--custom", help="use the custom Q-net instead of a basic one", required=True)
+    parser.add_argument("--beam", help="use the gnn-guided beam search", required=True)
     parser.add_argument("--improve", help="improve the solution using local improvement operator", required=False)
     args               = parser.parse_args()
     base_path: str     = args.path
@@ -218,16 +268,21 @@ if __name__ == "__main__":
     gantt_path: str    = base_path + "/data/gantts/"
     load_weights: bool = to_bool(args.load)
     custom: bool       = to_bool(args.custom)
+    beam: bool         = to_bool(args.beam)
     interactive: bool  = to_bool(args.interactive)
     # device: str      = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     device: str        = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Current computing device is: {device}...")
+    ray.init(num_cpus=8, ignore_reinit_error=True)
     agent: Agent       = Agent(device=device, interactive=interactive, load=load_weights, path=base_path+'/data/training/', train=(args.mode == "train"), custom=custom)
     if args.mode == "train":
         train(agent=agent, path=path, device=device)
     elif args.mode == "test_all":
-        solve_all_test(agent=agent, path=path, gantt_path=gantt_path, improve=to_bool(args.improve), device=device)
+        solve_all_test(agent=agent, path=path, gantt_path=gantt_path, improve=to_bool(args.improve), beam=beam, device=device)
     else:
         improve: bool = to_bool(args.improve)
         extension: str = "improved_gnn_" if improve else "gnn_"
-        solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
+        if beam:
+            beam_solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
+        else:
+            repeated_solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
