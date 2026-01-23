@@ -140,7 +140,7 @@ def tabu_search(instance: Instance, init_decisions: list[Decision]) -> State:
                     is_tabu = True
             if is_tabu:
                 continue
-            candidate_decisions: list[Decision] = _apply_move(current_state.decisions, move)
+            candidate_decisions: list[Decision]    = _apply_move(current_state.decisions, move)
             opt_candidate, candidate_obj, feasible = _run_ls_and_evaluate(instance, candidate_decisions)
             if not feasible:
                 continue

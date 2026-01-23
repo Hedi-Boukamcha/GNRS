@@ -130,7 +130,7 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
             else:
                 next_beam.append(next_env)
         beam = next_beam
-        if step > 200: break # Safety break to prevent infinite loops in broken instances
+        if step > 1000: break # Safety break to prevent infinite loops in broken instances
     if not finished:
         print("Warning: No finished solution found. Using last active beam.")
         best_env = new_environments[0]
