@@ -65,6 +65,9 @@ def reward(env: Environment, device: str) -> Tensor:
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
 @ray.remote
+def step_as_task(agent: Agent, last_env: Environment, action_id: int, device: str, clone: bool=False, train: bool=False, pb_size: int=0) -> Environment:
+    return take_one_step(agent=agent, last_env=last_env, action_id=action_id, device=device, clone=clone, train=train, pb_size=pb_size)
+
 def take_one_step(agent: Agent, last_env: Environment, action_id: int, device: str, clone: bool=False, train: bool=False, pb_size: int=0) -> Environment:
     next_env: Environment = last_env.clone() if clone else last_env
     d: Decision           = next_env.possible_decisions[action_id]
@@ -117,7 +120,7 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         futures: list[ObjectRef] = []
         for _, p_idx, a_idx in top_k:
             parent_env = beam[p_idx]
-            futures.append(take_one_step.remote(agent=agent, last_env=parent_env, action_id=a_idx, clone=True, device='cpu')) # 3. simulations in parallel
+            futures.append(step_as_task.remote(agent=agent, last_env=parent_env, action_id=a_idx, clone=True, device='cpu')) # 3. simulations in parallel
         new_environments = ray.get(futures) # 4. wait for all simulations
         next_beam: list[Environment] = []
         for next_env in new_environments:
@@ -248,8 +251,8 @@ def train(agent: Agent, path: str, device: str):
     print("End!")
 
 # TRAIN WITH: python gnn_solver.py --mode=train --interactive=true --load=false --path=. --custom=true
-# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=. --custom=true
-# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=. --custom=true
+# TEST ONE WITH: python gnn_solver.py --mode=test_one --size=s --id=1 --improve=true --interactive=false --load=true --path=. --custom=true --beam=true
+# SOLVE ALL WITH: python gnn_solver.py --mode=test_all --improve=true --interactive=false --load=true --path=. --custom=true --beam=true
 if __name__ == "__main__":
     parser  = argparse.ArgumentParser(description="Exact solver (CP OR-tools version)")
     parser.add_argument("--path", help="path to load the instances", required=True)
@@ -259,7 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--id", help="id of the instance to solve", required=False)
     parser.add_argument("--load", help="do we load the weights of policy_net", required=True)
     parser.add_argument("--custom", help="use the custom Q-net instead of a basic one", required=True)
-    parser.add_argument("--beam", help="use the gnn-guided beam search", required=True)
+    parser.add_argument("--beam", help="use the gnn-guided beam search", required=False)
     parser.add_argument("--improve", help="improve the solution using local improvement operator", required=False)
     args               = parser.parse_args()
     base_path: str     = args.path
@@ -268,7 +271,7 @@ if __name__ == "__main__":
     gantt_path: str    = base_path + "/data/gantts/"
     load_weights: bool = to_bool(args.load)
     custom: bool       = to_bool(args.custom)
-    beam: bool         = to_bool(args.beam)
+
     interactive: bool  = to_bool(args.interactive)
     # device: str      = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
     device: str        = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -278,9 +281,11 @@ if __name__ == "__main__":
     if args.mode == "train":
         train(agent=agent, path=path, device=device)
     elif args.mode == "test_all":
+        beam: bool = to_bool(args.beam)
         solve_all_test(agent=agent, path=path, gantt_path=gantt_path, improve=to_bool(args.improve), beam=beam, device=device)
     else:
-        improve: bool = to_bool(args.improve)
+        beam: bool     = to_bool(args.beam)
+        improve: bool  = to_bool(args.improve)
         extension: str = "improved_gnn_" if improve else "gnn_"
         if beam:
             beam_solve_one(agent=agent, path=path, gantt_path=gantt_path+extension+args.size+"_"+args.id+".png", size=args.size , id=args.id, improve=improve, retires=RETRIES, device=device, train=False, eps_threshold=0.0) 
