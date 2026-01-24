@@ -145,7 +145,7 @@ def tabu_search(instance: Instance, init_decisions: list[Decision]) -> State:
             if not feasible:
                 continue
             if candidate_obj < best_neighbor_obj:
-                best_neighbor_decisions = opt_candidate
+                best_neighbor_decisions = opt_candidate.decisions
                 best_neighbor_obj       = candidate_obj
                 best_move_ref           = move
                 found_valid_move        = True
