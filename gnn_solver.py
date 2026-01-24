@@ -118,9 +118,9 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         candidates.sort(key=lambda x: x.Q_value, reverse=True) # 2. selection and prunning
         top_k: list[Candidate] = candidates[:beam_width]
         futures: list[ObjectRef] = []
-        for _, p_idx, a_idx in top_k:
-            parent_env = beam[p_idx]
-            futures.append(step_as_task.remote(agent=agent, last_env=parent_env, action_id=a_idx, clone=True, device='cpu')) # 3. simulations in parallel
+        for c in top_k:
+            parent_env = beam[c.parent_idx]
+            futures.append(step_as_task.remote(agent=agent, last_env=parent_env, action_id=c.action_idx, clone=True, device='cpu')) # 3. simulations in parallel
         new_environments = ray.get(futures) # 4. wait for all simulations
         next_beam: list[Environment] = []
         for next_env in new_environments:
