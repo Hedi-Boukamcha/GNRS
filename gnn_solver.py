@@ -143,7 +143,7 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         best_env.state = LS(i, best_env.state.decisions) # improve with local search
     obj: int = best_env.state.total_delay + best_env.state.cmax
     print(f"Instance {size}.{id}: OBJ={obj}...")
-    extension: str = "improved_" if improve else ""
+    extension: str = "improved_beam_" if improve else "beam_"
     computing_time = time.time() - start_time
     gnn_gantt(gantt_path, best_env.state, f"instance {size}.{id}")
     results = pd.DataFrame({'id': [id], 
