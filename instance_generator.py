@@ -12,7 +12,7 @@ __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
 __version__ = "2.0.0"
 __license__ = "MIT"
 
-def generate_controledSize_instance(
+def generate_one(
         nombre_jobs: int = 5,
         max_operations_par_job: int = 2,
         types_operations: list = [0, 1],
@@ -73,9 +73,9 @@ if __name__ == "__main__":
     for size_name, job_min, job_max in INSTANCES_SIZES:
         train_instances: list = []
         for i in range(nb_train):
-            train_instances.append(generate_controledSize_instance(nombre_jobs=random.randint(job_min, job_max), max_operations_par_job=2))
+            train_instances.append(generate_one(nombre_jobs=random.randint(job_min, job_max), max_operations_par_job=2))
         save_instances_json(base_path + "train/" + size_name + "/", train_instances)
         test_instances: list = []
         for i in range(nb_test):
-            test_instances.append(generate_controledSize_instance(nombre_jobs=random.randint(job_min, job_max), max_operations_par_job=2))
+            test_instances.append(generate_one(nombre_jobs=random.randint(job_min, job_max), max_operations_par_job=2))
         save_instances_json(base_path + "test/" + size_name + "/", test_instances)
