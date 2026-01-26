@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import time
 
 from utils.common import format_seconds, format_time, format_percent, format_int
 
@@ -21,10 +22,10 @@ sizes:     list[str]     = ['s', 'm', 'l', 'xl']
 few_variables: list[str] = ['Delay', 'Cmax', 'Obj', 'Computing_time']
 all_variables: list[str] = ['Size', INSTANCE_ID, 'Obj', 'Delay', 'Cmax', 'Computing_time']
 
-gnn_approches:        list[str] = ["basic_gnn_solution", "basic_gnn_solution_improved", "basic_gnn_solution_improved_beam", "gnn_solution", "gnn_solution_improved", ]
+gnn_approches:        list[str] = ["basic_gnn_solution", "basic_gnn_solution_improved", "basic_gnn_solution_improved_beam", "gnn_solution", "gnn_solution_improved"]
 exact_approaches:     list[str] = [EXACT]
 heuristic_approaches: list[str] = ["heuristic_solution", "TS_solution"]
-all_approaches:       list[str] = gnn_approches + exact_approaches + heuristic_approaches
+all_approaches:       list[str] = exact_approaches + gnn_approches + heuristic_approaches
 
 def _stats_6(series: pd.Series):
     s = pd.to_numeric(series, errors="coerce").dropna()
@@ -80,8 +81,9 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     with open(output_tex, 'w') as f:
         f.write(latex_code)
 
-def detailed_results_per_method(file_per_method: dict, variables: list):
-    base_order = [INSTANCE_ID, EXACT+'_Status', EXACT+'_Computing_time', EXACT+'_Obj', EXACT+'_Cmax', EXACT+'_Delay', EXACT+'_Gap'] + [col for a in all_approaches[1:]  for col in (f'{a}_Computing_time', f'{a}_dev_Obj', f'{a}_dev_Cmax', f'{a}_dev_Delay')]
+def detailed_results_per_size(file_per_method: dict, variables: list):
+    base_order = ([INSTANCE_ID, EXACT+'_Status', EXACT+'_Computing_time', EXACT+'_Obj', EXACT+'_Cmax', EXACT+'_Delay', EXACT+'_Gap'] 
+        + [col for a in all_approaches[1:] for col in (f'{a}_Computing_time', f'{a}_dev_Obj', f'{a}_dev_Cmax', f'{a}_dev_Delay')])
     for size in sizes:
         df_result = pd.DataFrame({INSTANCE_ID: list(range(1, 51))})
         exact_df = None
@@ -232,9 +234,10 @@ def aggregated_results_table(file_per_method: dict, output_tex_path: str):
                 df_final.loc["nbr_best_solutions", col] = format_int(best_counts.get(method, 0))
     ordered_cols = [f"{size}_{method}" for method in methods_order for size in sizes]
     df_final = df_final[ordered_cols]
+    df_final.to_csv(output_tex_path+'.csv', index=True)
     os.makedirs(os.path.dirname(output_tex_path), exist_ok=True)
     latex = df_final.to_latex(escape=False, na_rep="", column_format='l' + 'c'*len(df_final.columns))
-    with open(output_tex_path, 'w') as f:
+    with open(output_tex_path+'.tex', 'w') as f:
         f.write(latex)
 
 def results_tables(result_type: str, output_file: str):
@@ -282,7 +285,7 @@ def results_tables(result_type: str, output_file: str):
 # python result_analysis.py
 if __name__ == "__main__":
     for a in all_approaches:
-         results_tables(result_type=a, output_file=f'{a}_results.csv')
+         results_tables(result_type=a, output_file=f'{a}_results.csv') # results per approaches (all sizes)
     result_files: dict = { **{a: f'{results_path}{a}_results.csv' for a in all_approaches}}
-    aggregated_results_table(file_per_method=result_files, output_tex_path=results_path+'aggregated_results.tex')
-    detailed_results_per_method(file_per_method=result_files, variables=few_variables)
+    aggregated_results_table(file_per_method=result_files, output_tex_path=results_path+'aggregated_results') # aggregated objs (1 file: all sizes and all types => several on objs)
+    detailed_results_per_size(file_per_method=result_files, variables=few_variables) # formated metrics per size
