@@ -13,6 +13,7 @@ __version__ = "2.0.0"
 __license__ = "MIT"
 
 INSTANCE_ID: str   = 'Instance ID'
+EXACT: str         = 'exact_solution'
 instances_path:str = "./data/instances/test/"
 results_path: str  = "./data/results/"
 
@@ -21,7 +22,7 @@ few_variables: list[str] = ['Delay', 'Cmax', 'Obj', 'Computing_time']
 all_variables: list[str] = ['Size', INSTANCE_ID, 'Obj', 'Delay', 'Cmax', 'Computing_time']
 
 gnn_approches:        list[str] = ["basic_gnn_solution", "basic_gnn_solution_improved", "basic_gnn_solution_improved_beam", "gnn_solution", "gnn_solution_improved", ]
-exact_approaches:     list[str] = ["exact_solution"]
+exact_approaches:     list[str] = [EXACT]
 heuristic_approaches: list[str] = ["heuristic_solution", "TS_solution"]
 all_approaches:       list[str] = gnn_approches + exact_approaches + heuristic_approaches
 
@@ -44,7 +45,7 @@ def _place_block(df_final: pd.DataFrame, col_name: str, var_prefix: str, values_
     
 def count_best_by_instance(df: pd.DataFrame, methods_order: list[str], tol=1e-12):
     counts = {m: 0 for m in methods_order}
-    col_for_method = { 'exact_solution': 'exact_solution_Obj', **{m: f'{m}_Obj' for m in methods_order if m != 'exact_solution'} }
+    col_for_method = { EXACT: EXACT+'_Obj', **{m: f'{m}_Obj' for m in methods_order if m != EXACT} }
     for _, row in df.iterrows():
         vals = []
         for m in methods_order:
@@ -63,30 +64,30 @@ def count_best_by_instance(df: pd.DataFrame, methods_order: list[str], tol=1e-12
 
 def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
     df = pd.read_csv(input_csv)
-    if 'exact_solution_Status' in df.columns:
-        df['exact_solution_Status'] = df['exact_solution_Status'].apply(lambda x: 'F' if str(x).lower().startswith('f') else 'O')
+    if EXACT+'_Status' in df.columns:
+        df[EXACT+'_Status'] = df[EXACT+'_Status'].apply(lambda x: 'F' if str(x).lower().startswith('f') else 'O')
     for col in df.columns:
         if 'time' in col.lower():
-            if 'exact' in col.lower():
+            if EXACT in col.lower():
                 df[col] = df[col].apply(format_time)
             else:
                 df[col] = df[col].apply(format_seconds)
         elif '_Gap' in col.lower() or '_dev' in col.lower():
             df[col] = df[col].apply(format_percent)
-        elif 'exact_' in col.lower() and 'time' not in col.lower():
+        elif EXACT+'_' in col.lower() and 'time' not in col.lower():
             df[col] = df[col].apply(format_int)
     latex_code = df.to_latex(index=False, float_format=float_format, escape=False)
     with open(output_tex, 'w') as f:
         f.write(latex_code)
 
 def detailed_results_per_method(file_per_method: dict, variables: list):
-    base_order = [INSTANCE_ID, 'exact_Status', 'exact_Computing_time', 'exact_Obj', 'exact_Cmax', 'exact_Delay', 'exact_Gap'] 
+    base_order = [INSTANCE_ID, EXACT+'_Status', EXACT+'_Computing_time', EXACT+'_Obj', EXACT+'_Cmax', EXACT+'_Delay', EXACT+'_Gap'] 
     + [col for a in all_approaches[1:]  for col in (f'{a}_Computing_time', f'{a}_dev_Obj', f'{a}_dev_Cmax', f'{a}_dev_Delay')]
     for size in sizes:
         df_result = pd.DataFrame({INSTANCE_ID: list(range(51))})
         exact_df = None
-        if 'exact' in file_per_method: # EXACT CP SOLUTION
-            csv_file = file_per_method['exact_solution']
+        if EXACT in file_per_method: # EXACT CP SOLUTION
+            csv_file = file_per_method[EXACT]
             if os.path.exists(csv_file):
                 df = pd.read_csv(csv_file)
                 if 'Size' in df.columns:
@@ -96,15 +97,15 @@ def detailed_results_per_method(file_per_method: dict, variables: list):
                     exact_df = df.set_index(INSTANCE_ID)
                     for var in variables:
                         if var in exact_df.columns:
-                            df_result[f'exact_{var}'] = df_result[INSTANCE_ID].map(exact_df[var])
+                            df_result[f'{EXACT}_{var}'] = df_result[INSTANCE_ID].map(exact_df[var])
                     if 'Status' in exact_df.columns:
-                        df_result['exact_Status'] = df_result[INSTANCE_ID].map(exact_df['Status'])
+                        df_result[EXACT+'_Status'] = df_result[INSTANCE_ID].map(exact_df['Status'])
                     if 'Gap' in exact_df.columns:
-                        df_result['exact_Gap'] = df_result[INSTANCE_ID].map(exact_df['Gap'])
+                        df_result[EXACT+'_Gap'] = df_result[INSTANCE_ID].map(exact_df['Gap'])
             else:
                 print(f"[WARN] exact file not found: {csv_file}")
         for method, csv_file in file_per_method.items(): # OTHER METHODS
-            if method == 'exact':
+            if method == EXACT:
                 continue
             if not os.path.exists(csv_file):
                 print(f"[WARN] file not found for {method}: {csv_file}")
@@ -118,7 +119,7 @@ def detailed_results_per_method(file_per_method: dict, variables: list):
                 continue
             df_m = df.set_index(INSTANCE_ID)
             for var in ['Obj', 'Cmax', 'Delay']:
-                exact_col = f'exact_{var}'
+                exact_col = f'{EXACT}_{var}'
                 if var in df_m.columns and exact_col in df_result.columns:
                     approx_vals = df_result[INSTANCE_ID].map(df_m[var])
                     base_vals   = df_result[exact_col]
@@ -135,7 +136,7 @@ def detailed_results_per_method(file_per_method: dict, variables: list):
 
 def aggregated_results_table(file_per_method: dict, output_tex_path: str):
     keys:          list[str] = list(file_per_method.keys())
-    methods_order: list[str] = (['exact'] if 'exact' in keys else []) + [m for m in keys if m != 'exact']
+    methods_order: list[str] = ([EXACT] if EXACT in keys else []) + [m for m in keys if m != EXACT]
     row_labels = [
         "min_delay", "Q1_delay", "median_delay", "avg_delay", "Q3_delay", "max_delay",
         "min_cmax",  "Q1_cmax",  "median_cmax",  "avg_cmax",  "Q3_cmax",  "max_cmax",
@@ -157,15 +158,15 @@ def aggregated_results_table(file_per_method: dict, output_tex_path: str):
             if col not in df_final.columns:
                 df_final[col] = ""
             objs = pd.DataFrame(index=df.index)
-            if 'exact_Obj' in df.columns:
-                objs['exact'] = pd.to_numeric(df['exact_Obj'], errors="coerce")
+            if EXACT+'_Obj' in df.columns:
+                objs[EXACT] = pd.to_numeric(df[EXACT+'_Obj'], errors="coerce")
             for m in gnn_approches + heuristic_approaches:
                 obj_col = f'{m}_Obj'
                 dev_col = f'{m}_dev_Obj'
                 if obj_col in df.columns:
                     objs[m] = pd.to_numeric(df[obj_col], errors="coerce")
-                elif dev_col in df.columns and 'exact_Obj' in df.columns:
-                    objs[m] = (1.0 + pd.to_numeric(df[dev_col], errors="coerce")) * pd.to_numeric(df['exact_Obj'], errors="coerce")
+                elif dev_col in df.columns and EXACT+'_Obj' in df.columns:
+                    objs[m] = (1.0 + pd.to_numeric(df[dev_col], errors="coerce")) * pd.to_numeric(df[EXACT+'_Obj'], errors="coerce")
             best_counts = {m: 0 for m in all_approaches}
             for _, row in objs.iterrows():
                 row = row.dropna()
@@ -175,10 +176,10 @@ def aggregated_results_table(file_per_method: dict, output_tex_path: str):
                     for best in bests:
                         best_counts[best] += 1
             if method == exact_approaches[0]: # EXACT CP SOLVER
-                delay_col = 'exact_Delay' if 'exact_Delay' in df.columns else None
-                cmax_col  = 'exact_Cmax'  if 'exact_Cmax'  in df.columns else None
-                obj_col   = 'exact_Obj'   if 'exact_Obj'   in df.columns else None
-                time_col  = 'exact_Computing_time' if 'exact_Computing_time' in df.columns else None
+                delay_col = EXACT+'_Delay' if EXACT+'_Delay' in df.columns else None
+                cmax_col  = EXACT+'_Cmax'  if EXACT+'_Cmax'  in df.columns else None
+                obj_col   = EXACT+'_Obj'   if EXACT+'_Obj'   in df.columns else None
+                time_col  = EXACT+'_Computing_time' if EXACT+'_Computing_time' in df.columns else None
 
                 delay_stats = _stats_6(df[delay_col]) if delay_col else [np.nan]*6
                 cmax_stats  = _stats_6(df[cmax_col])  if cmax_col  else [np.nan]*6
@@ -199,10 +200,10 @@ def aggregated_results_table(file_per_method: dict, output_tex_path: str):
                     df_final.loc[row, col] = format_time(df_final.loc[row, col])
 
                 opt_count = 0
-                if 'exact_Status' in df.columns:
-                    opt_count = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL').sum()
-                elif 'exact_Gap' in df.columns:
-                    opt_count = (pd.to_numeric(df['exact_Gap'], errors="coerce") == 0).sum()
+                if EXACT+'_Status' in df.columns:
+                    opt_count = (df[EXACT+'_Status'].astype(str).str.upper() == 'OPTIMAL').sum()
+                elif EXACT+'_Gap' in df.columns:
+                    opt_count = (pd.to_numeric(df[EXACT+'_Gap'], errors="coerce") == 0).sum()
                 df_final.loc["nbr_optimal_solutions", col] = str(opt_count)
                 df_final.loc["nbr_best_solutions", col] = format_int(best_counts.get(method, 0))
 
@@ -223,8 +224,8 @@ def aggregated_results_table(file_per_method: dict, output_tex_path: str):
                 _place_block(df_final, col, "comp_time", time_stats,  formatter=format_seconds)
 
                 opt_count = 0
-                if 'exact_Status' in df.columns and obj_dev in df.columns:
-                    exact_opt_mask = (df['exact_Status'].astype(str).str.upper() == 'OPTIMAL')
+                if EXACT+'_Status' in df.columns and obj_dev in df.columns:
+                    exact_opt_mask = (df[EXACT+'_Status'].astype(str).str.upper() == 'OPTIMAL')
                     s = pd.to_numeric(df[obj_dev], errors="coerce")
                     tol = 1e-12
                     opt_count = ((s.abs() <= tol) & exact_opt_mask).sum()
@@ -279,7 +280,7 @@ def results_tables(result_type: str, output_file: str):
     df_result = df_result[columns]
     df_result.to_csv(results_path + output_file, index=False)
 
-# python3 result_analysis.py
+# python result_analysis.py
 if __name__ == "__main__":
     for a in all_approaches:
          results_tables(result_type=a, output_file=f'{a}_results.csv')
