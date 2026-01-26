@@ -81,10 +81,9 @@ def csv_to_latex_table(input_csv: str, output_tex: str, float_format="%.3f"):
         f.write(latex_code)
 
 def detailed_results_per_method(file_per_method: dict, variables: list):
-    base_order = [INSTANCE_ID, EXACT+'_Status', EXACT+'_Computing_time', EXACT+'_Obj', EXACT+'_Cmax', EXACT+'_Delay', EXACT+'_Gap'] 
-    + [col for a in all_approaches[1:]  for col in (f'{a}_Computing_time', f'{a}_dev_Obj', f'{a}_dev_Cmax', f'{a}_dev_Delay')]
+    base_order = [INSTANCE_ID, EXACT+'_Status', EXACT+'_Computing_time', EXACT+'_Obj', EXACT+'_Cmax', EXACT+'_Delay', EXACT+'_Gap'] + [col for a in all_approaches[1:]  for col in (f'{a}_Computing_time', f'{a}_dev_Obj', f'{a}_dev_Cmax', f'{a}_dev_Delay')]
     for size in sizes:
-        df_result = pd.DataFrame({INSTANCE_ID: list(range(51))})
+        df_result = pd.DataFrame({INSTANCE_ID: list(range(1, 51))})
         exact_df = None
         if EXACT in file_per_method: # EXACT CP SOLUTION
             csv_file = file_per_method[EXACT]
@@ -243,7 +242,7 @@ def results_tables(result_type: str, output_file: str):
     status_exists_globally = False
     gap_exists_globally = False
     for size in sizes:
-        for inst_id in range(51):
+        for inst_id in range(1, 51):
             filename = os.path.join(instances_path, f"{size}/{result_type}_{inst_id}.csv")
             row = {
                 'Size':           size,
