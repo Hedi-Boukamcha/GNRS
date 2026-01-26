@@ -21,3 +21,33 @@ def top_k_Q_to_probs(Q: Tensor, temperature: float = 0.95, topk: int = 5) -> int
     p = torch.softmax(vals / temperature, dim=0)                       # Boltzmann exploration
     choice = idx[torch.multinomial(p, 1)].item()
     return choice
+
+def format_seconds(value):
+    try:
+        return f"{float(value):.2f}s"
+    except:
+        return value
+
+def format_time(value):
+    try:
+        v = float(value)
+        if v >= 3600:
+            return f"{int(v // 3600)}h"
+        elif v >= 60:
+            return f"{int(v // 60)}m"
+        else:
+            return f"{int(v)}s"
+    except:
+        return value
+
+def format_percent(value):
+    try:
+        return f"{float(value)*100:.2f}\\%"
+    except:
+        return value
+
+def format_int(value):
+    try:
+        return str(int(float(value)))
+    except:
+        return value
