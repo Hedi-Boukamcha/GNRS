@@ -100,8 +100,8 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
     init_state: State           = State(i, M, L, NB_STATIONS, BIG_STATION, [], automatic_build=True)
     init_state.compute_obj_values_and_upper_bounds(unloading_time=0, current_time=0)
     graph: HeteroData           = init_state.to_hyper_graph(last_job_in_pos=-1, current_time=0, device=device)
-    env: Environment            = Environment(graph=graph, state=init_state, possible_decisions=None, 
-                                              decisionsT=None, init_UB_cmax=init_state.ub_cmax, 
+    env: Environment            = Environment(graph=graph, state=init_state, possible_decisions=None,
+                                              decisionsT=None, init_UB_cmax=init_state.ub_cmax,
                                               init_UB_delay=init_state.ub_delay, n=len(i.jobs))
     env.possible_decisions, env.decisionsT = search_possible_decisions(env=env, device=device)
     beam: list[Environment]     = [env]
@@ -114,8 +114,26 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         for p_idx, parent_env in enumerate(beam): # 1. expansion
             q_values: Tensor = agent.get_all_q_values(parent_env.graph, parent_env.decisionsT)
             for a_idx, q_val in enumerate(q_values.tolist()):
-                candidates.append(Candidate(parent_idx=p_idx, action_idx=a_idx, Q_value=q_val))
-        candidates.sort(key=lambda x: x.Q_value, reverse=True) # 2. selection and prunning
+                candidates.append(Candidate(parent_idx=p_idx,
+                                            action_idx=a_idx,
+                                            Q_value=q_val,
+                                            ub_delay=parent_env.state.ub_delay,
+                                            ub_cmax=parent_env.state.ub_cmax,
+                                            lb_delay=parent_env.state.total_delay))
+        
+        # 2. selection and prunning
+        candidates.sort(key=lambda x: x.Q_value, reverse=True)
+        for rank, c in enumerate(candidates):
+            c.rank_q = rank
+        candidates.sort(key=lambda x: x.ub_cmax)
+        for rank, c in enumerate(candidates):
+            c.rank_cmax = rank
+        candidates.sort(key=lambda x: x.ub_and_lb_delay)
+        for rank, c in enumerate(candidates):
+            c.rank_delay = rank
+        for c in candidates:
+            c.combined_score = 0.6 * c.rank_q + 0.3 * c.rank_delay + 0.1 * c.rank_cmax
+        candidates.sort(key=lambda x: x.combined_score)
         top_k: list[Candidate] = candidates[:beam_width]
         futures: list[ObjectRef] = []
         for c in top_k:
