@@ -147,6 +147,8 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
             if next_env.decisionsT is not None:
                 next_env.decisionsT = next_env.decisionsT.to(device)
             if not next_env.possible_decisions:
+                if improve: # improve finished states with local search
+                    next_env.state = LS(i, next_env.state.decisions)
                 finished.append(next_env)
             else:
                 next_beam.append(next_env)
@@ -157,8 +159,6 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         best_env = new_environments[0]
     else:
         best_env = min(finished, key=lambda e: e.state.total_delay + e.state.cmax) # 5. select best among finished
-    if improve:
-        best_env.state = LS(i, best_env.state.decisions) # improve with local search
     obj: int = best_env.state.total_delay + best_env.state.cmax
     print(f"Instance {size}.{id}: OBJ={obj}...")
     extension: str = "improved_beam_" if improve else "beam_"
