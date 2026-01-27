@@ -97,13 +97,13 @@ def take_one_step(agent: Agent, last_env: Environment, action_id: int, device: s
 def build_scores_and_filter(candidates: list[Candidate], limit: int) -> list[Candidate]:
     candidates.sort(key=lambda x: x.Q_value, reverse=True)
     for rank, c in enumerate(candidates):
-        c.combined_score = 0.65 * rank
+        c.combined_score = 0.6 * rank
     candidates.sort(key=lambda x: x.ub_cmax)
     for rank, c in enumerate(candidates):
         c.combined_score += 0.1 * rank
     candidates.sort(key=lambda x: x.lb_delay)
     for rank, c in enumerate(candidates):
-        c.combined_score += 0.25 * rank
+        c.combined_score += 0.3 * rank
     candidates.sort(key=lambda x: x.combined_score)
     return candidates[:limit]
 
@@ -122,8 +122,8 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
     step: int                   = 0
     print(f"🚀 Starting Beam Search (k={beam_width}) for {size}.{id}...")
     while beam:
-        limit: int = beam_width + i.n - step
         step += 1
+        limit: int = beam_width + i.n - step
         candidates: list[Candidate] = []
         for p_idx, parent_env in enumerate(beam): # 1. expansion
             q_values: Tensor = agent.get_all_q_values(parent_env.graph, parent_env.decisionsT)
@@ -135,7 +135,9 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
                                             lb_delay=parent_env.state.total_delay))
 
         # 2. selection and prunning
-        top_k = build_scores_and_filter(candidates=candidates, limit=limit)
+        #top_k = build_scores_and_filter(candidates=candidates, limit=limit)
+        candidates.sort(key=lambda x: x.Q_value, reverse=True)
+        top_k: list[Candidate] = candidates[:limit]
         futures: list[ObjectRef] = []
         for c in top_k:
             parent_env = beam[c.parent_idx]
