@@ -6,7 +6,7 @@ import json
 # #####################################
 __author__  = "Hedi Boukamcha; Anas Neumann"
 __email__   = "hedi.boukamcha.1@ulaval.ca; anas.neumann@polymtl.ca"
-__version__ = "2.0.0"
+__version__ = "1.0.0"
 __license__ = "MIT"
 
 class Operation:
@@ -30,13 +30,16 @@ class Job:
         return f"{{'big':{self.big}, 'due_date':{self.due_date}, 'pos_time':{self.pos_time}, 'status':{self.status}, 'blocked':{self.blocked}, 'operations':{[o.__str__() for o in self.operations]}}}"
 
 class Instance:
-    def __init__(self, jobs: list[Job] = []):
+    def __init__(self, jobs: list[Job] = [], n: int=0):
         self.jobs: list[Job] = jobs
+        self.n: int          = n
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.jobs}"
 
-    def load(path: str): 
+    @staticmethod
+    def load(path: str) -> 'Instance':
+        n: int = 0
         with open(path, 'r') as f:
             _data = json.load(f)
         jobs = []
@@ -44,7 +47,8 @@ class Instance:
             operations = [Operation(type=op["type"], machineing_time=op["processing_time"]) for op in job_data["operations"]]
             job = Job(big=job_data["big"], due_date=job_data["due_date"], pos_time=job_data["pos_time"], operations=operations, status=job_data["status"], blocked=job_data["blocked"])
             jobs.append(job)
-        return Instance(jobs=jobs)
+            n += len(operations)
+        return Instance(jobs=jobs, n=n)
     
     def display(self):
         for j in self.jobs:
