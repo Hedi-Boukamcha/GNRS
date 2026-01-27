@@ -12,15 +12,12 @@ __version__ = "2.0.0"
 __license__ = "MIT"
 
 class Candidate:
-    def __init__(self, parent_idx: int, action_idx: int, Q_value: float, ub_delay: int=0, ub_cmax: int=0, lb_delay: int=0):
+    def __init__(self, parent_idx: int, action_idx: int, Q_value: float, ub_cmax: int=0, lb_delay: int=0):
         self.parent_idx      = parent_idx
         self.action_idx      = action_idx
         self.Q_value         = Q_value
-        self.ub_and_lb_delay = ub_delay + lb_delay
+        self.lb_delay        = lb_delay
         self.ub_cmax         = ub_cmax
-        self.rank_q          = 0
-        self.rank_cmax       = 0
-        self.rank_delay      = 0
         self.combined_score  = 0
 
 class Environment:

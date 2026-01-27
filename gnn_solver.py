@@ -94,6 +94,19 @@ def take_one_step(agent: Agent, last_env: Environment, action_id: int, device: s
     next_env.update(graph=next_graph, possible_decisions=next_possible_decisions, decisionsT=next_decisionT)
     return next_env
 
+def build_scores_and_filter(candidates: list[Candidate], limit: int) -> list[Candidate]:
+    candidates.sort(key=lambda x: x.Q_value, reverse=True)
+    for rank, c in enumerate(candidates):
+        c.combined_score = 0.55 * rank
+    candidates.sort(key=lambda x: x.ub_cmax)
+    for rank, c in enumerate(candidates):
+        c.combined_score += 0.1 * rank
+    candidates.sort(key=lambda x: x.lb_delay)
+    for rank, c in enumerate(candidates):
+        c.combined_score += 0.35 * rank
+    candidates.sort(key=lambda x: x.combined_score)
+    return candidates[:limit]
+
 def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str, improve: bool, device: str, beam_width: int=BEAM_WIDTH):
     start_time                  = time.time()
     i: Instance                 = Instance.load(path + size + "/instance_" +id+ ".json")
@@ -113,28 +126,17 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         candidates: list[Candidate] = []
         for p_idx, parent_env in enumerate(beam): # 1. expansion
             q_values: Tensor = agent.get_all_q_values(parent_env.graph, parent_env.decisionsT)
+            sub_candidates: list[Candidate] = []
             for a_idx, q_val in enumerate(q_values.tolist()):
-                candidates.append(Candidate(parent_idx=p_idx,
+                sub_candidates.append(Candidate(parent_idx=p_idx,
                                             action_idx=a_idx,
                                             Q_value=q_val,
-                                            ub_delay=parent_env.state.ub_delay,
                                             ub_cmax=parent_env.state.ub_cmax,
                                             lb_delay=parent_env.state.total_delay))
-        
+            candidates.extend(build_scores_and_filter(candidates=sub_candidates, limit=5))
+
         # 2. selection and prunning
-        candidates.sort(key=lambda x: x.Q_value, reverse=True)
-        for rank, c in enumerate(candidates):
-            c.rank_q = rank
-        candidates.sort(key=lambda x: x.ub_cmax)
-        for rank, c in enumerate(candidates):
-            c.rank_cmax = rank
-        candidates.sort(key=lambda x: x.ub_and_lb_delay)
-        for rank, c in enumerate(candidates):
-            c.rank_delay = rank
-        for c in candidates:
-            c.combined_score = 0.6 * c.rank_q + 0.3 * c.rank_delay + 0.1 * c.rank_cmax
-        candidates.sort(key=lambda x: x.combined_score)
-        top_k: list[Candidate] = candidates[:beam_width]
+        top_k = build_scores_and_filter(candidates=candidates, limit=beam_width)
         futures: list[ObjectRef] = []
         for c in top_k:
             parent_env = beam[c.parent_idx]
@@ -142,7 +144,7 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         new_environments = ray.get(futures) # 4. wait for all simulations
         next_beam: list[Environment] = []
         for next_env in new_environments:
-            if next_env.graph: 
+            if next_env.graph:
                 next_env.graph = next_env.graph.to(device)
             if next_env.decisionsT is not None:
                 next_env.decisionsT = next_env.decisionsT.to(device)
@@ -158,6 +160,7 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
         print("Warning: No finished solution found. Using last active beam.")
         best_env = new_environments[0]
     else:
+        print(len(finished), "finished solutions found.")
         best_env = min(finished, key=lambda e: e.state.total_delay + e.state.cmax) # 5. select best among finished
     obj: int = best_env.state.total_delay + best_env.state.cmax
     print(f"Instance {size}.{id}: OBJ={obj}...")
