@@ -65,8 +65,20 @@ def reward(env: Environment, device: str) -> Tensor:
     return torch.tensor([-REWARD_SCALE * (delta_cmax + delta_delay)], dtype=torch.float32, device=device)
 
 @ray.remote
-def step_as_task(agent: Agent, last_env: Environment, action_id: int, device: str, clone: bool=False, train: bool=False, pb_size: int=0) -> Environment:
-    return take_one_step(agent=agent, last_env=last_env, action_id=action_id, device=device, clone=clone, train=train, pb_size=pb_size)
+def step_as_task(p_idx: int, q_val: float, agent: Agent, last_env: Environment, action_id: int, device: str, clone: bool=False, train: bool=False, pb_size: int=0) -> Environment:
+    env: Environment = take_one_step(agent=agent, last_env=last_env, action_id=action_id, device=device, clone=clone, train=train, pb_size=pb_size)
+    horizon: int = 2
+    next: Environment = env
+    while horizon > 0 and env.possible_decisions:
+        action_id: int = agent.select_next_decision(graph=env.graph, decisionsT=env.decisionsT, greedy=True)
+        next = take_one_step(agent=agent, last_env=next, action_id=action_id, device=device, clone=False, train=train, pb_size=pb_size)
+        horizon -= 1
+    return Candidate(parent_idx=p_idx,
+                        action_idx=action_id,
+                        Q_value=q_val,
+                        env=env,
+                        cmax=next.state.ub_cmax + next.state.cmax,
+                        delay=next.state.total_delay + next.state.ub_delay)
 
 def take_one_step(agent: Agent, last_env: Environment, action_id: int, device: str, clone: bool=False, train: bool=False, pb_size: int=0) -> Environment:
     next_env: Environment = last_env.clone() if clone else last_env
@@ -98,12 +110,9 @@ def build_scores_and_filter(candidates: list[Candidate], limit: int) -> list[Can
     candidates.sort(key=lambda x: x.Q_value, reverse=True)
     for rank, c in enumerate(candidates):
         c.combined_score = 0.6 * rank
-    candidates.sort(key=lambda x: x.ub_cmax)
+    candidates.sort(key=lambda x: x.cmax + x.delay, reverse=False)
     for rank, c in enumerate(candidates):
-        c.combined_score += 0.1 * rank
-    candidates.sort(key=lambda x: x.lb_delay)
-    for rank, c in enumerate(candidates):
-        c.combined_score += 0.3 * rank
+        c.combined_score += 0.4 * rank
     candidates.sort(key=lambda x: x.combined_score)
     return candidates[:limit]
 
@@ -119,47 +128,28 @@ def beam_solve_one(agent: Agent, gantt_path: str, path: str, size: str, id: str,
     env.possible_decisions, env.decisionsT = search_possible_decisions(env=env, device=device)
     beam: list[Environment]     = [env]
     finished: list[Environment] = []
-    step: int                   = 0
     print(f"🚀 Starting Beam Search (k={beam_width}) for {size}.{id}...")
     while beam:
-        step += 1
-        limit: int = beam_width + i.n - step
-        candidates: list[Candidate] = []
+        futures: list[ObjectRef] = []
         for p_idx, parent_env in enumerate(beam): # 1. expansion
             q_values: Tensor = agent.get_all_q_values(parent_env.graph, parent_env.decisionsT)
             for a_idx, q_val in enumerate(q_values.tolist()):
-                candidates.append(Candidate(parent_idx=p_idx,
-                                            action_idx=a_idx,
-                                            Q_value=q_val,
-                                            ub_cmax=parent_env.state.ub_cmax,
-                                            lb_delay=parent_env.state.total_delay))
-
-        # 2. selection and prunning
-        #top_k = build_scores_and_filter(candidates=candidates, limit=limit)
-        candidates.sort(key=lambda x: x.Q_value, reverse=True)
-        top_k: list[Candidate] = candidates[:limit]
-        futures: list[ObjectRef] = []
-        for c in top_k:
-            parent_env = beam[c.parent_idx]
-            futures.append(step_as_task.remote(agent=agent, last_env=parent_env, action_id=c.action_idx, clone=True, device='cpu')) # 3. simulations in parallel
-        new_environments = ray.get(futures) # 4. wait for all simulations
+                futures.append(step_as_task.remote(p_idx=p_idx, q_val=q_val, agent=agent, last_env=parent_env, action_id=a_idx, clone=True, device='cpu'))
+        candidates = ray.get(futures) # 2. wait for all simulations     
+        top_k: list[Candidate] = build_scores_and_filter(candidates=candidates, limit=beam_width) # 3. selection and prunning
         next_beam: list[Environment] = []
-        for next_env in new_environments:
-            if next_env.graph:
-                next_env.graph = next_env.graph.to(device)
-            if next_env.decisionsT is not None:
-                next_env.decisionsT = next_env.decisionsT.to(device)
-            if not next_env.possible_decisions:
+        for c in top_k:
+            c.env.graph = c.env.graph.to(device)
+            c.env.decisionsT = c.env.decisionsT.to(device)
+            if not c.env.possible_decisions:
                 if improve: # improve finished states with local search
-                    next_env.state = LS(i, next_env.state.decisions)
-                finished.append(next_env)
+                    c.env.state = LS(i, c.env.state.decisions)
+                finished.append(c.env)
             else:
-                next_beam.append(next_env)
+                next_beam.append(c.env)
         beam = next_beam
-        if step > 1000: break # Safety break to prevent infinite loops in broken instances
     if not finished:
         print("Warning: No finished solution found. Using last active beam.")
-        best_env = new_environments[0]
     else:
         print(len(finished), "finished solutions found.")
         best_env = min(finished, key=lambda e: e.state.total_delay + e.state.cmax) # 5. select best among finished
