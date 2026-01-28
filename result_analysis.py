@@ -22,7 +22,7 @@ sizes:     list[str]     = ['s', 'm', 'l', 'xl']
 few_variables: list[str] = ['Delay', 'Cmax', 'Obj', 'Computing_time']
 all_variables: list[str] = ['Size', INSTANCE_ID, 'Obj', 'Delay', 'Cmax', 'Computing_time']
 
-gnn_approches:        list[str] = ["basic_gnn_solution", "basic_gnn_solution_improved", "basic_gnn_solution_improved_beam", "gnn_solution", "gnn_solution_improved"]
+gnn_approches:        list[str] = ["basic_gnn_solution", "basic_gnn_solution_improved", "basic_gnn_solution_improved_beam", "gnn_solution"] # , "gnn_solution_improved"
 exact_approaches:     list[str] = [EXACT]
 heuristic_approaches: list[str] = ["heuristic_solution", "TS_solution"]
 all_approaches:       list[str] = exact_approaches + gnn_approches + heuristic_approaches
