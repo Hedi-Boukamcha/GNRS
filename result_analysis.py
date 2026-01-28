@@ -30,6 +30,7 @@ all_approaches:       list[str] = exact_approaches + gnn_approches + heuristic_a
 def _stats_6(series: pd.Series):
     s = pd.to_numeric(series, errors="coerce").dropna()
     if s.empty: return [np.nan]*6
+    s = s.mask(s >= 5000000000.00, 0)
     return [
         s.min(),
         s.quantile(0.25), # Q1
