@@ -28,10 +28,10 @@ if __name__ == "__main__":
     l_obj: Loss       = Loss(xlabel="Episode", ylabel="Objective value (cmax + delay)", title="Avg objective value for L instances", color="orange", show=interactive, width=W, height=H)
     xl_obj: Loss      = Loss(xlabel="Episode", ylabel="Objective value (cmax + delay)", title="Avg objective value for XL instances", color="orange", show=interactive, width=W, height=H)
 
-    # LOAD AND UDAPTE
-    diversity.load_and_update(f"{path}epsilon")
-    loss.load_and_update(f"{path}loss")
-    l_obj.load_and_update(f"{path}l_obj")
-    s_obj.load_and_update(f"{path}s_obj")
-    m_obj.load_and_update(f"{path}m_obj")
-    xl_obj.load_and_update(f"{path}xl_obj") 
+    # LOAD AND UDAPTE   
+    diversity.load_and_update(f"{path}basic_epsilon")
+    loss.load_and_update(f"{path}basic_loss")
+    l_obj.load_and_update(f"{path}basic_l_obj")
+    s_obj.load_and_update(f"{path}basic_s_obj")
+    m_obj.load_and_update(f"{path}basic_m_obj")
+    xl_obj.load_and_update(f"{path}basic_xl_obj") 
