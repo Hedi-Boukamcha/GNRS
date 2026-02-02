@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import os
-import time
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from utils.common import format_seconds, format_time, format_percent, format_int
 
@@ -26,6 +27,14 @@ gnn_approches:        list[str] = ["basic_gnn_solution", "basic_gnn_solution_imp
 exact_approaches:     list[str] = [EXACT]
 heuristic_approaches: list[str] = ["heuristic_solution", "TS_solution"]
 all_approaches:       list[str] = exact_approaches + gnn_approches + heuristic_approaches
+
+NAME_MAPPING: dict[str, str] = {
+            "basic_gnn_solution": "GNN",
+            "basic_gnn_solution_improved": "Improved GNN",
+            "basic_gnn_solution_improved_beam": "Complete agent",
+            "gnn_solution": "GAT",
+            "heuristic_solution": "Local Search",
+            "TS_solution": "Nested Tabu Search"}
 
 def _stats_6(series: pd.Series):
     s = pd.to_numeric(series, errors="coerce").dropna()
@@ -129,6 +138,40 @@ def detailed_results_per_size(file_per_method: dict, variables: list):
                     df_result[f'{method}_dev_{var}'] = dev
             if 'Computing_time' in df_m.columns:
                 df_result[f'{method}_Computing_time'] = df_result[INSTANCE_ID].map(df_m['Computing_time'])
+        plot_methods = gnn_approches + heuristic_approaches
+        plot_data = []
+        for method in plot_methods:
+            cmax_col = f'{method}_dev_Cmax'
+            delay_col = f'{method}_dev_Delay'
+            if cmax_col in df_result.columns and delay_col in df_result.columns:
+                display_name = NAME_MAPPING.get(method, method)
+                for val in df_result[cmax_col].dropna():
+                    plot_data.append({'Method': display_name, 'Metric': 'Cmax', 'Deviation (%)': val * 100})
+                for val in df_result[delay_col].dropna():
+                    plot_data.append({'Method': display_name, 'Metric': 'Total delay (δ)', 'Deviation (%)': val * 100})
+        if plot_data:
+            df_plot = pd.DataFrame(plot_data)
+            order = [NAME_MAPPING[m] for m in plot_methods if m in NAME_MAPPING]
+            plt.figure(figsize=(12, 6))
+            sns.boxplot(
+                data=df_plot, 
+                x='Method', 
+                y='Deviation (%)', 
+                hue='Metric',
+                order=order,
+                palette={'Cmax': 'orange', 'Total delay (δ)': 'skyblue'},
+                showfliers=False)
+            plt.title(f'Deviation per objective for Size: {size.upper()}')
+            plt.ylabel('Deviation from Exact (%)')
+            plt.xlabel('')
+            plt.xticks(rotation=15)
+            plt.grid(axis='y', linestyle='--', alpha=0.7)
+            plt.legend(title='Metric')
+            plot_path = os.path.join(results_path, f'boxplot_comparison_{size}.png')
+            plt.tight_layout()
+            plt.savefig(plot_path)
+            plt.close()
+            print(f"[INFO] Boxplot saved to {plot_path}")  
         present_cols = [c for c in base_order if c in df_result.columns]
         df_out = df_result[[INSTANCE_ID] + [c for c in present_cols if c != INSTANCE_ID]]
         out_csv = os.path.join(results_path, f'detailed_results_{size}.csv')
