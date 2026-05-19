@@ -82,7 +82,7 @@
 BOUKAMCHA, Hedi et al. (2026). A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot. *GitHub repository: https://github.com/Hedi-Boukamcha/GNRS*.
 
 ```bibtex
-    @misc{GNRS25,
+    @misc{GNRS26,
       authors = {BOUKAMCHA, Hedi and NEUMANN, Anas and REKIK, Monia, and HAJJI, Adnene, CARON GUILLEMETTE, Gabriel, and FARAH, Mohamed},
       title = {A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot},
       year = {2026},
