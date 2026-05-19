@@ -1,17 +1,17 @@
 # A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot
 
 ## Project presentation
-1. This repository in linked to a scientific paper under review, the pre-print is available at: [SSRN pre-print for Robotics and Computer-Integrated Manufacturing (RCIM)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
+1. This repository in linked to a scientific paper under review, the pre-print is available at: [Robotics and Computer-Integrated Manufacturing (RCIM)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
 
 2. A video presentation of the project is available at: [Presentation video on YouTube (FRENCH)](https://www.youtube.com/watch?v=wMU39mVTmOg)
 
 3. This repository is under a [MIT License](https://github.com/Hedi-Boukamcha/GNRS/blob/main/LICENSE)
 
 ## Introduction to the problem solved
-> *"In the last fifteen years, manufacturing systems have undergone a profound transformation driven by Industry 4.0 technologies. The integration of smart resources and robots, sensors, and digital platforms offers companies the opportunity to make more informed assessments, adapt decisions in real-time, and ultimately achieve better performance. Yet, this integration has also introduced new challenges in the management and optimization of industrial processes, particularly in operation scheduling. The robotic resource studied in the paper is a complex welding cell comprising several collaborating components: three loading stations, a robotic arm responsible for picking up and transporting parts, two different welding machines, and a positioner designed to hold a part during processing. The main objective is to minimize both the makespan of all parts and their tardiness. To this end, this paper proposes a mathematical formulation for an optimization model as well as a scheduling agent based on a dynamic Graph Neural Network (GNN), trained with an adapted ϵ-greedy deep Q-learning algorithm. In addition to the GNNbased policy, our agent utilizes a custom decision simulator to generate dates and movements, respecting all system constraints and logic. For large instances, our agent requires between 0.9 and 2.35 seconds to complete. Yet, the solving stage is a search process that includes a local improvement heuristic: the actual GNN-based agent only needs 0.07 to 0.14 seconds to construct a single solution. The memory usage is negligible, even during training. In contrast, the mathematical model, optimized via a constraint programming solver, used the maximum allowed computation time and memory (24 hours and 185 GB RAM) to find its best solution. For small instances where the mathematical model achieves optimal solutions, our agent reached a median deviation of 6.64%. For large-sized problems (for which the mathematical model only finds feasible solutions), the agent outperformed the mathematical model for 64% of the instances and achieved a median deviation of -2.82%."*
-> — [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
+> *"We propose a comprehensive approach to schedule the operations and control the detailed movements of a real-world multi-task robotic cell operating in a modern manufacturing environment. The problem addressed in this paper exhibits similarities with several well-known scheduling problems, especially the Hoist Scheduling Problem (HSP) and the dynamic version of the Flexible Job Shop Scheduling Problem (FJSSP). However, existing formulations in the literature are not sufficient to handle the scheduling problem at hand. To address this gap, this paper proposes a mathematical formulation and scheduling agent based on a dynamic Graph Neural Network (GNN), trained with an adapted ϵ-greedy deep Q-learning algorithm. In addition to the pure deep reinforcement learning policy derived from Q-values, the agent relies on a custom decision simulator to generate feasible dates and movements, respecting all system constraints and operational logic. The complete agent incorporates a dedicated solving strategy based on a Q-values guided beam search and a local improvement operator. For large problems, the agent requires less than a minute to find high-quality solutions. Yet, the solving stage is a search process resulting in 10 distinct solutions: the actual GNN-based agent only needs 0.04 to 0.08 seconds to construct a single solution for the largest instances. The memory usage is negligible, even during training. By contrast, the mathematical model, optimized via a constraint programming solver, used the maximum allowed computation time and memory (24 hours and 185 GB RAM) to find its best solution. For small instances where the mathematical model achieves optimal solutions, the agent reached a median deviation of 2.97%. For large-sized problems, for which the mathematical model only finds feasible solutions, the agent outperformed the mathematical model for most instances and achieved a median deviation of −9.84%. Our agent also outperformed, both in terms of solution quality and computing time, several heuristic approaches, including a Nested Tabu Search"*
+> — [Boukamcha et al. (2026)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
 
-### **Fig. 1: STUDIED ROBOT**, extracted from [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
+### **Fig. 1: STUDIED ROBOT**, extracted from [Boukamcha et al. (2026)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
 ![Robotic cell](/docs/1.png)
 ![Context under study](/docs/2.png)
 
@@ -69,7 +69,7 @@
 
     * Solve one problem (OR): `python cp_solver.py --type=test --size=s --id=1 --path=./`
 
-## Proposed approach (Figures extracted from [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825))
+## Proposed approach (Figures extracted from [Boukamcha et al. (2026)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825))
 ![Approach overview](/docs/3.png)
 ![Graph representation](/docs/4.png)
 ![GNN architecture](/docs/5.png)
@@ -79,7 +79,7 @@
 ![Beam decoding](/docs/9.png)
 
 ## Refer to this repository in scientific documents
-BOUKAMCHA, Hedi et al. (2025). A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot. *GitHub repository: https://github.com/Hedi-Boukamcha/GNRS*.
+BOUKAMCHA, Hedi et al. (2026). A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot. *GitHub repository: https://github.com/Hedi-Boukamcha/GNRS*.
 
 ```bibtex
     @misc{GNRS25,
