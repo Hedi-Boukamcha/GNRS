@@ -12,42 +12,43 @@
 > — [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
 
 ### **Fig. 1: STUDIED ROBOT**, extracted from [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
-![robot presentation](/docs/robot.png)
+![Robotic cell](/docs/1.png)
+![Context under study](/docs/2.png)
 
 ## Folder architecture
 ```shell
-project_root/
-├── data/
-│   ├── gantts/                  # Output folder for generated Gantt charts
-│   ├── instances/
-│   │   ├── test/                # Test datasets (subfolders: s, m, l, xl)
-│   │   └── train/               # Training datasets (subfolders: s, m, l, xl)
-│   └── training/                # Saved RL weights (.pth) and training logs
-├── gantt_builder/
-│   ├── cp_gantt.py              # Visualization for CP solutions
-│   └── gnn_gantt.py             # Visualization for GNN/Heuristic solutions
-├── heuristic/
-│   ├── local_search.py          # Local Search (LS) logic
-│   └── tabu_search.py           # Tabu Search (TS) logic
-├── models/
-│   ├── gnn/
-│   │   ├── basic.py             # Basic GNN architecture
-│   │   └── custom.py            # Custom GNN architecture (QNet, Embeddings)
-│   ├── agent.py                 # DQN Agent implementation
-│   ├── environment.py           # RL Environment wrapper
-│   ├── instance.py              # Data structures (Job, Operation, Instance)
-│   ├── memory.py                # Replay Memory (Experience Replay)
-│   └── state.py                 # State representation (Robot, Machines, Stations)
-├── simulators/
-│   └── gnn_simulator.py         # Step-by-step discrete event simulator
-├── utils/
-│   └── common.py                # Helper functions (device handling, conversions)
-├── conf.py                      # Global configuration (Constants, Hyperparameters)
-├── cp_solver.py                 # Exact Solver (Google OR-Tools)
-├── gnn_solver.py                # Main entry point for GNN training and testing
-├── heuristic_solver.py          # Main entry point for LS and Tabu Search
-├── instance_generator.py        # Script to generate synthetic datasets
-└── README.md
+🗂️ project_root/
+├── 📁 data/
+│   ├── 📁 gantts/                  # Output folder for generated Gantt charts
+│   ├── 📁 instances/
+│   │   ├── 📁 test/                # Test datasets (subfolders: s, m, l, xl)
+│   │   └── 📁 train/               # Training datasets (subfolders: s, m, l, xl)
+│   └── 📁 training/                # Saved RL weights (.pth) and training logs
+├── 📁 gantt_builder/
+│   ├── 📄 cp_gantt.py              # Visualization for CP solutions
+│   └── 📄 gnn_gantt.py             # Visualization for GNN/Heuristic solutions
+├── 📁 heuristic/
+│   ├── 📄 local_search.py          # Local Search (LS) logic
+│   └── 📄 tabu_search.py           # Tabu Search (TS) logic
+├── 📁 models/
+│   ├── 📁 gnn/
+│   │   ├── 📄 basic.py             # Basic GNN architecture
+│   │   └── 📄 custom.py            # Custom GNN architecture (QNet, Embeddings)
+│   ├── 📄 agent.py                 # DQN Agent implementation
+│   ├── 📄 environment.py           # RL Environment wrapper
+│   ├── 📄 instance.py              # Data structures (Job, Operation, Instance)
+│   ├── 📄 memory.py                # Replay Memory (Experience Replay)
+│   └── 📄 state.py                 # State representation (Robot, Machines, Stations)
+├── 📁 simulators/
+│   └── 📄 gnn_simulator.py         # Step-by-step discrete event simulator
+├── 📁 utils/
+│   └── 📑 common.py                # Helper functions (device handling, conversions)
+├── ⚙️ conf.py                      # Global configuration (Constants, Hyperparameters)
+├── ▶️ cp_solver.py                 # Exact Solver (Google OR-Tools)
+├── ▶️ gnn_solver.py                # Main entry point for GNN training and testing
+├── ▶️ heuristic_solver.py          # Main entry point for LS and Tabu Search
+├── ▶️ instance_generator.py        # Script to generate synthetic datasets
+└── 📄 README.md
 ```
 
 ## Test the code
@@ -67,13 +68,14 @@ project_root/
 
     * Solve one problem (OR): `python cp_solver.py --type=test --size=s --id=1 --path=./`
 
-## Proposed approach
-
-### **Fig. 2: AI AGENT OVERVIEW**, extracted from [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
-![approach overview](/docs/overview.png)
-
-### **Fig. 3: GNN MODEL ARCHITECTURE**, extracted from [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
-![GNN architecture](/docs/gnn2.png)
+## Proposed approach (Figures extracted from [Boukamcha et al. (2025)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825))
+![Approach overview](/docs/3.png)
+![Graph representation](/docs/4.png)
+![GNN architecture](/docs/5.png)
+![Simulator](/docs/6.png)
+![Training process](/docs/7.png)
+![Local search](/docs/8.png)
+![Beam decoding](/docs/9.png)
 
 ## Refer to this repository in scientific documents
 BOUKAMCHA, Hedi et al. (2025). A reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot. *GitHub repository: https://github.com/Hedi-Boukamcha/GNRS*.
