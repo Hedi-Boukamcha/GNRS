@@ -1,4 +1,4 @@
-# A reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot
+# A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot
 
 ## Project presentation
 1. This repository in linked to a scientific paper under review, the pre-print is available at: [SSRN pre-print for Robotics and Computer-Integrated Manufacturing (RCIM)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5797825)
@@ -48,6 +48,7 @@
 ├── ▶️ gnn_solver.py                # Main entry point for GNN training and testing
 ├── ▶️ heuristic_solver.py          # Main entry point for LS and Tabu Search
 ├── ▶️ instance_generator.py        # Script to generate synthetic datasets
+├── 📜 LICENSE                      # MIT License
 └── 📄 README.md
 ```
 
@@ -78,13 +79,13 @@
 ![Beam decoding](/docs/9.png)
 
 ## Refer to this repository in scientific documents
-BOUKAMCHA, Hedi et al. (2025). A reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot. *GitHub repository: https://github.com/Hedi-Boukamcha/GNRS*.
+BOUKAMCHA, Hedi et al. (2025). A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot. *GitHub repository: https://github.com/Hedi-Boukamcha/GNRS*.
 
 ```bibtex
     @misc{GNRS25,
-      authors = {BOUKAMCHA, Hedi and NEUMANN, Anas and REKIK, Monia, and HAJJI, Adnene and FARAH, Mohamed},
-      title = {A reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot},
-      year = {2025},
+      authors = {BOUKAMCHA, Hedi and NEUMANN, Anas and REKIK, Monia, and HAJJI, Adnene, CARON GUILLEMETTE, Gabriel, and FARAH, Mohamed},
+      title = {A deep reinforcement learning and a dynamic graph neural network-based scheduling agent to control a multi-task robot},
+      year = {2026},
       publisher = {GitHub},
       journal = {GitHub repository},
       howpublished = {\url{https://github.com/Hedi-Boukamcha/GNRS}},
